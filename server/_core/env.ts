@@ -7,4 +7,11 @@ export const ENV = {
   isProduction: process.env.NODE_ENV === "production",
   forgeApiUrl: process.env.BUILT_IN_FORGE_API_URL ?? "",
   forgeApiKey: process.env.BUILT_IN_FORGE_API_KEY ?? "",
+  // TMA custom integrations
+  tmaStripeSecretKey: process.env.TMA_STRIPE_SECRET_KEY ?? "",
+  resendApiKey: process.env.RESEND_API_KEY ?? "",
+  googleServiceAccountJson: process.env.GOOGLE_SERVICE_ACCOUNT_JSON ?? "",
+  googleSheetsId: process.env.GOOGLE_SHEETS_ID ?? "",
+  slackWebhookUrl: process.env.SLACK_WEBHOOK_URL ?? "",
+  leadNotificationEmail: process.env.LEAD_NOTIFICATION_EMAIL ?? "",
 };

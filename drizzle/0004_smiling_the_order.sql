@@ -1,0 +1,1 @@
+ALTER TABLE `campRegistrations` ADD `futureWeeks` text;

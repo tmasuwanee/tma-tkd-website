@@ -1,5 +1,55 @@
 {
   "version": "7",
   "dialect": "mysql",
-  "entries": []
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1772484997684,
+      "tag": "0000_serious_goblin_queen",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1772555669047,
+      "tag": "0001_complete_power_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1773085298368,
+      "tag": "0002_stale_sleeper",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1773090616370,
+      "tag": "0003_rich_spiral",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1773872389773,
+      "tag": "0004_smiling_the_order",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1775680025437,
+      "tag": "0005_living_jack_power",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1778100466617,
+      "tag": "0006_nice_fallen_one",
+      "breakpoints": true
+    }
+  ]
 }

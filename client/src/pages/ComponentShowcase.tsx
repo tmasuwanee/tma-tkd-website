@@ -171,7 +171,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { toast as sonnerToast } from "sonner";
-import { AIChatBox, type Message } from "@/components/AIChatBox";
+import { AIChatBox } from "@/components/AIChatBox";
 
 export default function ComponentsShowcase() {
   const { theme, toggleTheme } = useTheme();
@@ -187,12 +187,6 @@ export default function ComponentsShowcase() {
   const [dialogInput, setDialogInput] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
 
-  // AI ChatBox demo state
-  const [chatMessages, setChatMessages] = useState<Message[]>([
-    { role: "system", content: "You are a helpful assistant." },
-  ]);
-  const [isChatLoading, setIsChatLoading] = useState(false);
-
   const handleDialogSubmit = () => {
     console.log("Dialog submitted with value:", dialogInput);
     sonnerToast.success("Submitted successfully", {
@@ -207,23 +201,6 @@ export default function ComponentsShowcase() {
       e.preventDefault();
       handleDialogSubmit();
     }
-  };
-
-  const handleChatSend = (content: string) => {
-    // Add user message
-    const newMessages: Message[] = [...chatMessages, { role: "user", content }];
-    setChatMessages(newMessages);
-
-    // Simulate AI response with delay
-    setIsChatLoading(true);
-    setTimeout(() => {
-      const aiResponse: Message = {
-        role: "assistant",
-        content: `This is a **demo response**. In a real app, you would call a tRPC mutation here:\n\n\`\`\`typescript\nconst chatMutation = trpc.ai.chat.useMutation({\n  onSuccess: (response) => {\n    setChatMessages(prev => [...prev, {\n      role: "assistant",\n      content: response.choices[0].message.content\n    }]);\n  }\n});\n\nchatMutation.mutate({ messages: newMessages });\n\`\`\`\n\nYour message was: "${content}"`,
-      };
-      setChatMessages([...newMessages, aiResponse]);
-      setIsChatLoading(false);
-    }, 1500);
   };
 
   return (
@@ -1028,7 +1005,8 @@ export default function ComponentsShowcase() {
                       <DialogHeader>
                         <DialogTitle>Test Input</DialogTitle>
                         <DialogDescription>
-                          Enter some text below. Press Enter to submit (IME composition supported).
+                          Enter some text below. Press Enter to submit (IME
+                          composition supported).
                         </DialogDescription>
                       </DialogHeader>
                       <div className="space-y-4 py-4">
@@ -1038,7 +1016,7 @@ export default function ComponentsShowcase() {
                             id="dialog-input"
                             placeholder="Type something..."
                             value={dialogInput}
-                            onChange={(e) => setDialogInput(e.target.value)}
+                            onChange={e => setDialogInput(e.target.value)}
                             onKeyDown={handleDialogKeyDown}
                             autoFocus
                           />
@@ -1399,26 +1377,19 @@ export default function ComponentsShowcase() {
                 <div className="space-y-4">
                   <div className="text-sm text-muted-foreground">
                     <p>
-                      A ready-to-use chat interface component that integrates with the LLM system.
-                      Features markdown rendering, auto-scrolling, and loading states.
+                      A ready-to-use chat interface component that integrates
+                      with the AI SDK. Features streaming responses, tool
+                      calling, markdown rendering, and auto-scrolling.
                     </p>
                     <p className="mt-2">
-                      This is a demo with simulated responses. In a real app, you'd connect it to a tRPC mutation.
+                      This component uses the /api/chat endpoint with AI SDK v6
+                      for streaming responses.
                     </p>
                   </div>
                   <AIChatBox
-                    messages={chatMessages}
-                    onSendMessage={handleChatSend}
-                    isLoading={isChatLoading}
-                    placeholder="Try sending a message..."
-                    height="500px"
-                    emptyStateMessage="How can I help you today?"
-                    suggestedPrompts={[
-                      "What is React?",
-                      "Explain TypeScript",
-                      "How to use tRPC?",
-                      "Best practices for web development",
-                    ]}
+                    api="/api/chat"
+                    chatId="showcase-demo"
+                    initialMessages={[]}
                   />
                 </div>
               </CardContent>

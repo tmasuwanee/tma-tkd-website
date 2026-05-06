@@ -1,0 +1,15 @@
+# Top Martial Arts Suwanee - robots.txt
+# Allow all search engines to crawl the site
+
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /api
+Disallow: /*.json$
+Disallow: /node_modules
+
+# Sitemap location
+Sitemap: https://tmatkd.com/sitemap.xml
+
+# Crawl delay (optional - allows 1 second between requests)
+Crawl-delay: 1

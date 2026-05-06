@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users } from "../drizzle/schema";
+import { InsertUser, users, leads, InsertLead, campRegistrations, InsertCampRegistration } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -89,4 +89,93 @@ export async function getUserByOpenId(openId: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
-// TODO: add feature queries here as your schema grows.
+export async function createLead(lead: InsertLead) {
+  const db = await getDb();
+  if (!db) {
+    throw new Error("Database not available");
+  }
+
+  try {
+    const result = await db.insert(leads).values(lead);
+    return result;
+  } catch (error) {
+    console.error("[Database] Failed to create lead:", error);
+    throw error;
+  }
+}
+
+export async function getAllLeads() {
+  const db = await getDb();
+  if (!db) {
+    throw new Error("Database not available");
+  }
+
+  try {
+    const result = await db.select().from(leads);
+    return result;
+  } catch (error) {
+    console.error("[Database] Failed to get leads:", error);
+    throw error;
+  }
+}
+
+export async function createCampRegistration(reg: InsertCampRegistration) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(campRegistrations).values(reg);
+  return result;
+}
+
+export async function updateCampRegistrationPayment(
+  paymentIntentId: string,
+  paymentStatus: string
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const updates: Record<string, unknown> = { stripePaymentStatus: paymentStatus };
+  // Mark terms as agreed when payment succeeds (user must agree to terms before paying)
+  if (paymentStatus === "succeeded") {
+    updates.agreedToTerms = 1;
+  }
+  await db
+    .update(campRegistrations)
+    .set(updates)
+    .where(eq(campRegistrations.stripePaymentIntentId, paymentIntentId));
+}
+
+export async function getCampRegistrationById(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select().from(campRegistrations).where(eq(campRegistrations.id, id)).limit(1);
+  return result[0] ?? null;
+}
+
+export async function getCampRegistrationByPaymentIntentId(paymentIntentId: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select().from(campRegistrations).where(eq(campRegistrations.stripePaymentIntentId, paymentIntentId)).limit(1);
+  return result[0] ?? null;
+}
+
+export async function getAllCampRegistrations() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select().from(campRegistrations).orderBy(campRegistrations.createdAt);
+  return result;
+}
+
+export async function softDeleteRegistration(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(campRegistrations)
+    .set({ isDeleted: 1, deletedAt: new Date() })
+    .where(eq(campRegistrations.id, id));
+}
+
+export async function restoreRegistration(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(campRegistrations)
+    .set({ isDeleted: 0, deletedAt: null })
+    .where(eq(campRegistrations.id, id));
+}
