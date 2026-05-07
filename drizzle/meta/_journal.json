@@ -50,6 +50,20 @@
       "when": 1778100466617,
       "tag": "0006_nice_fallen_one",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1778187879827,
+      "tag": "0007_adorable_thanos",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "5",
+      "when": 1778198149837,
+      "tag": "0008_organic_dust",
+      "breakpoints": true
     }
   ]
 }

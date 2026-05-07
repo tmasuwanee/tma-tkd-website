@@ -163,25 +163,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Spring Break Camp Banner */}
-      <section className="bg-[#c41e3a] text-white py-4">
-        <div className="container mx-auto px-4">
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 text-center sm:text-left">
-            <div className="flex items-center gap-2">
-              <span className="text-xl">🥋</span>
-              <span className="font-bold text-lg">Spring Break Camp — April 6–10, 2026</span>
-              <span className="hidden sm:inline text-white/70">|</span>
-              <span className="text-white/90 text-sm">Martial arts, 2 field trips & full-day care for ages 5+</span>
-            </div>
-            <button
-              onClick={() => navigate('/spring-break-camp')}
-              className="bg-white text-[#c41e3a] font-bold text-sm px-4 py-1.5 rounded-full hover:bg-white/90 transition whitespace-nowrap"
-            >
-              Register Now →
-            </button>
-          </div>
-        </div>
-      </section>
 
       {/* About Section */}
       <section id="about" className="py-20 bg-white">
@@ -289,12 +270,6 @@ export default function Home() {
                 image: "https://d2xsxph8kpxj0f.cloudfront.net/310519663276898689/XZyF96feSckHUgem3ipsHV/summer-camps-hero-WdXpwTRnJvTrCZMFGrwwUM.webp",
                 link: "/summer-camps"
               },
-              {
-                title: "Spring Break Camp",
-                description: "April 6–10, 2026 — one action-packed week with 2 field trips, martial arts training, games, and full-day care from 9 AM to 4 PM. Ages 5 and up.",
-                image: "https://d2xsxph8kpxj0f.cloudfront.net/310519663276898689/XZyF96feSckHUgem3ipsHV/summer-camps-hero-WdXpwTRnJvTrCZMFGrwwUM.webp",
-                link: "/spring-break-camp"
-              }
             ].map((program, idx) => (
               <Card key={idx} className="bg-white border-0 shadow-lg overflow-hidden hover:shadow-xl transition">
                 <div className="h-48 overflow-hidden">

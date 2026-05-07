@@ -265,14 +265,14 @@ export async function sendCampRegistrationConfirmation(params: {
           </div>
           <h3 style="color: #1a2d5a;">What's Next?</h3>
           <ul style="line-height: 1.8;">
-            <li>Camp runs <strong>Monday–Friday, 9am–3pm</strong> (Extended care: 7am–6pm)</li>
-            <li>Drop-off at <strong>Top Martial Arts, 4005 Johns Creek Pkwy, Suwanee, GA 30024</strong></li>
+            <li>Camp runs <strong>Monday–Friday, 9am–4pm</strong> (Extended care: 7am–6pm)</li>
+            <li>Drop-off at <strong>Top Martial Arts, 2005 Lawrenceville Suwanee Rd, Suwanee, GA 30024</strong></li>
             <li>Wear comfortable athletic clothing and bring a water bottle and lunch</li>
           </ul>
           <p>Questions? Call us at <strong>(770) 277-3009</strong> or email <a href="mailto:tmasuwanee@gmail.com">tmasuwanee@gmail.com</a></p>
         </div>
         <div style="background: #1a2d5a; padding: 16px; text-align: center;">
-          <p style="color: white; margin: 0; font-size: 12px;">Top Martial Arts Suwanee &bull; 4005 Johns Creek Pkwy, Suwanee, GA 30024 &bull; (770) 277-3009</p>
+          <p style="color: white; margin: 0; font-size: 12px;">Top Martial Arts Suwanee &bull; 2005 Lawrenceville Suwanee Rd, Suwanee, GA 30024 &bull; (770) 277-3009</p>
         </div>
       </div>
     `;

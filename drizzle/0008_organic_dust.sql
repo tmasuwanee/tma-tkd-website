@@ -1,0 +1,1 @@
+ALTER TABLE `campRegistrations` MODIFY COLUMN `programType` enum('3day','5day','daily') NOT NULL;

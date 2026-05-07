@@ -22,3 +22,8 @@
 - [ ] Set GOOGLE_SERVICE_ACCOUNT_JSON in Settings → Secrets (optional)
 - [ ] Set GOOGLE_SHEETS_ID in Settings → Secrets (optional)
 - [ ] Set SLACK_WEBHOOK_URL in Settings → Secrets (optional)
+
+## Testing
+- [ ] Add temporary $0.50 test program option to camp registration
+- [ ] Run live payment test and verify success
+- [ ] Remove $0.50 test option after testing
