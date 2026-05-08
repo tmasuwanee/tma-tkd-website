@@ -34,6 +34,14 @@ export default function FreeClass() {
   const programParam = searchParams.get("program") ?? "";
   const preselectedProgram = PROGRAM_MAP[programParam.toLowerCase()] ?? "";
 
+  // Capture UTM params from Facebook Ads / other campaigns
+  const utmParams = {
+    utmSource:   searchParams.get("utm_source")   ?? undefined,
+    utmMedium:   searchParams.get("utm_medium")   ?? undefined,
+    utmCampaign: searchParams.get("utm_campaign") ?? undefined,
+    utmContent:  searchParams.get("utm_content")  ?? undefined,
+  };
+
   const [formData, setFormData] = useState({
     parentName: "",
     kidName: "",
@@ -82,6 +90,7 @@ export default function FreeClass() {
         email: formData.email,
         phone: formData.phone,
         additionalNotes: formData.additionalNotes || undefined,
+        ...utmParams,
       });
 
       setSubmitted(true);

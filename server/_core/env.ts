@@ -14,4 +14,6 @@ export const ENV = {
   googleSheetsId: process.env.GOOGLE_SHEETS_ID ?? "",
   slackWebhookUrl: process.env.SLACK_WEBHOOK_URL ?? "",
   leadNotificationEmail: process.env.LEAD_NOTIFICATION_EMAIL ?? "",
+  // n8n automation webhook — set N8N_WEBHOOK_URL in Secrets once you create the n8n workflow
+  n8nWebhookUrl: process.env.N8N_WEBHOOK_URL ?? "",
 };

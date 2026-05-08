@@ -36,12 +36,47 @@ export const leads = mysqlTable("leads", {
   email: varchar("email", { length: 320 }).notNull(),
   phone: varchar("phone", { length: 20 }).notNull(),
   additionalNotes: text("additionalNotes"),
+  // Pipeline & CRM fields
+  pipelineStage: mysqlEnum("pipelineStage", [
+    "new_lead",
+    "contacted",
+    "trial_scheduled",
+    "trial_paid",
+    "trial_attended",
+    "enrolled",
+    "lost"
+  ]).default("new_lead").notNull(),
+  trialPaidAmount: int("trialPaidAmount").default(0), // in cents, e.g. 3000 = $30
+  internalNotes: text("internalNotes"), // staff notes, not shown to lead
+  // UTM tracking
+  utmSource: varchar("utmSource", { length: 255 }),   // e.g. facebook, instagram, google
+  utmMedium: varchar("utmMedium", { length: 255 }),   // e.g. cpc, social, email
+  utmCampaign: varchar("utmCampaign", { length: 255 }), // e.g. summer_camp_2026, tkd_kids
+  utmContent: varchar("utmContent", { length: 255 }),  // e.g. ad_variant_a
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 
 export type Lead = typeof leads.$inferSelect;
 export type InsertLead = typeof leads.$inferInsert;
+
+// Students table for ZenPlanner CSV imports (read-only reference)
+export const students = mysqlTable("students", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  email: varchar("email", { length: 320 }),
+  phone: varchar("phone", { length: 20 }),
+  program: varchar("program", { length: 255 }),
+  enrollmentDate: varchar("enrollmentDate", { length: 50 }),
+  beltRank: varchar("beltRank", { length: 100 }),
+  status: varchar("status", { length: 50 }), // active, inactive, etc.
+  emergencyContact: varchar("emergencyContact", { length: 255 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Student = typeof students.$inferSelect;
+export type InsertStudent = typeof students.$inferInsert;
 
 // Summer camp registrations table
 export const campRegistrations = mysqlTable("campRegistrations", {

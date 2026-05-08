@@ -26,7 +26,18 @@ export default function Home() {
 
   const [, navigate] = useLocation();
   const submitLeadMutation = trpc.leads.submit.useMutation();
-  
+
+  // Capture UTM params once on mount
+  const utmParams = (() => {
+    const p = new URLSearchParams(window.location.search);
+    return {
+      utmSource:   p.get("utm_source")   ?? undefined,
+      utmMedium:   p.get("utm_medium")   ?? undefined,
+      utmCampaign: p.get("utm_campaign") ?? undefined,
+      utmContent:  p.get("utm_content")  ?? undefined,
+    };
+  })();
+
   const [formData, setFormData] = useState({
     parentName: "",
     kidName: "",
@@ -68,9 +79,9 @@ export default function Home() {
         motivation: formData.motivation || undefined,
         email: formData.email,
         phone: formData.phone,
-        additionalNotes: formData.additionalNotes || undefined,
+         additionalNotes: formData.additionalNotes || undefined,
+        ...utmParams,
       });
-
       toast.success("Thank you! We'll contact you soon to schedule your free class.");
       
       // Reset form

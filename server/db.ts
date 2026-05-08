@@ -1,6 +1,11 @@
-import { eq } from "drizzle-orm";
+import { eq, desc, or, like } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, leads, InsertLead, campRegistrations, InsertCampRegistration } from "../drizzle/schema";
+import {
+  InsertUser, users,
+  leads, InsertLead, Lead,
+  campRegistrations, InsertCampRegistration,
+  students, InsertStudent,
+} from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -85,39 +90,109 @@ export async function getUserByOpenId(openId: string) {
   }
 
   const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
-
   return result.length > 0 ? result[0] : undefined;
 }
 
-export async function createLead(lead: InsertLead) {
-  const db = await getDb();
-  if (!db) {
-    throw new Error("Database not available");
-  }
+// ─── Leads ───────────────────────────────────────────────────────────────────
 
-  try {
-    const result = await db.insert(leads).values(lead);
-    return result;
-  } catch (error) {
-    console.error("[Database] Failed to create lead:", error);
-    throw error;
+export async function createLead(lead: InsertLead): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [result] = await db.insert(leads).values(lead);
+  // MySQL returns insertId on the raw OkPacket
+  return (result as unknown as { insertId: number }).insertId ?? 0;
+}
+
+export async function getLeadById(id: number): Promise<Lead | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select().from(leads).where(eq(leads.id, id)).limit(1);
+  return result[0] ?? null;
+}
+
+export async function getAllLeads(): Promise<Lead[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(leads).orderBy(desc(leads.createdAt));
+}
+
+export async function updateLeadStage(
+  id: number,
+  stage: Lead["pipelineStage"],
+  trialPaidAmount?: number
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const updateData: Record<string, unknown> = { pipelineStage: stage };
+  if (trialPaidAmount !== undefined) updateData.trialPaidAmount = trialPaidAmount;
+  await db.update(leads).set(updateData).where(eq(leads.id, id));
+}
+
+export async function updateLeadProgram(id: number, programInterest: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(leads).set({ programInterest }).where(eq(leads.id, id));
+}
+
+export async function updateLeadNotes(id: number, internalNotes: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(leads).set({ internalNotes }).where(eq(leads.id, id));
+}
+
+export async function deleteLead(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(leads).where(eq(leads.id, id));
+}
+
+// ─── Students ────────────────────────────────────────────────────────────────
+
+export async function upsertStudents(rows: InsertStudent[]) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  // Clear all existing students and replace with fresh CSV data
+  await db.delete(students);
+  if (rows.length > 0) {
+    // Insert in batches of 100 to avoid query size limits
+    for (let i = 0; i < rows.length; i += 100) {
+      await db.insert(students).values(rows.slice(i, i + 100));
+    }
   }
 }
 
-export async function getAllLeads() {
+export async function getAllStudents() {
   const db = await getDb();
-  if (!db) {
-    throw new Error("Database not available");
-  }
-
-  try {
-    const result = await db.select().from(leads);
-    return result;
-  } catch (error) {
-    console.error("[Database] Failed to get leads:", error);
-    throw error;
-  }
+  if (!db) throw new Error("Database not available");
+  return db.select().from(students).orderBy(students.name);
 }
+
+export async function searchStudents(query: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const q = `%${query}%`;
+  return db.select().from(students).where(
+    or(
+      like(students.name, q),
+      like(students.email, q),
+      like(students.phone, q),
+    )
+  ).orderBy(students.name);
+}
+
+/** Check if an email or name matches an active student */
+export async function isExistingStudent(email: string, name?: string): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  const conditions = [like(students.email, email)];
+  if (name) conditions.push(like(students.name, `%${name}%`));
+  const result = await db.select({ id: students.id }).from(students).where(
+    or(...conditions)
+  ).limit(1);
+  return result.length > 0;
+}
+
+// ─── Camp Registrations ───────────────────────────────────────────────────────
 
 export async function createCampRegistration(reg: InsertCampRegistration) {
   const db = await getDb();
@@ -133,7 +208,6 @@ export async function updateCampRegistrationPayment(
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   const updates: Record<string, unknown> = { stripePaymentStatus: paymentStatus };
-  // Mark terms as agreed when payment succeeds (user must agree to terms before paying)
   if (paymentStatus === "succeeded") {
     updates.agreedToTerms = 1;
   }

@@ -3,7 +3,13 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
 import { z } from "zod";
-import { createLead, createCampRegistration, updateCampRegistrationPayment, getCampRegistrationById, getCampRegistrationByPaymentIntentId, getAllCampRegistrations, softDeleteRegistration, restoreRegistration } from "./db";
+import {
+  createLead, getLeadById, getAllLeads, updateLeadStage, updateLeadProgram, updateLeadNotes, deleteLead,
+  createCampRegistration, updateCampRegistrationPayment,
+  getCampRegistrationByPaymentIntentId, getAllCampRegistrations,
+  softDeleteRegistration, restoreRegistration,
+  upsertStudents, getAllStudents, searchStudents,
+} from "./db";
 import { sendToGoogleSheets, sendToSlack, sendEmailNotification, sendCampRegistrationConfirmation } from "./integrations";
 import Stripe from "stripe";
 import { ENV } from "./_core/env";
@@ -12,6 +18,53 @@ function getStripe() {
   return new Stripe(ENV.tmaStripeSecretKey);
 }
 
+// ─── n8n Webhook ─────────────────────────────────────────────────────────────
+// Fires async (non-blocking) so a slow/offline n8n never delays lead submission.
+// Set N8N_WEBHOOK_URL in Secrets to activate. Payload matches what n8n needs
+// for Facebook Ads attribution and pipeline routing.
+async function fireN8nWebhook(payload: {
+  leadId: number;
+  name: string;
+  email: string;
+  phone: string;
+  programInterest: string;
+  utmSource: string | null;
+  utmMedium: string | null;
+  utmCampaign: string | null;
+  utmContent: string | null;
+  timestamp: string;
+}) {
+  const url = ENV.n8nWebhookUrl;
+  if (!url) return; // no-op until URL is configured
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(8000), // 8s timeout
+    });
+    if (!res.ok) {
+      console.warn(`[n8n] Webhook responded with ${res.status}`);
+    }
+  } catch (err) {
+    // Never throw — n8n being down must not affect lead submission
+    console.warn("[n8n] Webhook fire failed (non-fatal):", err);
+  }
+}
+
+// Pipeline stage labels for display
+export const PIPELINE_STAGES = [
+  { value: "new_lead",        label: "New Lead" },
+  { value: "contacted",       label: "Contacted" },
+  { value: "trial_scheduled", label: "Trial Scheduled" },
+  { value: "trial_paid",      label: "Trial Paid ($30)" },
+  { value: "trial_attended",  label: "Trial Attended" },
+  { value: "enrolled",        label: "Enrolled" },
+  { value: "lost",            label: "Lost" },
+] as const;
+
+export type PipelineStage = typeof PIPELINE_STAGES[number]["value"];
+
 export const appRouter = router({
   system: systemRouter,
   auth: router({
@@ -19,32 +72,26 @@ export const appRouter = router({
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
-      return {
-        success: true,
-      } as const;
+      return { success: true } as const;
     }),
   }),
 
+  // ─── Camp Registration ───────────────────────────────────────────────────
   camp: router({
-    // Create a payment intent and save registration
     createRegistration: publicProcedure
       .input(z.object({
-        // Camper 1
         camper1Name: z.string().min(1),
         camper1Dob: z.string().min(1),
         camper1Age: z.string().min(1),
         camper1Sex: z.string().min(1),
-        // Camper 2 (optional)
         camper2Name: z.string().optional(),
         camper2Dob: z.string().optional(),
         camper2Age: z.string().optional(),
         camper2Sex: z.string().optional(),
-        // Camper 3 (optional)
         camper3Name: z.string().optional(),
         camper3Dob: z.string().optional(),
         camper3Age: z.string().optional(),
         camper3Sex: z.string().optional(),
-        // Parent info
         parentFirstName: z.string().min(1),
         parentLastName: z.string().min(1),
         email: z.string().email(),
@@ -54,7 +101,6 @@ export const appRouter = router({
         state: z.string().min(1),
         zip: z.string().min(1),
         howDidYouHear: z.string().optional(),
-        // Program
         programType: z.enum(["3day", "5day", "daily"]),
         numCampers: z.number().min(1).max(3),
         addFieldTrip: z.boolean(),
@@ -66,8 +112,6 @@ export const appRouter = router({
       }))
       .mutation(async ({ input }) => {
         const stripe = getStripe();
-
-        // Create Stripe PaymentIntent
         const paymentIntent = await stripe.paymentIntents.create({
           amount: input.amountCents,
           currency: "usd",
@@ -79,7 +123,6 @@ export const appRouter = router({
           },
         });
 
-        // Save registration to DB
         await createCampRegistration({
           camper1Name: input.camper1Name,
           camper1Dob: input.camper1Dob,
@@ -121,20 +164,13 @@ export const appRouter = router({
         };
       }),
 
-    // Confirm payment after Stripe processes it
     confirmPayment: publicProcedure
-      .input(z.object({
-        paymentIntentId: z.string(),
-      }))
+      .input(z.object({ paymentIntentId: z.string() }))
       .mutation(async ({ input }) => {
         const stripe = getStripe();
         const paymentIntent = await stripe.paymentIntents.retrieve(input.paymentIntentId);
-        await updateCampRegistrationPayment(
-          input.paymentIntentId,
-          paymentIntent.status
-        );
+        await updateCampRegistrationPayment(input.paymentIntentId, paymentIntent.status);
 
-        // Send confirmation email to parent if payment succeeded
         if (paymentIntent.status === 'succeeded') {
           try {
             const registration = await getCampRegistrationByPaymentIntentId(input.paymentIntentId);
@@ -159,6 +195,7 @@ export const appRouter = router({
       }),
   }),
 
+  // ─── Admin (Camp Registrations) ──────────────────────────────────────────
   admin: router({
     getCampRegistrations: publicProcedure
       .query(async () => {
@@ -202,7 +239,9 @@ export const appRouter = router({
       }),
   }),
 
+  // ─── Leads / CRM Pipeline ────────────────────────────────────────────────
   leads: router({
+    // Public: submit a new free-class inquiry
     submit: publicProcedure
       .input(z.object({
         parentName: z.string().min(1),
@@ -213,10 +252,15 @@ export const appRouter = router({
         email: z.string().email(),
         phone: z.string().min(1),
         additionalNotes: z.string().optional(),
+        // UTM tracking
+        utmSource: z.string().optional(),
+        utmMedium: z.string().optional(),
+        utmCampaign: z.string().optional(),
+        utmContent: z.string().optional(),
       }))
       .mutation(async ({ input }) => {
         try {
-          const lead = await createLead({
+          const newLeadId = await createLead({
             parentName: input.parentName,
             kidName: input.kidName,
             kidAge: input.kidAge,
@@ -225,10 +269,13 @@ export const appRouter = router({
             email: input.email,
             phone: input.phone,
             additionalNotes: input.additionalNotes,
+            utmSource: input.utmSource,
+            utmMedium: input.utmMedium,
+            utmCampaign: input.utmCampaign,
+            utmContent: input.utmContent,
           });
 
-          // Send to integrations
-          const createdLead = {
+          const leadForIntegrations = {
             id: 0,
             parentName: input.parentName,
             kidName: input.kidName,
@@ -238,15 +285,34 @@ export const appRouter = router({
             email: input.email,
             phone: input.phone,
             additionalNotes: input.additionalNotes ?? null,
+            pipelineStage: "new_lead" as const,
+            trialPaidAmount: 0,
+            internalNotes: null,
+            utmSource: input.utmSource ?? null,
+            utmMedium: input.utmMedium ?? null,
+            utmCampaign: input.utmCampaign ?? null,
+            utmContent: input.utmContent ?? null,
             createdAt: new Date(),
             updatedAt: new Date(),
           };
 
-          // Send to all integrations in parallel
+          // Fire n8n webhook async (non-blocking) — does not delay lead submission
+          void fireN8nWebhook({
+            leadId: newLeadId,
+            name: input.parentName,
+            email: input.email,
+            phone: input.phone,
+            programInterest: input.programInterest,
+            utmSource: input.utmSource ?? null,
+            utmMedium: input.utmMedium ?? null,
+            utmCampaign: input.utmCampaign ?? null,
+            utmContent: input.utmContent ?? null,
+            timestamp: new Date().toISOString(),
+          });
           await Promise.all([
-            sendToGoogleSheets(createdLead),
-            sendToSlack(createdLead),
-            sendEmailNotification(createdLead),
+            sendToGoogleSheets(leadForIntegrations),
+            sendToSlack(leadForIntegrations),
+            sendEmailNotification(leadForIntegrations),
           ]);
 
           return {
@@ -258,8 +324,89 @@ export const appRouter = router({
           throw new Error("Failed to submit lead. Please try again.");
         }
       }),
+
+    // Admin: get all leads
+    getAll: publicProcedure.query(async () => {
+      return getAllLeads();
+    }),
+
+    // Admin: update pipeline stage
+    updateStage: publicProcedure
+      .input(z.object({
+        id: z.number(),
+        stage: z.enum(["new_lead", "contacted", "trial_scheduled", "trial_paid", "trial_attended", "enrolled", "lost"]),
+        trialPaidAmount: z.number().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        await updateLeadStage(input.id, input.stage, input.trialPaidAmount);
+        return { success: true };
+      }),
+
+    // Admin: update program interest
+    updateProgram: publicProcedure
+      .input(z.object({
+        id: z.number(),
+        programInterest: z.string().min(1),
+      }))
+      .mutation(async ({ input }) => {
+        await updateLeadProgram(input.id, input.programInterest);
+        return { success: true };
+      }),
+
+    // Admin: update internal notes
+    updateNotes: publicProcedure
+      .input(z.object({
+        id: z.number(),
+        internalNotes: z.string(),
+      }))
+      .mutation(async ({ input }) => {
+        await updateLeadNotes(input.id, input.internalNotes);
+        return { success: true };
+      }),
+
+    // Admin: delete a lead
+    delete: publicProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await deleteLead(input.id);
+        return { success: true };
+      }),
+  }),
+
+  // ─── Students (ZenPlanner CSV import) ────────────────────────────────────
+  students: router({
+    // Admin: replace all students from CSV data
+    import: publicProcedure
+      .input(z.object({
+        rows: z.array(z.object({
+          name: z.string(),
+          email: z.string().optional(),
+          phone: z.string().optional(),
+          program: z.string().optional(),
+          enrollmentDate: z.string().optional(),
+          beltRank: z.string().optional(),
+          status: z.string().optional(),
+          emergencyContact: z.string().optional(),
+        })),
+      }))
+      .mutation(async ({ input }) => {
+        await upsertStudents(input.rows);
+        return { success: true, count: input.rows.length };
+      }),
+
+    // Admin: get all students
+    getAll: publicProcedure.query(async () => {
+      return getAllStudents();
+    }),
+
+    // Admin: search students
+    search: publicProcedure
+      .input(z.object({ query: z.string() }))
+      .query(async ({ input }) => {
+        if (!input.query.trim()) return getAllStudents();
+        return searchStudents(input.query);
+      }),
   }),
 });
 
 export type AppRouter = typeof appRouter;
-
