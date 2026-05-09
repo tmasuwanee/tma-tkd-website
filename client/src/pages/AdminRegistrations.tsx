@@ -19,12 +19,13 @@ import {
 import {
   Loader2, Users, DollarSign, CheckCircle, Clock, XCircle,
   Trash2, RotateCcw, Calendar, Eye, EyeOff, LogOut,
-  LayoutDashboard, Kanban, GraduationCap,
+  LayoutDashboard, Kanban, GraduationCap, BarChart2,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import LeadsPipeline from "@/components/admin/LeadsPipeline";
 import StudentsRoster from "@/components/admin/StudentsRoster";
+import AdsInsightsDashboard from "@/components/admin/AdsInsightsDashboard";
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
@@ -391,6 +392,7 @@ const TABS = [
   { id: "registrations", label: "Camp Registrations", icon: LayoutDashboard },
   { id: "pipeline",      label: "Leads Pipeline",     icon: Kanban },
   { id: "students",      label: "Students",            icon: GraduationCap },
+  { id: "ads",           label: "Ad Performance",      icon: BarChart2 },
 ] as const;
 
 type TabId = typeof TABS[number]["id"];
@@ -457,6 +459,7 @@ export default function AdminRegistrations() {
         {activeTab === "registrations" && <CampRegistrationsTab />}
         {activeTab === "pipeline"      && <LeadsPipeline />}
         {activeTab === "students"      && <StudentsRoster />}
+        {activeTab === "ads"           && <AdsInsightsDashboard />}
       </div>
     </div>
   );

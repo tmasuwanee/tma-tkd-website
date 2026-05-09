@@ -5,6 +5,8 @@ import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
 import { registerApiRoutes } from "../api-routes";
+import type { Request, Response } from "express";
+import { syncAdInsights } from "../facebook-ads";
 import { registerStorageProxy } from "./storageProxy";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
@@ -38,6 +40,21 @@ async function startServer() {
   registerStorageProxy(app);
   registerOAuthRoutes(app);
   registerApiRoutes(app);
+
+  // ─── Scheduled: daily Facebook ad insights sync ──────────────────────────
+  // Triggered by a Heartbeat cron (project-level, §4a).
+  // The platform restricts /api/scheduled/* to cron callers only.
+  app.post("/api/scheduled/sync-fb-ads", async (req: Request, res: Response) => {
+    try {
+      const result = await syncAdInsights(7);
+      console.log("[Heartbeat] sync-fb-ads:", result);
+      res.json({ ok: true, ...result });
+    } catch (err) {
+      console.error("[Heartbeat] sync-fb-ads error:", err);
+      res.status(500).json({ error: String(err) });
+    }
+  });
+
   // tRPC API
   app.use(
     "/api/trpc",

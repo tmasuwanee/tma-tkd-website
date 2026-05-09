@@ -12,6 +12,7 @@ import {
 } from "./db";
 import { sendToGoogleSheets, sendToSlack, sendEmailNotification, sendCampRegistrationConfirmation } from "./integrations";
 import { fireLeadEvent, firePurchaseEvent } from "./meta-capi";
+import { getAdInsights, syncAdInsights } from "./facebook-ads";
 import Stripe from "stripe";
 import { ENV } from "./_core/env";
 
@@ -431,7 +432,21 @@ export const appRouter = router({
         if (!input.query.trim()) return getAllStudents();
         return searchStudents(input.query);
       }),
+   }),
+  // ─── Facebook Ad Insights ─────────────────────────────────────────────────
+  ads: router({
+    // Get stored ad insights for the last N days
+    getInsights: publicProcedure
+      .input(z.object({ days: z.number().min(1).max(90).default(7) }))
+      .query(async ({ input }) => {
+        return getAdInsights(input.days);
+      }),
+    // Manually trigger a sync from Facebook Marketing API
+    sync: publicProcedure
+      .input(z.object({ days: z.number().min(1).max(30).default(7) }))
+      .mutation(async ({ input }) => {
+        return syncAdInsights(input.days);
+      }),
   }),
 });
-
 export type AppRouter = typeof appRouter;

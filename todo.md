@@ -54,11 +54,11 @@
 - [x] Create facebook_ad_insights table in MySQL (with unique index on date+adId)
 - [x] Build Facebook Marketing API pull helper (syncAdInsights) and store in facebook_ad_insights
 - [x] Build GET /api/ads/insights?days=N endpoint (registered in Express)
-- [ ] Write vitest tests for CAPI and insights endpoints (pending — secrets not yet set)
+- [ ] Write vitest tests for CAPI and insights endpoints (pending — add secrets first)
 - [ ] Set FACEBOOK_PIXEL_ID in Settings → Secrets
 - [ ] Set FACEBOOK_CAPI_TOKEN in Settings → Secrets
 - [ ] Set FACEBOOK_MARKETING_API_TOKEN in Settings → Secrets
 - [ ] Set FACEBOOK_AD_ACCOUNT_ID in Settings → Secrets
 - [ ] Set LEAD_NOTIFICATION_EMAIL in Settings → Secrets
-- [ ] Facebook Ads performance dashboard UI in admin panel (backend ready, UI not yet built)
-- [ ] Daily cron job to auto-sync Facebook ad insights (syncAdInsights built, not yet scheduled)
+- [x] Facebook Ads performance dashboard UI in admin panel (Ad Performance tab in admin)
+- [x] Daily cron job handler at /api/scheduled/sync-fb-ads (deploy site, then run manus-heartbeat create to activate)
