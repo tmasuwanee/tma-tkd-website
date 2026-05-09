@@ -1,5 +1,6 @@
 import { eq, desc, or, like } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
+import mysql from "mysql2";
 import {
   InsertUser, users,
   leads, InsertLead, Lead,
@@ -9,15 +10,20 @@ import {
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
+let _pool: ReturnType<typeof mysql.createPool> | null = null;
 
 // Lazily create the drizzle instance so local tooling can run without a DB.
 export async function getDb() {
-  if (!_db && process.env.DATABASE_URL) {
+  const dsn = ENV.databaseUrl || process.env.DATABASE_URL;
+  if (!_db && dsn) {
     try {
-      _db = drizzle(process.env.DATABASE_URL);
+      _pool = _pool ?? mysql.createPool(dsn);
+      _db = drizzle(_pool);
+      console.log("[Database] Connected via mysql2 pool");
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;
+      _pool = null;
     }
   }
   return _db;

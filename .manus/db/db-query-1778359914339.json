@@ -1,0 +1,14 @@
+{
+  "query": "SELECT MAX(id) as maxId, COUNT(*) as total FROM leads;\nSELECT id, parentName, email, createdAt FROM leads WHERE createdAt >= '2026-05-09' ORDER BY id DESC;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3SwZhQGwFybjoYh.root --database cXp7keMiYsMkePUngpTNmV --execute SELECT MAX(id) as maxId, COUNT(*) as total FROM leads;\nSELECT id, parentName, email, createdAt FROM leads WHERE createdAt >= '2026-05-09' ORDER BY id DESC;",
+  "rows": [
+    {
+      "maxId": "180002",
+      "total": "8"
+    }
+  ],
+  "messages": [],
+  "stdout": "maxId\ttotal\n180002\t8\n",
+  "stderr": "",
+  "execution_time_ms": 392
+}
