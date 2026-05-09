@@ -1,9 +1,18 @@
 import { describe, it, expect } from "vitest";
 
 /**
- * Validates that N8N_WEBHOOK_URL is configured and the n8n endpoint responds.
- * The test sends a test payload and expects a 2xx response from n8n.
- * If the env var is not set, the test is skipped gracefully.
+ * Validates that N8N_WEBHOOK_URL is configured correctly.
+ *
+ * The live HTTP call is intentionally skipped in automated test runs to avoid
+ * triggering real n8n workflows (which send staff notification emails) on every
+ * `pnpm test` invocation. If you need to manually verify n8n connectivity, run:
+ *
+ *   N8N_LIVE_TEST=1 pnpm test server/n8n.webhook.test.ts
+ *
+ * If the env var is not set, both tests are skipped gracefully.
+ *
+ * Note: any test payload that does reach n8n uses tmasuwanee@gmail.com so that
+ * accidental live fires land in the right inbox instead of bouncing.
  */
 describe("n8n Webhook", () => {
   it("N8N_WEBHOOK_URL is set in environment", () => {
@@ -16,17 +25,28 @@ describe("n8n Webhook", () => {
     expect(url).toContain("n8n.arfaconsults.com");
   });
 
-  it("n8n webhook endpoint accepts a test lead payload", async () => {
+  it("n8n webhook endpoint accepts a test lead payload (live, opt-in only)", async () => {
     const url = process.env.N8N_WEBHOOK_URL;
     if (!url) {
       console.warn("[n8n test] N8N_WEBHOOK_URL not set — skipping connectivity check");
       return;
     }
 
+    // Skip the live HTTP call unless explicitly opted in with N8N_LIVE_TEST=1.
+    // This prevents triggering real n8n workflows (and downstream emails) on
+    // every automated test run.
+    if (!process.env.N8N_LIVE_TEST) {
+      console.log("[n8n test] Skipping live HTTP call (set N8N_LIVE_TEST=1 to enable)");
+      expect(url).toMatch(/^https?:\/\//); // still assert URL is well-formed
+      return;
+    }
+
     const testPayload = {
       leadId: 0,
       name: "Test Lead",
-      email: "test@example.com",
+      // Use the real staff inbox so any accidental live fires go to the right
+      // place instead of bouncing off a non-existent domain.
+      email: "tmasuwanee@gmail.com",
       phone: "770-000-0000",
       programInterest: "taekwondo",
       utmSource: "test",
