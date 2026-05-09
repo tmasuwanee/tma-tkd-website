@@ -11,6 +11,7 @@ import {
   upsertStudents, getAllStudents, searchStudents,
 } from "./db";
 import { sendToGoogleSheets, sendToSlack, sendEmailNotification, sendCampRegistrationConfirmation } from "./integrations";
+import { fireLeadEvent, firePurchaseEvent } from "./meta-capi";
 import Stripe from "stripe";
 import { ENV } from "./_core/env";
 
@@ -296,6 +297,18 @@ export const appRouter = router({
             updatedAt: new Date(),
           };
 
+          // Fire Meta CAPI Lead event async (non-blocking)
+          void fireLeadEvent({
+            leadId: newLeadId,
+            name: input.parentName,
+            email: input.email,
+            phone: input.phone,
+            programInterest: input.programInterest,
+            utmSource: input.utmSource,
+            utmMedium: input.utmMedium,
+            utmCampaign: input.utmCampaign,
+            utmContent: input.utmContent,
+          });
           // Fire n8n webhook async (non-blocking) — does not delay lead submission
           void fireN8nWebhook({
             leadId: newLeadId,
@@ -339,6 +352,18 @@ export const appRouter = router({
       }))
       .mutation(async ({ input }) => {
         await updateLeadStage(input.id, input.stage, input.trialPaidAmount);
+        // Fire Meta CAPI Purchase event when lead is marked as enrolled
+        if (input.stage === 'enrolled') {
+          const lead = await getLeadById(input.id);
+          if (lead) {
+            const TUITION: Record<string, number> = {
+              taekwondo: 159, bjj: 159, kickboxing: 149,
+              afterschool: 299, multiple: 199, summer_camp: 239,
+            };
+            const value = TUITION[lead.programInterest] ?? 159;
+            void firePurchaseEvent({ leadId: lead.id, email: lead.email, phone: lead.phone, valueUsd: value });
+          }
+        }
         return { success: true };
       }),
 

@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
+import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, uniqueIndex } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -131,3 +131,26 @@ export const campRegistrations = mysqlTable("campRegistrations", {
 
 export type CampRegistration = typeof campRegistrations.$inferSelect;
 export type InsertCampRegistration = typeof campRegistrations.$inferInsert;
+// ─── Facebook Ad Insights ─────────────────────────────────────────────────────
+// Stores daily snapshots pulled from the Facebook Marketing API.
+// Queried by Claude/Codex and the /api/ads/insights endpoint.
+export const facebookAdInsights = mysqlTable("facebook_ad_insights", {
+  id: int("id").autoincrement().primaryKey(),
+  date: varchar("date", { length: 10 }).notNull(),          // YYYY-MM-DD
+  campaignId: varchar("campaignId", { length: 64 }),
+  campaignName: varchar("campaignName", { length: 255 }),
+  adsetId: varchar("adsetId", { length: 64 }),
+  adsetName: varchar("adsetName", { length: 255 }),
+  adId: varchar("adId", { length: 64 }),
+  adName: varchar("adName", { length: 255 }),
+  spend: varchar("spend", { length: 32 }).default("0"),     // stored as string from API
+  impressions: int("impressions").default(0),
+  clicks: int("clicks").default(0),
+  leads: int("leads").default(0),
+  costPerLead: varchar("costPerLead", { length: 32 }).default("0"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  dateAdIdx: uniqueIndex("date_ad_idx").on(table.date, table.adId),
+}));
+export type FacebookAdInsight = typeof facebookAdInsights.$inferSelect;
+export type InsertFacebookAdInsight = typeof facebookAdInsights.$inferInsert;

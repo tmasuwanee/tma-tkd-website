@@ -1,0 +1,1 @@
+ALTER TABLE `facebook_ad_insights` ADD CONSTRAINT `date_ad_idx` UNIQUE(`date`,`adId`);

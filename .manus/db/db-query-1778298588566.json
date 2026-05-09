@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE `facebook_ad_insights` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`date` varchar(10) NOT NULL,\n\t`campaignId` varchar(64),\n\t`campaignName` varchar(255),\n\t`adsetId` varchar(64),\n\t`adsetName` varchar(255),\n\t`adId` varchar(64),\n\t`adName` varchar(255),\n\t`spend` varchar(32) DEFAULT '0',\n\t`impressions` int DEFAULT 0,\n\t`clicks` int DEFAULT 0,\n\t`leads` int DEFAULT 0,\n\t`costPerLead` varchar(32) DEFAULT '0',\n\t`createdAt` timestamp NOT NULL DEFAULT (now()),\n\tCONSTRAINT `facebook_ad_insights_id` PRIMARY KEY(`id`)\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3SwZhQGwFybjoYh.root --database cXp7keMiYsMkePUngpTNmV --execute CREATE TABLE `facebook_ad_insights` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`date` varchar(10) NOT NULL,\n\t`campaignId` varchar(64),\n\t`campaignName` varchar(255),\n\t`adsetId` varchar(64),\n\t`adsetName` varchar(255),\n\t`adId` varchar(64),\n\t`adName` varchar(255),\n\t`spend` varchar(32) DEFAULT '0',\n\t`impressions` int DEFAULT 0,\n\t`clicks` int DEFAULT 0,\n\t`leads` int DEFAULT 0,\n\t`costPerLead` varchar(32) DEFAULT '0',\n\t`createdAt` timestamp NOT NULL DEFAULT (now()),\n\tCONSTRAINT `facebook_ad_insights_id` PRIMARY KEY(`id`)\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 392
+}

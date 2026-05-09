@@ -71,6 +71,20 @@
       "when": 1778276302806,
       "tag": "0009_reflective_sir_ram",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1778298578869,
+      "tag": "0010_low_slipstream",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "5",
+      "when": 1778298635511,
+      "tag": "0011_unusual_black_crow",
+      "breakpoints": true
     }
   ]
 }

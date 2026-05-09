@@ -45,3 +45,20 @@
 - [x] fireN8nWebhook helper fires on every new lead submission
 - [x] Payload includes: name, email, phone, programInterest, utmSource, utmCampaign, utmMedium, utmContent, timestamp, leadId
 - [x] Webhook fires async (non-blocking) so lead submission never fails if n8n is down
+
+## Meta Conversions API & Ad Insights
+- [x] Add FACEBOOK_PIXEL_ID, FACEBOOK_CAPI_TOKEN, FACEBOOK_MARKETING_API_TOKEN, FACEBOOK_AD_ACCOUNT_ID to env.ts (user to add values in Secrets)
+- [x] Build Meta CAPI helper: fire Lead event on new lead submit (with dedup event_id)
+- [x] Build Meta CAPI helper: fire Purchase event when lead stage moves to Enrolled
+- [x] Build GET /api/leads/:leadId/status endpoint for n8n
+- [x] Create facebook_ad_insights table in MySQL (with unique index on date+adId)
+- [x] Build Facebook Marketing API pull helper (syncAdInsights) and store in facebook_ad_insights
+- [x] Build GET /api/ads/insights?days=N endpoint (registered in Express)
+- [ ] Write vitest tests for CAPI and insights endpoints (pending — secrets not yet set)
+- [ ] Set FACEBOOK_PIXEL_ID in Settings → Secrets
+- [ ] Set FACEBOOK_CAPI_TOKEN in Settings → Secrets
+- [ ] Set FACEBOOK_MARKETING_API_TOKEN in Settings → Secrets
+- [ ] Set FACEBOOK_AD_ACCOUNT_ID in Settings → Secrets
+- [ ] Set LEAD_NOTIFICATION_EMAIL in Settings → Secrets
+- [ ] Facebook Ads performance dashboard UI in admin panel (backend ready, UI not yet built)
+- [ ] Daily cron job to auto-sync Facebook ad insights (syncAdInsights built, not yet scheduled)
