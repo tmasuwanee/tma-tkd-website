@@ -20,6 +20,12 @@ const stripePromise = loadStripe(import.meta.env.VITE_TMA_STRIPE_PUBLISHABLE_KEY
 const EARLY_BIRD_DEADLINE = new Date("2026-04-30T23:59:59");
 const isEarlyBird = () => new Date() <= EARLY_BIRD_DEADLINE;
 
+// Valid coupon codes and what they unlock
+const COUPON_CODES: Record<string, { label: string; type: "earlybird" }> = {
+  EARLYBIRD2026: { label: "Early Registration Discount", type: "earlybird" },
+  TMAEARLYBIRD: { label: "Early Registration Discount", type: "earlybird" },
+};
+
 // Pricing constants
 const PRICING = {
   regular: {
@@ -36,8 +42,9 @@ const PRICING = {
   extendedCare: 25_00,  // Early drop-off + late pickup bundled together
 };
 
-function getProgramPrice(programType: "3day" | "5day" | "daily") {
-  return isEarlyBird() ? PRICING.earlyBird[programType] : PRICING.regular[programType];
+function getProgramPrice(programType: "3day" | "5day" | "daily", couponApplied = false) {
+  const useDiscount = isEarlyBird() || couponApplied;
+  return useDiscount ? PRICING.earlyBird[programType] : PRICING.regular[programType];
 }
 
 const CAMP_WEEKS_2026 = [
@@ -78,6 +85,8 @@ interface FormData {
   selectedWeeks: string[];
   futureWeeks: string[];
   agreedToTerms: boolean;
+  couponCode: string;
+  couponApplied: boolean;
 }
 
 function formatCurrency(cents: number) {
@@ -87,7 +96,16 @@ function formatCurrency(cents: number) {
 function calculateTotal(data: FormData): number {
   const numCampers = data.campers.filter(c => c.name.trim()).length || 1;
   const numWeeks = data.programType === "daily" ? 1 : Math.max(data.selectedWeeks.length, 1);
-  let base = getProgramPrice(data.programType) * numCampers * numWeeks;
+  let base = getProgramPrice(data.programType, data.couponApplied) * numCampers * numWeeks;
+  if (data.addFieldTrip) base += PRICING.fieldTrip * numCampers * numWeeks;
+  if (data.addExtendedCare) base += PRICING.extendedCare * numWeeks;
+  return base;
+}
+
+function calculateRegularTotal(data: FormData): number {
+  const numCampers = data.campers.filter(c => c.name.trim()).length || 1;
+  const numWeeks = data.programType === "daily" ? 1 : Math.max(data.selectedWeeks.length, 1);
+  let base = PRICING.regular[data.programType] * numCampers * numWeeks;
   if (data.addFieldTrip) base += PRICING.fieldTrip * numCampers * numWeeks;
   if (data.addExtendedCare) base += PRICING.extendedCare * numWeeks;
   return base;
@@ -310,6 +328,26 @@ function Step2({ data, onChange, onNext, onBack }: { data: FormData; onChange: (
 function Step3({ data, onChange, onNext, onBack }: { data: FormData; onChange: (d: FormData) => void; onNext: () => void; onBack: () => void }) {
   const numCampers = data.campers.filter(c => c.name.trim()).length || 1;
   const total = calculateTotal(data);
+  const regularTotal = calculateRegularTotal(data);
+  const [couponInput, setCouponInput] = useState(data.couponCode);
+  const [couponError, setCouponError] = useState("");
+
+  const applyCoupon = () => {
+    const code = couponInput.trim().toUpperCase();
+    if (COUPON_CODES[code]) {
+      onChange({ ...data, couponCode: code, couponApplied: true });
+      setCouponError("");
+    } else {
+      setCouponError("Invalid coupon code. Please try again.");
+      onChange({ ...data, couponCode: "", couponApplied: false });
+    }
+  };
+
+  const removeCoupon = () => {
+    setCouponInput("");
+    setCouponError("");
+    onChange({ ...data, couponCode: "", couponApplied: false });
+  };
 
   const toggleWeek = (week: string) => {
     const weeks = data.selectedWeeks.includes(week)
@@ -477,6 +515,39 @@ function Step3({ data, onChange, onNext, onBack }: { data: FormData; onChange: (
         </Card>
       )}
 
+      {/* Coupon Code */}
+      <Card className="border-2 border-gray-200">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Coupon Code (Optional)</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {data.couponApplied ? (
+            <div className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-lg">
+              <div className="flex items-center gap-2 text-green-700">
+                <CheckCircle2 className="w-5 h-5" />
+                <span className="font-semibold">{data.couponCode}</span>
+                <span className="text-sm">— {COUPON_CODES[data.couponCode]?.label} applied!</span>
+              </div>
+              <button onClick={removeCoupon} className="text-sm text-gray-500 hover:text-red-600 underline">Remove</button>
+            </div>
+          ) : (
+            <div className="flex gap-2">
+              <Input
+                placeholder="Enter coupon code"
+                value={couponInput}
+                onChange={e => { setCouponInput(e.target.value); setCouponError(""); }}
+                onKeyDown={e => e.key === "Enter" && applyCoupon()}
+                className="uppercase placeholder:normal-case"
+              />
+              <Button onClick={applyCoupon} variant="outline" className="shrink-0 bg-[#1a2d5a] text-white hover:bg-[#1a2d5a]/90 border-[#1a2d5a]">
+                Apply
+              </Button>
+            </div>
+          )}
+          {couponError && <p className="text-red-600 text-sm mt-2">{couponError}</p>}
+        </CardContent>
+      </Card>
+
       {/* Price Summary */}
       <Card className="border-2 border-[#c41e3a] bg-[#c41e3a]/5">
         <CardContent className="pt-4">
@@ -487,12 +558,24 @@ function Step3({ data, onChange, onNext, onBack }: { data: FormData; onChange: (
                 {data.programType !== "daily" && ` × ${numCampers} camper${numCampers > 1 ? "s" : ""} × ${numWeeks} week${numWeeks > 1 ? "s" : ""}`}
                 {data.programType === "daily" && ` × ${numCampers} camper${numCampers > 1 ? "s" : ""}`}
               </span>
-              <span>{formatCurrency(getProgramPrice(data.programType) * numCampers * (data.programType === "daily" ? 1 : numWeeks))}</span>
+              <span>{formatCurrency(getProgramPrice(data.programType, data.couponApplied) * numCampers * (data.programType === "daily" ? 1 : numWeeks))}</span>
             </div>
             {data.addFieldTrip && <div className="flex justify-between"><span>Field Trip Fee × {numCampers}{data.programType !== "daily" && numWeeks > 1 ? ` × ${numWeeks} wks` : ""}</span><span>{formatCurrency(PRICING.fieldTrip * numCampers * (data.programType === "daily" ? 1 : numWeeks))}</span></div>}
             {data.addExtendedCare && <div className="flex justify-between"><span>Early Drop-Off &amp; Late Pick-Up{data.programType !== "daily" && numWeeks > 1 ? ` × ${numWeeks} wks` : ""}</span><span>{formatCurrency(PRICING.extendedCare * (data.programType === "daily" ? 1 : numWeeks))}</span></div>}
-            {isEarlyBird() && data.programType !== "daily" && (
-              <div className="flex justify-between text-green-700 font-medium"><span>🎉 Early Bird Discount Applied</span><span>✓</span></div>
+            {(isEarlyBird() || data.couponApplied) && data.programType !== "daily" && (
+              <div className="flex justify-between text-green-700 font-medium">
+                <span>{data.couponApplied ? `🎉 Coupon: ${COUPON_CODES[data.couponCode]?.label}` : "🎉 Early Bird Discount Applied"}</span>
+                {data.couponApplied && !isEarlyBird() && regularTotal !== total && (
+                  <span className="text-green-700">-{formatCurrency(regularTotal - total)}</span>
+                )}
+                {!data.couponApplied && <span>✓</span>}
+              </div>
+            )}
+            {data.couponApplied && !isEarlyBird() && regularTotal !== total && (
+              <div className="flex justify-between text-gray-400 text-xs">
+                <span>Original price</span>
+                <span className="line-through">{formatCurrency(regularTotal)}</span>
+              </div>
             )}
             <div className="border-t pt-2 flex justify-between font-bold text-base">
               <span>Total Due Today</span>
@@ -616,6 +699,7 @@ function Step4({ data, onBack }: { data: FormData; onBack: () => void }) {
       selectedWeeks: data.selectedWeeks ?? [],
       futureWeeks: data.futureWeeks ?? [],
       amountCents: total,
+      couponCode: data.couponCode || undefined,
       agreedToTerms: data.agreedToTerms,
     });
   }, []);
@@ -721,6 +805,8 @@ export default function CampRegistration() {
     selectedWeeks: [],
     futureWeeks: [],
     agreedToTerms: false,
+    couponCode: "",
+    couponApplied: false,
   });
 
   return (

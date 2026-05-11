@@ -65,3 +65,10 @@
 
 ## Bugs
 - [x] BUG FIXED: Lead form submissions not saving to MySQL — fixed Drizzle mysql2 pool initialization (was passing raw DSN string, now uses mysql2.createPool())
+
+## Coupon Code Feature
+- [x] Add coupon code input to camp registration form (Step 3, Program Selection)
+- [x] Apply early-registration discounted prices when valid coupon entered (EARLYBIRD2026, TMAEARLYBIRD)
+- [x] Ensure early drop-off/late pickup and field trip fees are included per week (already working, confirmed)
+- [x] Coupon validated client-side against COUPON_CODES map (no server round-trip needed)
+- [x] Show price breakdown (original vs discounted) when coupon applied

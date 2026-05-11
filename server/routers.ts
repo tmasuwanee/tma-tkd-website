@@ -110,12 +110,34 @@ export const appRouter = router({
         selectedWeeks: z.array(z.string()).optional().default([]),
         futureWeeks: z.array(z.string()).optional().default([]),
         amountCents: z.number().min(1),
+        couponCode: z.string().optional(),
         agreedToTerms: z.boolean(),
       }))
       .mutation(async ({ input }) => {
+        // Server-side pricing constants (must match client)
+        const VALID_COUPONS: Record<string, "earlybird"> = {
+          EARLYBIRD2026: "earlybird",
+          TMAEARLYBIRD: "earlybird",
+        };
+        const EARLY_BIRD_DEADLINE = new Date("2026-04-30T23:59:59");
+        const isEarlyBird = new Date() <= EARLY_BIRD_DEADLINE;
+        const couponType = input.couponCode ? VALID_COUPONS[input.couponCode.toUpperCase()] : undefined;
+        const useDiscount = isEarlyBird || couponType === "earlybird";
+        const PROGRAM_PRICES = {
+          regular: { "3day": 199_00, "5day": 239_00, "daily": 70_00 },
+          earlyBird: { "3day": 179_00, "5day": 209_00, "daily": 70_00 },
+        };
+        const FIELD_TRIP = 25_00;
+        const EXTENDED_CARE = 25_00;
+        const programPrice = useDiscount ? PROGRAM_PRICES.earlyBird[input.programType] : PROGRAM_PRICES.regular[input.programType];
+        const numWeeks = input.programType === "daily" ? 1 : Math.max(input.selectedWeeks.length, 1);
+        let serverAmount = programPrice * input.numCampers * numWeeks;
+        if (input.addFieldTrip) serverAmount += FIELD_TRIP * input.numCampers * numWeeks;
+        if (input.addExtendedCare) serverAmount += EXTENDED_CARE * numWeeks;
+        // Use server-calculated amount — ignore client-provided amountCents entirely
         const stripe = getStripe();
         const paymentIntent = await stripe.paymentIntents.create({
-          amount: input.amountCents,
+          amount: serverAmount,
           currency: "usd",
           metadata: {
             camper1Name: input.camper1Name,
