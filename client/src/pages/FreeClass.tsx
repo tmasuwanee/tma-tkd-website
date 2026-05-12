@@ -9,6 +9,8 @@ import { CheckCircle2, MapPin, Phone, Mail, Clock, Facebook, Instagram } from "l
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
+import TrialClassPicker from "@/components/TrialClassPicker";
+import type { ClassSlot } from "../../../shared/classSchedule";
 
 /**
  * Dedicated Free Class / Schedule a Tour page.
@@ -53,6 +55,8 @@ export default function FreeClass() {
     additionalNotes: "",
   });
 
+  const [trialSlot, setTrialSlot] = useState<ClassSlot | null>(null);
+  const [trialDate, setTrialDate] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Update programInterest if query param changes (e.g. back/forward navigation)
@@ -90,6 +94,9 @@ export default function FreeClass() {
         email: formData.email,
         phone: formData.phone,
         additionalNotes: formData.additionalNotes || undefined,
+        trialClassDate: trialDate || undefined,
+        trialClassTime: trialSlot?.startTime || undefined,
+        trialClassDay: trialSlot?.day || undefined,
         ...utmParams,
       });
 
@@ -178,6 +185,8 @@ export default function FreeClass() {
                       onClick={() => {
                         setSubmitted(false);
                         setFormData({ parentName: "", kidName: "", kidAge: "", programInterest: preselectedProgram, motivation: "", email: "", phone: "", additionalNotes: "" });
+                        setTrialSlot(null);
+                        setTrialDate("");
                       }}
                       variant="outline"
                       className="border-primary text-primary"
@@ -225,19 +234,20 @@ export default function FreeClass() {
                     <div className="grid md:grid-cols-2 gap-6">
                       <div>
                         <Label htmlFor="kidAge" className="text-primary font-semibold mb-2 block">
-                          Child's Age *
+                          Age *
                         </Label>
-                        <Select value={formData.kidAge} onValueChange={(value) => handleSelectChange('kidAge', value)}>
-                          <SelectTrigger className="border-border focus:border-accent focus:ring-accent">
-                            <SelectValue placeholder="Select age" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="4-6">4-6 years</SelectItem>
-                            <SelectItem value="7-12">7-12 years</SelectItem>
-                            <SelectItem value="13-17">13-17 years</SelectItem>
-                            <SelectItem value="18+">18+ years</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <Input
+                          id="kidAge"
+                          name="kidAge"
+                          type="number"
+                          min="4"
+                          max="99"
+                          value={formData.kidAge}
+                          onChange={handleInputChange}
+                          placeholder="e.g. 8"
+                          className="border-border focus:border-accent focus:ring-accent"
+                          required
+                        />
                       </div>
                       <div>
                         <Label htmlFor="programInterest" className="text-primary font-semibold mb-2 block">
@@ -276,6 +286,25 @@ export default function FreeClass() {
                         </SelectContent>
                       </Select>
                     </div>
+
+                    {/* Trial class calendar — shown when program + age are filled */}
+                    {formData.programInterest && formData.kidAge && parseInt(formData.kidAge) >= 4 && (
+                      <div>
+                        <Label className="text-primary font-semibold mb-2 block">
+                          Schedule Your Trial Class
+                        </Label>
+                        <TrialClassPicker
+                          program={formData.programInterest}
+                          age={parseInt(formData.kidAge)}
+                          onSelect={(slot, date) => {
+                            setTrialSlot(slot);
+                            setTrialDate(date);
+                          }}
+                          selectedSlot={trialSlot ?? undefined}
+                          selectedDate={trialDate}
+                        />
+                      </div>
+                    )}
 
                     <div className="grid md:grid-cols-2 gap-6">
                       <div>

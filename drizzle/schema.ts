@@ -48,6 +48,10 @@ export const leads = mysqlTable("leads", {
   ]).default("new_lead").notNull(),
   trialPaidAmount: int("trialPaidAmount").default(0), // in cents, e.g. 3000 = $30
   internalNotes: text("internalNotes"), // staff notes, not shown to lead
+  // Trial class scheduling (set when lead picks a slot from the calendar)
+  trialClassDate: varchar("trialClassDate", { length: 20 }),   // ISO date: YYYY-MM-DD
+  trialClassTime: varchar("trialClassTime", { length: 20 }),   // e.g. "5:50 PM"
+  trialClassDay: varchar("trialClassDay", { length: 20 }),     // e.g. "Monday"
   // UTM tracking
   utmSource: varchar("utmSource", { length: 255 }),   // e.g. facebook, instagram, google
   utmMedium: varchar("utmMedium", { length: 255 }),   // e.g. cpc, social, email

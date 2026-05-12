@@ -70,6 +70,9 @@ type Lead = {
   utmMedium: string | null;
   utmCampaign: string | null;
   utmContent: string | null;
+  trialClassDate: string | null;
+  trialClassTime: string | null;
+  trialClassDay: string | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -212,6 +215,14 @@ function LeadDetailDialog({ lead, open, onClose, onRefresh }: {
               <Phone className="w-3.5 h-3.5 text-gray-400" />
               <a href={`tel:${lead.phone}`} className="text-blue-600 hover:underline">{lead.phone}</a>
             </div>
+            {lead.trialClassDate && (
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-xs text-gray-500 w-10 shrink-0">Trial</span>
+                <span className="text-xs font-medium text-green-700 bg-green-50 px-2 py-0.5 rounded">
+                  {lead.trialClassDay} {lead.trialClassDate} @ {lead.trialClassTime}
+                </span>
+              </div>
+            )}
             <p className="text-xs text-gray-400 mt-1">
               Submitted {daysAgo === 0 ? "today" : `${daysAgo} day${daysAgo > 1 ? "s" : ""} ago`} — {new Date(lead.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
             </p>

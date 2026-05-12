@@ -10,6 +10,8 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
+import TrialClassPicker from "@/components/TrialClassPicker";
+import type { ClassSlot } from "../../../shared/classSchedule";
 
 /**
  * Design Philosophy: Dynamic Energy & Motion
@@ -49,6 +51,8 @@ export default function Home() {
     additionalNotes: "",
   });
 
+  const [trialSlot, setTrialSlot] = useState<ClassSlot | null>(null);
+  const [trialDate, setTrialDate] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -80,6 +84,9 @@ export default function Home() {
         email: formData.email,
         phone: formData.phone,
          additionalNotes: formData.additionalNotes || undefined,
+        trialClassDate: trialDate || undefined,
+        trialClassTime: trialSlot?.startTime || undefined,
+        trialClassDay: trialSlot?.day || undefined,
         ...utmParams,
       });
       toast.success("Thank you! We'll contact you soon to schedule your free class.");
@@ -95,6 +102,8 @@ export default function Home() {
         phone: "",
         additionalNotes: "",
       });
+      setTrialSlot(null);
+      setTrialDate("");
     } catch (error) {
       console.error("Form submission error:", error);
       toast.error("Failed to submit form. Please try again.");
@@ -458,19 +467,20 @@ export default function Home() {
                   <div className="grid md:grid-cols-2 gap-6">
                     <div>
                       <Label htmlFor="kidAge" className="text-primary font-semibold mb-2 block">
-                        Child's Age *
+                        Age *
                       </Label>
-                      <Select value={formData.kidAge} onValueChange={(value) => handleSelectChange('kidAge', value)}>
-                        <SelectTrigger className="border-border focus:border-accent focus:ring-accent">
-                          <SelectValue placeholder="Select age" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="4-6">4-6 years</SelectItem>
-                          <SelectItem value="7-12">7-12 years</SelectItem>
-                          <SelectItem value="13-17">13-17 years</SelectItem>
-                          <SelectItem value="18+">18+ years</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <Input
+                        id="kidAge"
+                        name="kidAge"
+                        type="number"
+                        min="4"
+                        max="99"
+                        value={formData.kidAge}
+                        onChange={handleInputChange}
+                        placeholder="e.g. 8"
+                        className="border-border focus:border-accent focus:ring-accent"
+                        required
+                      />
                     </div>
                     <div>
                       <Label htmlFor="programInterest" className="text-primary font-semibold mb-2 block">
@@ -509,6 +519,25 @@ export default function Home() {
                       </SelectContent>
                     </Select>
                   </div>
+
+                  {/* Trial class calendar */}
+                  {formData.programInterest && formData.kidAge && parseInt(formData.kidAge) >= 4 && (
+                    <div>
+                      <Label className="text-primary font-semibold mb-2 block">
+                        Schedule Your Trial Class
+                      </Label>
+                      <TrialClassPicker
+                        program={formData.programInterest}
+                        age={parseInt(formData.kidAge)}
+                        onSelect={(slot, date) => {
+                          setTrialSlot(slot);
+                          setTrialDate(date);
+                        }}
+                        selectedSlot={trialSlot ?? undefined}
+                        selectedDate={trialDate}
+                      />
+                    </div>
+                  )}
 
                   <div className="grid md:grid-cols-2 gap-6">
                     <div>

@@ -34,6 +34,9 @@ async function fireN8nWebhook(payload: {
   utmMedium: string | null;
   utmCampaign: string | null;
   utmContent: string | null;
+  trialClassDate: string | null;
+  trialClassTime: string | null;
+  trialClassDay: string | null;
   timestamp: string;
 }) {
   const url = ENV.n8nWebhookUrl;
@@ -281,6 +284,10 @@ export const appRouter = router({
         utmMedium: z.string().optional(),
         utmCampaign: z.string().optional(),
         utmContent: z.string().optional(),
+        // Trial class scheduling
+        trialClassDate: z.string().optional(),   // YYYY-MM-DD
+        trialClassTime: z.string().optional(),   // e.g. "5:50 PM"
+        trialClassDay: z.string().optional(),    // e.g. "Monday"
       }))
       .mutation(async ({ input }) => {
         try {
@@ -297,6 +304,9 @@ export const appRouter = router({
             utmMedium: input.utmMedium,
             utmCampaign: input.utmCampaign,
             utmContent: input.utmContent,
+            trialClassDate: input.trialClassDate,
+            trialClassTime: input.trialClassTime,
+            trialClassDay: input.trialClassDay,
           });
 
           const leadForIntegrations = {
@@ -316,6 +326,9 @@ export const appRouter = router({
             utmMedium: input.utmMedium ?? null,
             utmCampaign: input.utmCampaign ?? null,
             utmContent: input.utmContent ?? null,
+            trialClassDate: input.trialClassDate ?? null,
+            trialClassTime: input.trialClassTime ?? null,
+            trialClassDay: input.trialClassDay ?? null,
             createdAt: new Date(),
             updatedAt: new Date(),
           };
@@ -343,6 +356,9 @@ export const appRouter = router({
             utmMedium: input.utmMedium ?? null,
             utmCampaign: input.utmCampaign ?? null,
             utmContent: input.utmContent ?? null,
+            trialClassDate: input.trialClassDate ?? null,
+            trialClassTime: input.trialClassTime ?? null,
+            trialClassDay: input.trialClassDay ?? null,
             timestamp: new Date().toISOString(),
           });
           await Promise.all([

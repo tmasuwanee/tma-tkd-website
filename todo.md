@@ -76,3 +76,13 @@
 ## CDN Cache Busting
 - [x] Fix Vite config to inject git commit SHA into bundle filename (guarantees unique CDN filename on every deploy)
 - [x] Fix stripe.test.ts: skip live Stripe API call that times out in sandbox (key format validation is sufficient)
+
+## Trial Class Scheduling System
+- [x] Replace age range dropdown with exact age number input on lead forms (Home, FreeClass pages)
+- [x] Build shared/classSchedule.ts with slot eligibility logic and upcoming date generator
+- [x] Build TrialClassPicker component and wire into FreeClass.tsx and Home.tsx forms
+- [x] Add trialClassDate, trialClassTime, trialClassDay fields to leads DB table (migration applied)
+- [x] Persist selected trial slot to DB on form submit (routers.ts updated)
+- [x] Update n8n webhook payload to include trialClassDate, trialClassTime, trialClassDay
+- [x] Admin leads pipeline confirmed working at /admin/registrations; trialClassDate shown in lead detail cards
+- [x] Write vitest tests for classSchedule eligibility logic (9 tests, all passing)
