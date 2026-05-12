@@ -72,3 +72,7 @@
 - [x] Ensure early drop-off/late pickup and field trip fees are included per week (already working, confirmed)
 - [x] Coupon validated client-side against COUPON_CODES map (no server round-trip needed)
 - [x] Show price breakdown (original vs discounted) when coupon applied
+
+## CDN Cache Busting
+- [x] Fix Vite config to inject git commit SHA into bundle filename (guarantees unique CDN filename on every deploy)
+- [x] Fix stripe.test.ts: skip live Stripe API call that times out in sandbox (key format validation is sufficient)

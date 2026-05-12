@@ -1,6 +1,7 @@
 import { jsxLocPlugin } from "@builder.io/vite-plugin-jsx-loc";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
+import { execSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { defineConfig, type Plugin, type ViteDevServer } from "vite";
@@ -167,6 +168,36 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        // Inject git commit SHA into filenames so every deploy produces a unique
+        // bundle name, guaranteeing CDN cache invalidation regardless of content hash.
+        entryFileNames: () => {
+          const sha = (() => {
+            try {
+              return execSync("git rev-parse --short HEAD", { stdio: ["pipe", "pipe", "ignore"] })
+                .toString()
+                .trim();
+            } catch {
+              return String(Date.now());
+            }
+          })();
+          return `assets/[name]-[hash]-${sha}.js`;
+        },
+        chunkFileNames: () => {
+          const sha = (() => {
+            try {
+              return execSync("git rev-parse --short HEAD", { stdio: ["pipe", "pipe", "ignore"] })
+                .toString()
+                .trim();
+            } catch {
+              return String(Date.now());
+            }
+          })();
+          return `assets/[name]-[hash]-${sha}.js`;
+        },
+      },
+    },
   },
   server: {
     host: true,
