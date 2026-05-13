@@ -75,6 +75,7 @@ interface StudentEditState {
   status: string;
   beltRank: string;
   isEligibleOverride: boolean;
+  attendanceCount?: number; // editable attendance count
 }
 
 const PROGRAMS = ["Taekwondo", "BJJ", "Kickboxing", "Afterschool"];
@@ -783,6 +784,22 @@ function StudentEditDialog({
                       style={{ width: `${Math.min((attendanceCount / 15) * 100, 100)}%` }}
                     />
                   </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700">Edit Class Count</label>
+                  <div className="flex gap-2 items-center">
+                    <input
+                      type="number"
+                      min="0"
+                      max="999"
+                      value={student.attendanceCount ?? attendanceCount}
+                      onChange={e => onStudentChange({ ...student, attendanceCount: parseInt(e.target.value) || 0 })}
+                      className="w-20 px-3 py-2 border border-gray-300 rounded-md text-sm"
+                    />
+                    <span className="text-sm text-gray-600">classes attended</span>
+                  </div>
+                  <p className="text-xs text-gray-500">Manually override the attendance count. Leave blank to use actual check-in count.</p>
                 </div>
               </div>
             )}

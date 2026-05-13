@@ -72,7 +72,7 @@ export const students = mysqlTable("students", {
   name: varchar("name", { length: 255 }).notNull(),
   email: varchar("email", { length: 320 }),
   phone: varchar("phone", { length: 20 }),
-  program: varchar("program", { length: 255 }),
+  programs: text("programs"), // JSON array of program names: ["Taekwondo", "BJJ"]
   enrollmentDate: varchar("enrollmentDate", { length: 50 }),
   beltRank: varchar("beltRank", { length: 100 }),
   lastPromotedAt: timestamp("lastPromotedAt"), // reset to NOW() whenever belt rank changes

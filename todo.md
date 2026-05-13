@@ -144,3 +144,16 @@
 - [x] Update handleAddStudent to initialize isEligibleOverride as false
 - [x] All tests passing (17/17)
 - [x] Build succeeds
+
+
+## Checkbox Visibility & Multiple Programs
+- [x] Add dark outline (border-2 border-gray-800) to all checkboxes for visibility
+- [x] Add centered flex container around Select All checkbox in header
+- [ ] Change Program field to support multiple selections (students can be in multiple programs)
+- [ ] Update students table schema to store multiple programs (JSON array or separate column)
+- [ ] Update StudentsRoster component to show multi-select for programs
+- [ ] Update CSV import to handle multiple programs per student
+
+- [ ] Add editable attendance count field in Belt & Eligibility tab (manual override for class count)
+- [ ] Create tRPC procedure to update attendance count directly
+- [ ] Update StudentEditState to include editableAttendanceCount field
