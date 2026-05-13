@@ -54,3 +54,21 @@ All REST endpoints the n8n workflows call on the website:
 | `GET /api/leads?stages=...&hasTrialDate=true` | No-Show Recovery | Bulk lead query |
 | `GET /api/leads/:leadId/status` | (available, not yet used) | Stage check before sending |
 | `PATCH /api/leads/:leadId/stage` | No-Show Recovery | Stage update after no-show |
+
+---
+
+### TMA — Weekly Ad Intelligence
+- **ID:** `MNRiKau55C4S0RHp`
+- **Status:** Active (Published)
+- **Trigger:** Schedule — every Monday at 8:00 AM
+- **What it does:**
+  1. Pulls TMA's last 7 days of ad performance from `GET /api/ads/insights?days=7`
+  2. Searches Facebook Ad Library API for competitor ads across 5 keywords: "taekwondo", "martial arts for kids", "bjj kids", "karate kids", "kids martial arts"
+  3. Filters to ads running 30+ days (proven profitable creatives), deduplicates, caps at 20
+  4. Feeds both TMA performance + competitor data to GPT-4o
+  5. GPT-4o outputs: top 3 competitor angles + 3 TMA-specific creative briefs (hook, body, CTA, why it works)
+  6. Emails full report to tmasuwanee@gmail.com via Resend
+- **Email provider:** Resend (from: hello@tmatkd.com)
+- **AI model:** OpenAI GPT-4o
+- **APIs used:** Facebook Ad Library (`/v19.0/ads_archive`), OpenAI Chat Completions, TMA `/api/ads/insights`
+- **Last updated:** 2026-05-13 — initial build
