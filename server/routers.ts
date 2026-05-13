@@ -489,6 +489,40 @@ export const appRouter = router({
         const { demoteBeltRank } = await import('./db');
         return demoteBeltRank(input.studentId);
       }),
+    // Update an existing student
+    update: publicProcedure
+      .input(z.object({
+        id: z.number(),
+        name: z.string().optional(),
+        email: z.string().nullable().optional(),
+        phone: z.string().nullable().optional(),
+        program: z.string().nullable().optional(),
+        enrollmentDate: z.string().nullable().optional(),
+        beltRank: z.string().nullable().optional(),
+        status: z.string().nullable().optional(),
+        emergencyContact: z.string().nullable().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { updateStudent } = await import('./db');
+        const { id, ...data } = input;
+        return updateStudent(id, data);
+      }),
+    // Create a new student
+    create: publicProcedure
+      .input(z.object({
+        name: z.string().min(1),
+        email: z.string().nullable().optional(),
+        phone: z.string().nullable().optional(),
+        program: z.string().nullable().optional(),
+        enrollmentDate: z.string().nullable().optional(),
+        beltRank: z.string().nullable().optional(),
+        status: z.string().nullable().optional(),
+        emergencyContact: z.string().nullable().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { createStudent } = await import('./db');
+        return createStudent(input);
+      }),
    }),
   // ─── Attendance ──────────────────────────────────────────────────────────
   attendance: router({

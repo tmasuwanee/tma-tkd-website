@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, uniqueIndex } from "drizzle-orm/mysql-core";
+import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, uniqueIndex, tinyint } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -78,6 +78,7 @@ export const students = mysqlTable("students", {
   lastPromotedAt: timestamp("lastPromotedAt"), // reset to NOW() whenever belt rank changes
   status: varchar("status", { length: 50 }), // active, inactive, etc.
   emergencyContact: varchar("emergencyContact", { length: 255 }),
+  isEligibleOverride: tinyint("isEligibleOverride").default(0).notNull(), // 0=false, 1=true
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

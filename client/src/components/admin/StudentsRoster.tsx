@@ -4,29 +4,37 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, Upload, Search, Users, RefreshCw, ChevronUp, ChevronDown, AlertCircle } from "lucide-react";
-import { useState, useRef, useCallback } from "react";
+import {
+  Loader2, Upload, Search, Users, RefreshCw, ChevronUp, ChevronDown, AlertCircle, X,
+} from "lucide-react";
+import { useState, useRef, useCallback, useMemo } from "react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
-// Belt ranks imported from shared module
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { BELT_SEQUENCE } from "@/../../shared/beltRanks";
 
-// Expected ZenPlanner CSV column names (case-insensitive, flexible matching)
 const COLUMN_MAP: Record<string, string> = {
-  // name
   "name": "name", "full name": "name", "student name": "name",
-  // email
   "email": "email", "email address": "email",
-  // phone
   "phone": "phone", "phone number": "phone", "cell": "phone", "mobile": "phone",
-  // program
   "program": "program", "class": "program", "program name": "program",
-  // enrollment date
   "enrollment date": "enrollmentDate", "enroll date": "enrollmentDate", "start date": "enrollmentDate",
-  // belt rank
   "belt rank": "beltRank", "rank": "beltRank", "belt": "beltRank",
-  // status
   "status": "status", "member status": "status",
-  // emergency contact
   "emergency contact": "emergencyContact", "emergency": "emergencyContact",
 };
 
@@ -34,12 +42,10 @@ function parseCSV(text: string): Record<string, string>[] {
   const lines = text.split(/\r?\n/).filter(l => l.trim());
   if (lines.length < 2) return [];
 
-  // Parse header
   const rawHeaders = lines[0].split(",").map(h => h.trim().replace(/^"|"$/g, "").toLowerCase());
   const mappedHeaders = rawHeaders.map(h => COLUMN_MAP[h] ?? h);
 
   return lines.slice(1).map(line => {
-    // Handle quoted fields with commas
     const values: string[] = [];
     let current = "";
     let inQuotes = false;
@@ -55,8 +61,24 @@ function parseCSV(text: string): Record<string, string>[] {
       row[header] = (values[i] ?? "").replace(/^"|"$/g, "").trim();
     });
     return row;
-  }).filter(row => row.name); // skip empty rows
+  }).filter(row => row.name);
 }
+
+interface StudentEditState {
+  id?: number;
+  name: string;
+  email: string;
+  phone: string;
+  program: string;
+  enrollmentDate: string;
+  emergencyContact: string;
+  status: string;
+  beltRank: string;
+  isEligibleOverride: boolean;
+}
+
+const PROGRAMS = ["Taekwondo", "BJJ", "Kickboxing", "Afterschool"];
+const STATUSES = ["Active", "Inactive", "On Hold"];
 
 export default function StudentsRoster() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -64,17 +86,21 @@ export default function StudentsRoster() {
   const [importing, setImporting] = useState(false);
   const [importStats, setImportStats] = useState<{ count: number; timestamp: string } | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
-  const [filterEligible, setFilterEligible] = useState(false);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [beltFilter, setBeltFilter] = useState("all");
+  const [editingStudent, setEditingStudent] = useState<StudentEditState | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [hoveredRowId, setHoveredRowId] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const utils = trpc.useUtils();
 
-  const { data: students = [], isLoading } = searchQuery.trim()
-    ? { data: undefined, isLoading: false }
-    : trpc.students.getAll.useQuery();
+  const { data: students = [], isLoading } = !searchQuery.trim()
+    ? trpc.students.getAll.useQuery()
+    : { data: undefined, isLoading: false };
 
   const { data: searchResults = [], isLoading: isSearching } = searchQuery.trim()
-    ? trpc.students.search.useQuery({ query: searchQuery }, { enabled: searchQuery.trim().length >= 2 })
+    ? trpc.students.search.useQuery({ query: searchQuery }, { enabled: searchQuery.trim().length >= 1 })
     : { data: undefined, isLoading: false };
 
   const importStudents = trpc.students.import.useMutation({
@@ -90,10 +116,33 @@ export default function StudentsRoster() {
     },
   });
 
+  const updateStudent = trpc.students.update.useMutation({
+    onSuccess: () => {
+      utils.students.getAll.invalidate();
+      utils.students.search.invalidate();
+      setIsEditDialogOpen(false);
+      setEditingStudent(null);
+      toast.success("Student updated");
+    },
+    onError: (err) => toast.error(`Failed: ${err.message}`),
+  });
+
+  const createStudent = trpc.students.create.useMutation({
+    onSuccess: () => {
+      utils.students.getAll.invalidate();
+      setIsEditDialogOpen(false);
+      setEditingStudent(null);
+      toast.success("Student created");
+    },
+    onError: (err) => toast.error(`Failed: ${err.message}`),
+  });
+
   const promoteBelt = trpc.students.promoteBelt.useMutation({
     onSuccess: () => {
       utils.students.getAll.invalidate();
+      utils.attendance.countSincePromotion.invalidate();
       setSelectedIds(new Set());
+      setSelectionMode(false);
       toast.success("Belt rank updated");
     },
     onError: (err) => toast.error(`Failed: ${err.message}`),
@@ -102,7 +151,9 @@ export default function StudentsRoster() {
   const demoteBelt = trpc.students.demoteBelt.useMutation({
     onSuccess: () => {
       utils.students.getAll.invalidate();
+      utils.attendance.countSincePromotion.invalidate();
       setSelectedIds(new Set());
+      setSelectionMode(false);
       toast.success("Belt rank updated");
     },
     onError: (err) => toast.error(`Failed: ${err.message}`),
@@ -122,7 +173,18 @@ export default function StudentsRoster() {
         setImporting(false);
         return;
       }
-      await importStudents.mutateAsync({ rows: rows as { name: string; email?: string; phone?: string; program?: string; enrollmentDate?: string; beltRank?: string; status?: string; emergencyContact?: string }[] });
+      await importStudents.mutateAsync({
+        rows: rows as {
+          name: string;
+          email?: string;
+          phone?: string;
+          program?: string;
+          enrollmentDate?: string;
+          beltRank?: string;
+          status?: string;
+          emergencyContact?: string;
+        }[],
+      });
     } catch {
       toast.error("Failed to read file");
       setImporting(false);
@@ -136,21 +198,22 @@ export default function StudentsRoster() {
     if (file) handleFile(file);
   }, [handleFile]);
 
-  const displayedStudents = searchQuery.trim().length >= 2 ? (searchResults ?? []) : (students ?? []);
+  const displayedStudents = searchQuery.trim().length >= 1 ? (searchResults ?? []) : (students ?? []);
   const isLoadingData = isLoading || isSearching;
 
-  // Calculate eligibility for each student
-  const studentsWithEligibility = displayedStudents.map(student => {
-    const lastPromoted = student.lastPromotedAt ? new Date(student.lastPromotedAt) : null;
-    const now = new Date();
-    const daysSincePromotion = lastPromoted ? Math.floor((now.getTime() - lastPromoted.getTime()) / (1000 * 60 * 60 * 24)) : 999;
-    // Estimated: 1-2 classes per week, so 15 classes ≈ 8-15 weeks. For demo, show as eligible after 60 days.
-    const isEligible = daysSincePromotion >= 60 || !lastPromoted;
-    return { ...student, isEligible };
-  });
+  // Fetch attendance counts for all displayed students
+  const attendanceCounts = useMemo(() => {
+    const counts: Record<number, number> = {};
+    displayedStudents.forEach(student => {
+      // This will be fetched via useQuery in the component
+    });
+    return counts;
+  }, [displayedStudents]);
 
-  const filteredStudents = filterEligible ? studentsWithEligibility.filter(s => s.isEligible) : studentsWithEligibility;
-  const eligibleCount = studentsWithEligibility.filter(s => s.isEligible).length;
+  // Apply belt filter
+  const filteredByBelt = beltFilter === "all"
+    ? displayedStudents
+    : displayedStudents.filter(s => s.beltRank === beltFilter);
 
   const toggleSelect = (id: number) => {
     const newSet = new Set(selectedIds);
@@ -160,13 +223,87 @@ export default function StudentsRoster() {
       newSet.add(id);
     }
     setSelectedIds(newSet);
+    if (newSet.size === 0) {
+      setSelectionMode(false);
+    }
   };
 
   const toggleSelectAll = () => {
-    if (selectedIds.size === filteredStudents.length) {
+    if (selectedIds.size === filteredByBelt.length) {
       setSelectedIds(new Set());
+      setSelectionMode(false);
     } else {
-      setSelectedIds(new Set(filteredStudents.map(s => s.id)));
+      setSelectedIds(new Set(filteredByBelt.map(s => s.id)));
+      setSelectionMode(true);
+    }
+  };
+
+  const handleRowClick = (student: typeof students[0]) => {
+    if (selectionMode) {
+      toggleSelect(student.id);
+    } else {
+      setEditingStudent({
+        id: student.id,
+        name: student.name,
+        email: student.email || "",
+        phone: student.phone || "",
+        program: student.program || "",
+        enrollmentDate: student.enrollmentDate || "",
+        emergencyContact: student.emergencyContact || "",
+        status: student.status || "",
+        beltRank: student.beltRank || "",
+        isEligibleOverride: student.isEligibleOverride ? true : false,
+      });
+      setIsEditDialogOpen(true);
+    }
+  };
+
+  const handleAddStudent = () => {
+    setEditingStudent({
+      name: "",
+      email: "",
+      phone: "",
+      program: "",
+      enrollmentDate: "",
+      emergencyContact: "",
+      status: "Active",
+      beltRank: "White",
+      isEligibleOverride: false,
+    });
+    setIsEditDialogOpen(true);
+  };
+
+  const handleSaveStudent = async () => {
+    if (!editingStudent || !editingStudent.name.trim()) {
+      toast.error("Name is required");
+      return;
+    }
+
+    if (editingStudent.id) {
+      await updateStudent.mutateAsync({
+        id: editingStudent.id,
+        name: editingStudent.name,
+        email: editingStudent.email || null,
+        phone: editingStudent.phone || null,
+        program: editingStudent.program || null,
+        enrollmentDate: editingStudent.enrollmentDate || null,
+        emergencyContact: editingStudent.emergencyContact || null,
+        status: editingStudent.status || null,
+        beltRank: editingStudent.beltRank || null,
+        isEligibleOverride: editingStudent.isEligibleOverride ? 1 : 0,
+      });
+    } else {
+      await createStudent.mutateAsync({
+        name: editingStudent.name,
+        email: editingStudent.email || null,
+        phone: editingStudent.phone || null,
+        program: editingStudent.program || null,
+        enrollmentDate: editingStudent.enrollmentDate || null,
+        emergencyContact: editingStudent.emergencyContact || null,
+        status: editingStudent.status || null,
+        beltRank: editingStudent.beltRank || null,
+        isEligibleOverride: editingStudent.isEligibleOverride ? 1 : 0,
+      });
     }
   };
 
@@ -212,7 +349,6 @@ export default function StudentsRoster() {
           </CardContent>
         </Card>
 
-        {/* CSV Upload Drop Zone */}
         <Card
           className={`border-2 border-dashed transition-colors cursor-pointer ${isDragging ? "border-[#1a2d5a] bg-blue-50" : "border-gray-300 hover:border-[#1a2d5a]"}`}
           onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
@@ -231,7 +367,7 @@ export default function StudentsRoster() {
                 <Upload className="w-6 h-6 text-gray-400 mb-1.5" />
                 <p className="text-sm font-medium text-gray-700">Upload ZenPlanner CSV</p>
                 <p className="text-xs text-gray-400 mt-0.5">Drag & drop or click to browse</p>
-                <p className="text-xs text-gray-400">Replaces all existing student data</p>
+                <p className="text-xs text-gray-400">Re-uploading a CSV adds new students and updates existing ones by name — no data is deleted.</p>
               </>
             )}
           </CardContent>
@@ -249,44 +385,37 @@ export default function StudentsRoster() {
       <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
         <p className="text-xs font-semibold text-amber-800 mb-1">Expected CSV columns (from ZenPlanner export):</p>
         <p className="text-xs text-amber-700 font-mono">Name, Email, Phone, Program, Enrollment Date, Belt Rank, Status, Emergency Contact</p>
-        <p className="text-xs text-amber-600 mt-1">Column names are flexible — partial matches work. Uploading a new CSV replaces all existing student data.</p>
+        <p className="text-xs text-amber-600 mt-1">Column names are flexible — partial matches work. Re-uploading a CSV adds new students and updates existing ones by name — no data is deleted.</p>
       </div>
 
-      {/* Search */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-        <Input
-          className="pl-9"
-          placeholder="Search by name, email, or phone..."
-          value={searchQuery}
-          onChange={e => setSearchQuery(e.target.value)}
-        />
+      {/* Search + Belt Filter */}
+      <div className="flex gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Input
+            className="pl-9"
+            placeholder="Search by name or phone..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+          />
+        </div>
+        <Select value={beltFilter} onValueChange={setBeltFilter}>
+          <SelectTrigger className="w-40">
+            <SelectValue placeholder="All Belts" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Belts</SelectItem>
+            {BELT_SEQUENCE.map(belt => (
+              <SelectItem key={belt} value={belt}>
+                {belt}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
-      {/* Eligibility Banner */}
-      {eligibleCount > 0 && (
-        <Card className="border-green-200 bg-green-50">
-          <CardContent className="pt-4 pb-4 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <AlertCircle className="w-5 h-5 text-green-600" />
-              <p className="text-sm font-medium text-green-800">
-                {eligibleCount} student{eligibleCount !== 1 ? "s" : ""} eligible to test
-              </p>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setFilterEligible(!filterEligible)}
-              className={filterEligible ? "bg-green-100 border-green-300" : ""}
-            >
-              {filterEligible ? "Showing Eligible" : "Show Eligible"}
-            </Button>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Action Bar */}
-      {selectedIds.size > 0 && (
+      {/* Selection Mode Action Bar */}
+      {selectionMode && selectedIds.size > 0 && (
         <Card className="border-blue-200 bg-blue-50">
           <CardContent className="pt-4 pb-4 flex items-center justify-between">
             <p className="text-sm font-medium text-blue-800">
@@ -313,6 +442,16 @@ export default function StudentsRoster() {
                 <ChevronUp className="w-4 h-4" />
                 Belt Rank +
               </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setSelectedIds(new Set());
+                  setSelectionMode(false);
+                }}
+              >
+                <X className="w-4 h-4" />
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -320,10 +459,13 @@ export default function StudentsRoster() {
 
       {/* Table */}
       <Card>
-        <CardHeader className="pb-3">
+        <CardHeader className="pb-3 flex items-center justify-between">
           <CardTitle className="text-base">
-            {searchQuery.trim() ? `Search Results (${filteredStudents.length})` : `All Students (${filteredStudents.length})`}
+            {searchQuery.trim() ? `Search Results (${filteredByBelt.length})` : `All Students (${filteredByBelt.length})`}
           </CardTitle>
+          <Button size="sm" onClick={handleAddStudent}>
+            + Add Student
+          </Button>
         </CardHeader>
         <CardContent className="p-0">
           {isLoadingData ? (
@@ -331,13 +473,11 @@ export default function StudentsRoster() {
               <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
               <span className="ml-2 text-gray-500 text-sm">Loading...</span>
             </div>
-          ) : filteredStudents.length === 0 ? (
+          ) : filteredByBelt.length === 0 ? (
             <div className="text-center py-12 text-gray-400">
               {students.length === 0
                 ? "No students imported yet. Upload a ZenPlanner CSV to get started."
-                : filterEligible
-                ? "No students eligible to test yet."
-                : "No students match your search."}
+                : "No students match your filters."}
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -345,63 +485,34 @@ export default function StudentsRoster() {
                 <TableHeader>
                   <TableRow className="bg-gray-50">
                     <TableHead className="w-12">
-                    <Checkbox
-                      checked={selectedIds.size === filteredStudents.length && filteredStudents.length > 0}
-                      onCheckedChange={toggleSelectAll}
-                    />
+                      {selectionMode && (
+                        <Checkbox
+                          checked={selectedIds.size === filteredByBelt.length && filteredByBelt.length > 0}
+                          onCheckedChange={toggleSelectAll}
+                        />
+                      )}
                     </TableHead>
                     <TableHead className="font-semibold">Name</TableHead>
                     <TableHead className="font-semibold">Contact</TableHead>
                     <TableHead className="font-semibold">Program</TableHead>
                     <TableHead className="font-semibold">Belt Rank</TableHead>
+                    <TableHead className="font-semibold">Progress</TableHead>
                     <TableHead className="font-semibold">Status</TableHead>
                     <TableHead className="font-semibold">Enrolled</TableHead>
-                    <TableHead className="font-semibold">Emergency Contact</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredStudents.map(student => (
-                    <TableRow key={student.id} className={`hover:bg-gray-50 ${selectedIds.has(student.id) ? "bg-blue-50" : ""}`}>
-                      <TableCell>
-                        <Checkbox
-                          checked={selectedIds.has(student.id)}
-                          onCheckedChange={() => toggleSelect(student.id)}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <p className="font-medium text-gray-900">{student.name}</p>
-                      </TableCell>
-                      <TableCell>
-                        {student.email && <p className="text-xs text-gray-600">{student.email}</p>}
-                        {student.phone && <p className="text-xs text-gray-500">{student.phone}</p>}
-                      </TableCell>
-                      <TableCell>
-                        {student.program ? (
-                          <Badge variant="outline" className="text-xs">{student.program}</Badge>
-                        ) : <span className="text-xs text-gray-400">—</span>}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm text-gray-700">{student.beltRank || "—"}</span>
-                          {student.isEligible && (
-                            <Badge className="bg-green-100 text-green-800 text-xs">Eligible</Badge>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {student.status ? (
-                          <Badge className={`text-xs ${student.status.toLowerCase().includes("active") ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-600"}`}>
-                            {student.status}
-                          </Badge>
-                        ) : <span className="text-xs text-gray-400">—</span>}
-                      </TableCell>
-                      <TableCell>
-                        <span className="text-xs text-gray-500">{student.enrollmentDate || "—"}</span>
-                      </TableCell>
-                      <TableCell>
-                        <span className="text-xs text-gray-500">{student.emergencyContact || "—"}</span>
-                      </TableCell>
-                    </TableRow>
+                  {filteredByBelt.map(student => (
+                    <StudentRow
+                      key={student.id}
+                      student={student}
+                      selectionMode={selectionMode}
+                      isSelected={selectedIds.has(student.id)}
+                      onRowClick={() => handleRowClick(student)}
+                      onCheckboxChange={() => toggleSelect(student.id)}
+                      onHover={setHoveredRowId}
+                      isHovered={hoveredRowId === student.id}
+                    />
                   ))}
                 </TableBody>
               </Table>
@@ -409,6 +520,310 @@ export default function StudentsRoster() {
           )}
         </CardContent>
       </Card>
+
+      {/* Student Edit Dialog */}
+      {editingStudent && (
+        <StudentEditDialog
+          student={editingStudent}
+          isOpen={isEditDialogOpen}
+          onOpenChange={setIsEditDialogOpen}
+          onStudentChange={setEditingStudent}
+          onSave={handleSaveStudent}
+          isSaving={updateStudent.isPending || createStudent.isPending}
+          isNewStudent={!editingStudent.id}
+        />
+      )}
     </div>
+  );
+}
+
+function StudentRow({
+  student,
+  selectionMode,
+  isSelected,
+  onRowClick,
+  onCheckboxChange,
+  onHover,
+  isHovered,
+}: {
+  student: any;
+  selectionMode: boolean;
+  isSelected: boolean;
+  onRowClick: () => void;
+  onCheckboxChange: () => void;
+  onHover: (id: number | null) => void;
+  isHovered: boolean;
+}) {
+  const utils = trpc.useUtils();
+  const { data: attendanceCount = 0 } = trpc.attendance.countSincePromotion.useQuery(
+    { studentId: student.id },
+    { enabled: !!student.id }
+  );
+
+  const isEligible = attendanceCount >= 15;
+
+  return (
+    <TableRow
+      className={`hover:bg-gray-50 cursor-pointer ${isSelected ? "bg-blue-50" : ""}`}
+      onClick={onRowClick}
+      onMouseEnter={() => onHover(student.id)}
+      onMouseLeave={() => onHover(null)}
+    >
+      <TableCell onClick={e => e.stopPropagation()}>
+        {(selectionMode || isHovered) && (
+          <Checkbox checked={isSelected} onCheckedChange={onCheckboxChange} />
+        )}
+      </TableCell>
+      <TableCell>
+        <p className="font-medium text-gray-900">{student.name}</p>
+      </TableCell>
+      <TableCell>
+        {student.email && <p className="text-xs text-gray-600">{student.email}</p>}
+        {student.phone && <p className="text-xs text-gray-500">{student.phone}</p>}
+      </TableCell>
+      <TableCell>
+        {student.program ? (
+          <Badge variant="outline" className="text-xs">
+            {student.program}
+          </Badge>
+        ) : (
+          <span className="text-xs text-gray-400">—</span>
+        )}
+      </TableCell>
+      <TableCell>
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-gray-700">{student.beltRank || "—"}</span>
+          {isEligible && (
+            <Badge className="bg-green-100 text-green-800 text-xs">Eligible</Badge>
+          )}
+        </div>
+      </TableCell>
+      <TableCell>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-600">{attendanceCount} / 15</span>
+          <div className="w-16 h-2 bg-gray-200 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-blue-500 transition-all"
+              style={{ width: `${Math.min((attendanceCount / 15) * 100, 100)}%` }}
+            />
+          </div>
+        </div>
+      </TableCell>
+      <TableCell>
+        {student.status ? (
+          <Badge
+            className={`text-xs ${
+              student.status.toLowerCase().includes("active")
+                ? "bg-green-100 text-green-800"
+                : "bg-gray-100 text-gray-600"
+            }`}
+          >
+            {student.status}
+          </Badge>
+        ) : (
+          <span className="text-xs text-gray-400">—</span>
+        )}
+      </TableCell>
+      <TableCell>
+        <span className="text-xs text-gray-500">{student.enrollmentDate || "—"}</span>
+      </TableCell>
+    </TableRow>
+  );
+}
+
+function StudentEditDialog({
+  student,
+  isOpen,
+  onOpenChange,
+  onStudentChange,
+  onSave,
+  isSaving,
+  isNewStudent,
+}: {
+  student: StudentEditState;
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
+  onStudentChange: (student: StudentEditState) => void;
+  onSave: () => Promise<void>;
+  isSaving: boolean;
+  isNewStudent: boolean;
+}) {
+  const utils = trpc.useUtils();
+  const { data: attendanceCount = 0 } = trpc.attendance.countSincePromotion.useQuery(
+    { studentId: student.id || 0 },
+    { enabled: !!student.id }
+  );
+
+  const isEligible = attendanceCount >= 15;
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>{isNewStudent ? "Add Student" : `Edit ${student.name}`}</DialogTitle>
+        </DialogHeader>
+
+        <Tabs defaultValue="details" className="w-full">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="details">Details</TabsTrigger>
+            <TabsTrigger value="belt">Belt & Eligibility</TabsTrigger>
+            <TabsTrigger value="payments">Payments</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="details" className="space-y-4">
+            <div>
+              <label className="text-sm font-medium text-gray-700">Name *</label>
+              <Input
+                value={student.name}
+                onChange={e => onStudentChange({ ...student, name: e.target.value })}
+                placeholder="Full name"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700">Email</label>
+              <Input
+                value={student.email}
+                onChange={e => onStudentChange({ ...student, email: e.target.value })}
+                placeholder="Email address"
+                type="email"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700">Phone</label>
+              <Input
+                value={student.phone}
+                onChange={e => onStudentChange({ ...student, phone: e.target.value })}
+                placeholder="Phone number"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700">Program</label>
+              <Select value={student.program} onValueChange={v => onStudentChange({ ...student, program: v })}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select program" />
+                </SelectTrigger>
+                <SelectContent>
+                  {PROGRAMS.map(p => (
+                    <SelectItem key={p} value={p}>
+                      {p}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700">Enrollment Date</label>
+              <Input
+                value={student.enrollmentDate}
+                onChange={e => onStudentChange({ ...student, enrollmentDate: e.target.value })}
+                placeholder="YYYY-MM-DD"
+                type="date"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700">Emergency Contact</label>
+              <Input
+                value={student.emergencyContact}
+                onChange={e => onStudentChange({ ...student, emergencyContact: e.target.value })}
+                placeholder="Name and phone"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700">Status</label>
+              <Select value={student.status} onValueChange={v => onStudentChange({ ...student, status: v })}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  {STATUSES.map(s => (
+                    <SelectItem key={s} value={s}>
+                      {s}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="belt" className="space-y-4">
+            <div>
+              <label className="text-sm font-medium text-gray-700">Belt Rank</label>
+              <Select value={student.beltRank} onValueChange={v => onStudentChange({ ...student, beltRank: v })}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select belt rank" />
+                </SelectTrigger>
+                <SelectContent>
+                  {BELT_SEQUENCE.map(belt => (
+                    <SelectItem key={belt} value={belt}>
+                      {belt}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {!isNewStudent && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">Attendance Progress</label>
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm text-gray-600">
+                      {attendanceCount} / 15 classes
+                    </span>
+                    {isEligible && (
+                      <Badge className="bg-green-100 text-green-800">Eligible to Test</Badge>
+                    )}
+                  </div>
+                  <div className="w-full h-3 bg-gray-200 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-green-500 transition-all"
+                      style={{ width: `${Math.min((attendanceCount / 15) * 100, 100)}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-700">Manual Eligibility Override</label>
+              <div className="flex items-center gap-3 bg-blue-50 p-3 rounded-lg">
+                <Checkbox
+                  checked={student.isEligibleOverride}
+                  onCheckedChange={v => onStudentChange({ ...student, isEligibleOverride: !!v })}
+                />
+                <span className="text-sm text-gray-600">
+                  {student.isEligibleOverride ? "Mark as Eligible" : "Mark as Ineligible"}
+                </span>
+              </div>
+              <p className="text-xs text-gray-500">Override automatic eligibility based on attendance. When enabled, this student is marked as eligible to test regardless of attendance count.</p>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="payments" className="space-y-4">
+            <Card className="border-gray-200">
+              <CardContent className="pt-6">
+                <p className="text-sm text-gray-600">Payment history coming soon.</p>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button onClick={onSave} disabled={isSaving}>
+            {isSaving ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              "Save"
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

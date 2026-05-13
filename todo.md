@@ -113,3 +113,34 @@
 - [x] Write vitest tests for attendance system (1 test passing)
 - [x] Update AGENTS.md with new DB columns and endpoints
 - [x] Update ROADMAP.md to mark kiosk complete, Phase 5 in progress
+
+
+## StudentsRoster Component Refactor (Dual Interaction Modes)
+- [x] Implement dual interaction modes (Gmail-style): default mode (no checkboxes) and selection mode
+- [x] Default mode: clicking row opens edit popup; hover shows faint checkbox
+- [x] Selection mode: triggered by clicking checkbox or "Select" toggle; all rows show checkboxes
+- [x] Selection mode: "Select All" checkbox in header; floating action bar with N selected, Belt Rank +/−, Mark Eligible, Mark Ineligible, X to exit
+- [x] Student edit popup with 3 tabs: Details, Belt & Eligibility, Payments
+- [x] Details tab: editable Name, Email, Phone, Program (dropdown), Enrollment Date, Emergency Contact, Status
+- [x] Belt & Eligibility tab: Belt Rank dropdown (White → Yellow → ... → 3rd Dan Black), attendance count progress bar (X/15), Manual Mark Eligible/Ineligible toggle
+- [x] Payments tab: placeholder "Payment history coming soon"
+- [x] Add Student button: + Add Student at top right, opens same popup but empty
+- [x] Belt rank filter dropdown: "All Belts" + individual belt options, filters visible list (does NOT select students)
+- [x] Progress column: X/15 classes with progress bar, calls trpc.attendance.countSincePromotion per student
+- [x] Search fixes: change >= 2 to >= 1 for single-character queries, search by name or phone only
+- [x] CSV import hint text: "Re-uploading a CSV adds new students and updates existing ones by name — no data is deleted."
+- [x] Add tRPC procedures: students.update, students.create
+- [x] Add server/db.ts functions: updateStudent, createStudent
+- [x] All tests passing (17/17)
+- [x] Build succeeds with no TypeScript errors
+
+## StudentsRoster Mark Eligible/Ineligible Feature
+- [x] Add isEligibleOverride column to students table (tinyint, default 0)
+- [x] Generate and apply database migration (0014_mighty_owl.sql)
+- [x] Add isEligibleOverride to StudentEditState interface
+- [x] Add Mark Eligible/Ineligible toggle in Belt & Eligibility tab
+- [x] Update handleSaveStudent to include isEligibleOverride in mutations
+- [x] Update handleRowClick to load isEligibleOverride from student data
+- [x] Update handleAddStudent to initialize isEligibleOverride as false
+- [x] All tests passing (17/17)
+- [x] Build succeeds

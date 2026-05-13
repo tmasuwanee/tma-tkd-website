@@ -430,3 +430,5 @@ export async function demoteBeltRank(studentId: number): Promise<Student | null>
   const updated = await db.select().from(students).where(eq(students.id, studentId)).limit(1);
   return updated[0] ?? null;
 }
+
+

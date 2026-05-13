@@ -1,0 +1,1 @@
+ALTER TABLE `students` ADD `isEligibleOverride` tinyint DEFAULT 0 NOT NULL;
