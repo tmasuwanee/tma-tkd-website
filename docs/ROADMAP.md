@@ -27,30 +27,20 @@ Store as a varchar on the student record (current `beltRank` column already exis
 - Eligibility is a flag/indicator only — instructor still manually confirms
 
 ### DB Changes Needed (Manus)
-- [ ] Add `attendance` table:
-  ```sql
-  CREATE TABLE attendance (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    studentId INT NOT NULL,
-    checkedInAt TIMESTAMP DEFAULT NOW() NOT NULL,
-    classDate DATE NOT NULL,
-    loggedBy ENUM('kiosk', 'staff') DEFAULT 'kiosk',
-    FOREIGN KEY (studentId) REFERENCES students(id)
-  );
-  ```
-- [ ] Add `lastPromotedAt` timestamp column to `students` table (reset to NOW() whenever belt rank changes)
-- [ ] Add `attendanceSincePromotion` computed or cached int to `students` (count of attendance rows since lastPromotedAt) — can be computed on query, no need to store
+- [x] Add `attendance` table (created, migration applied)
+- [x] Add `lastPromotedAt` timestamp column to `students` table
+- [x] Computed `attendanceSincePromotion` on query (no need to store)
 
-### Attendance Kiosk Page (Manus — `/attendance`)
-- **No login required** — fully public page, meant to be open on a tablet/screen at the studio
-- Clean, large-touch-friendly UI
-- Student types their name → live search filters student list → student taps their name → checked in
-- Confirmation screen: "Welcome, [Name]! Checked in for today." with belt rank shown
-- Auto-reset to search screen after 5 seconds
-- Duplicate check: if student already checked in today, show "Already checked in today, [Name]!" instead
-- No ability to undo or edit from this page — staff-only
+### Attendance Kiosk Page (Manus — `/attendance`) ✅ DONE
+- [x] Password gate (ATTENDANCE_KIOSK_PASSWORD env var, persists in localStorage)
+- [x] Large-touch-friendly UI, tablet-optimized
+- [x] Student name search with live filtering
+- [x] Check-in confirmation with belt rank display
+- [x] Auto-reset to search after 5 seconds
+- [x] Duplicate check: "Already checked in today" message
+- [x] No undo/edit from kiosk page (staff-only admin functions)
 
-### Students Tab Changes (Manus — admin dashboard)
+### Students Tab Changes (Manus — admin dashboard) 🔄 IN PROGRESS
 - [ ] Checkbox on each student row for multi-select
 - [ ] When 1+ students selected: action bar appears at top of list with:
   - **Edit Info** — inline edit or modal: name, phone, email, program, status, emergency contact

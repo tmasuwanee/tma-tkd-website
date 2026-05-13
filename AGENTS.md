@@ -77,6 +77,8 @@ The website exposes these REST endpoints for n8n (not tRPC — plain HTTP):
 | `GET` | `/api/ads/insights?days=N` | Ad performance queries |
 | `POST` | `/api/ads/sync` | Manual FB ad data pull (bearer token required) |
 | `POST` | `/api/scheduled/sync-fb-ads` | Heartbeat cron — daily FB sync |
+| `POST` | `/api/attendance/check-in` | Kiosk check-in (student name → attendance log) |
+| `GET` | `/api/attendance/count-since-promotion` | Belt eligibility check (15+ classes) |
 
 The n8n webhook URL (incoming, from website → n8n): `https://n8n.arfaconsults.com/webhook/tma-lead`
 Wired via `ENV.n8nWebhookUrl` → `process.env.N8N_WEBHOOK_URL`.
@@ -101,6 +103,7 @@ All active n8n workflows are documented in `docs/WORKFLOWS.md`.
 |---|---|
 | `RESEND_API_KEY` | Transactional email sending |
 | `N8N_WEBHOOK_URL` | Fires n8n on new lead form submission |
+| `ATTENDANCE_KIOSK_PASSWORD` | Password gate for /attendance kiosk page (tablet setup) |
 | `TMA_STRIPE_SECRET_KEY` | Camp registration payments (server) |
 | `VITE_TMA_STRIPE_PUBLISHABLE_KEY` | Camp registration payments (client) |
 | `FACEBOOK_PIXEL_ID` | Meta pixel tracking |
