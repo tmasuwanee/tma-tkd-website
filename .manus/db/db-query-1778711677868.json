@@ -1,0 +1,67 @@
+{
+  "query": "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'campRegistrations' AND ORDINAL_POSITION > 20 ORDER BY ORDINAL_POSITION;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3SwZhQGwFybjoYh.root --database cXp7keMiYsMkePUngpTNmV --execute SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'campRegistrations' AND ORDINAL_POSITION > 20 ORDER BY ORDINAL_POSITION;",
+  "rows": [
+    {
+      "COLUMN_NAME": "zip"
+    },
+    {
+      "COLUMN_NAME": "howDidYouHear"
+    },
+    {
+      "COLUMN_NAME": "programType"
+    },
+    {
+      "COLUMN_NAME": "numCampers"
+    },
+    {
+      "COLUMN_NAME": "addFieldTrip"
+    },
+    {
+      "COLUMN_NAME": "addExtendedCare"
+    },
+    {
+      "COLUMN_NAME": "anticipatedWeeks"
+    },
+    {
+      "COLUMN_NAME": "futureWeeks"
+    },
+    {
+      "COLUMN_NAME": "firstWeek"
+    },
+    {
+      "COLUMN_NAME": "stripePaymentIntentId"
+    },
+    {
+      "COLUMN_NAME": "stripePaymentStatus"
+    },
+    {
+      "COLUMN_NAME": "amountPaid"
+    },
+    {
+      "COLUMN_NAME": "agreedToTerms"
+    },
+    {
+      "COLUMN_NAME": "isDeleted"
+    },
+    {
+      "COLUMN_NAME": "deletedAt"
+    },
+    {
+      "COLUMN_NAME": "fieldTripWeeks"
+    },
+    {
+      "COLUMN_NAME": "extendedCareWeeks"
+    },
+    {
+      "COLUMN_NAME": "createdAt"
+    },
+    {
+      "COLUMN_NAME": "updatedAt"
+    }
+  ],
+  "messages": [],
+  "stdout": "COLUMN_NAME\nzip\nhowDidYouHear\nprogramType\nnumCampers\naddFieldTrip\naddExtendedCare\nanticipatedWeeks\nfutureWeeks\nfirstWeek\nstripePaymentIntentId\nstripePaymentStatus\namountPaid\nagreedToTerms\nisDeleted\ndeletedAt\nfieldTripWeeks\nextendedCareWeeks\ncreatedAt\nupdatedAt\n",
+  "stderr": "",
+  "execution_time_ms": 264
+}

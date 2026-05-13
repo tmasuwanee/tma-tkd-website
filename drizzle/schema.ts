@@ -52,7 +52,7 @@ export const students = mysqlTable("students", {
   name: varchar("name", { length: 255 }).notNull(),
   email: varchar("email", { length: 320 }),
   phone: varchar("phone", { length: 20 }),
-  programs: text("programs"),
+  programs: text("programs"), // JSON array e.g. ["Taekwondo","BJJ"]
   enrollmentDate: varchar("enrollmentDate", { length: 50 }),
   beltRank: varchar("beltRank", { length: 100 }),
   lastPromotedAt: timestamp("lastPromotedAt"),
@@ -80,11 +80,49 @@ export type InsertAttendance = typeof attendance.$inferInsert;
 
 export const campRegistrations = mysqlTable("campRegistrations", {
   id: int("id").autoincrement().primaryKey(),
+  // Camper 1
   camper1Name: varchar("camper1Name", { length: 255 }).notNull(),
   camper1Dob: varchar("camper1Dob", { length: 20 }).notNull(),
   camper1Age: varchar("camper1Age", { length: 10 }).notNull(),
   camper1Sex: varchar("camper1Sex", { length: 10 }).notNull(),
-  // ... camper2/3 fields, parent info, program selection, payment fields, etc.
+  // Camper 2 (optional)
+  camper2Name: varchar("camper2Name", { length: 255 }),
+  camper2Dob: varchar("camper2Dob", { length: 20 }),
+  camper2Age: varchar("camper2Age", { length: 10 }),
+  camper2Sex: varchar("camper2Sex", { length: 10 }),
+  // Camper 3 (optional)
+  camper3Name: varchar("camper3Name", { length: 255 }),
+  camper3Dob: varchar("camper3Dob", { length: 20 }),
+  camper3Age: varchar("camper3Age", { length: 10 }),
+  camper3Sex: varchar("camper3Sex", { length: 10 }),
+  // Parent/guardian info
+  parentFirstName: varchar("parentFirstName", { length: 255 }).notNull(),
+  parentLastName: varchar("parentLastName", { length: 255 }).notNull(),
+  email: varchar("email", { length: 320 }).notNull(),
+  phone: varchar("phone", { length: 20 }).notNull(),
+  address: varchar("address", { length: 500 }).notNull(),
+  city: varchar("city", { length: 255 }).notNull(),
+  state: varchar("state", { length: 50 }).notNull(),
+  zip: varchar("zip", { length: 20 }).notNull(),
+  howDidYouHear: varchar("howDidYouHear", { length: 255 }),
+  // Program & scheduling
+  programType: varchar("programType", { length: 100 }).notNull(),
+  numCampers: int("numCampers").notNull(),
+  addFieldTrip: tinyint("addFieldTrip").default(0).notNull(),
+  addExtendedCare: tinyint("addExtendedCare").default(0).notNull(),
+  anticipatedWeeks: int("anticipatedWeeks").default(1).notNull(),
+  futureWeeks: int("futureWeeks").default(0).notNull(),
+  firstWeek: varchar("firstWeek", { length: 50 }),
+  fieldTripWeeks: int("fieldTripWeeks").default(0),
+  extendedCareWeeks: int("extendedCareWeeks").default(0),
+  // Payment
+  stripePaymentIntentId: varchar("stripePaymentIntentId", { length: 255 }),
+  stripePaymentStatus: varchar("stripePaymentStatus", { length: 50 }),
+  amountPaid: int("amountPaid").default(0),
+  agreedToTerms: tinyint("agreedToTerms").default(0).notNull(),
+  // Soft delete
+  isDeleted: tinyint("isDeleted").default(0).notNull(),
+  deletedAt: timestamp("deletedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

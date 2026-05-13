@@ -1,0 +1,9 @@
+{
+  "query": "ALTER TABLE students CHANGE COLUMN `program` `programs` TEXT;\nALTER TABLE leads ADD COLUMN `tags` TEXT;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3SwZhQGwFybjoYh.root --database cXp7keMiYsMkePUngpTNmV --execute ALTER TABLE students CHANGE COLUMN `program` `programs` TEXT;\nALTER TABLE leads ADD COLUMN `tags` TEXT;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 571
+}
