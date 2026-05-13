@@ -486,10 +486,13 @@ export default function StudentsRoster() {
                   <TableRow className="bg-gray-50">
                     <TableHead className="w-12">
                       {selectionMode && (
-                        <Checkbox
-                          checked={selectedIds.size === filteredByBelt.length && filteredByBelt.length > 0}
-                          onCheckedChange={toggleSelectAll}
-                        />
+                        <div className="flex items-center justify-center">
+                          <Checkbox
+                            checked={selectedIds.size === filteredByBelt.length && filteredByBelt.length > 0}
+                            onCheckedChange={toggleSelectAll}
+                            className="border-2 border-gray-800"
+                          />
+                        </div>
                       )}
                     </TableHead>
                     <TableHead className="font-semibold">Name</TableHead>
@@ -571,7 +574,7 @@ function StudentRow({
     >
       <TableCell onClick={e => e.stopPropagation()}>
         {(selectionMode || isHovered) && (
-          <Checkbox checked={isSelected} onCheckedChange={onCheckboxChange} />
+          <Checkbox checked={isSelected} onCheckedChange={onCheckboxChange} className="border-2 border-gray-800" />
         )}
       </TableCell>
       <TableCell>
