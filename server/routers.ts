@@ -5,7 +5,7 @@ import { publicProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import {
   createLead, getLeadById, getAllLeads, updateLeadStage, updateLeadProgram, updateLeadNotes, updateLeadTags, deleteLead,
-  upsertLeadFromFacebook,
+  upsertLeadFromFacebook, createLeadActivity, getLeadActivities,
   createCampRegistration, updateCampRegistrationPayment,
   getCampRegistrationByPaymentIntentId, getAllCampRegistrations,
   softDeleteRegistration, restoreRegistration,
@@ -487,6 +487,35 @@ export const appRouter = router({
         }
 
         return result;
+      }),
+
+    // Log an activity against a lead (called by n8n after email/sms sends)
+    logActivity: publicProcedure
+      .input(z.object({
+        leadId: z.number(),
+        type: z.enum(["email", "sms", "call", "note"]),
+        subject: z.string().optional(),
+        body: z.string().optional(),
+        sentBy: z.string().optional(),  // n8n_intake | n8n_noshow | n8n_fbsync | staff
+        status: z.string().optional(),  // sent | failed | opened
+      }))
+      .mutation(async ({ input }) => {
+        const activity = await createLeadActivity({
+          leadId: input.leadId,
+          type: input.type,
+          subject: input.subject ?? null,
+          body: input.body ?? null,
+          sentBy: input.sentBy ?? null,
+          status: input.status ?? "sent",
+        });
+        return activity;
+      }),
+
+    // Get activity log for a lead (emails sent, SMS, calls, notes)
+    getActivity: publicProcedure
+      .input(z.object({ leadId: z.number() }))
+      .query(async ({ input }) => {
+        return getLeadActivities(input.leadId);
       }),
 
     // Admin: delete a lead
