@@ -4,6 +4,7 @@ import mysql from "mysql2";
 import {
   InsertUser, users,
   leads, InsertLead, Lead,
+  leadActivities, InsertLeadActivity, LeadActivity,
   campRegistrations, InsertCampRegistration,
   students, InsertStudent, Student,
   attendance, InsertAttendance, Attendance,
@@ -235,6 +236,25 @@ export async function upsertLeadFromFacebook(input: {
   });
 
   return { id, isNew: true };
+}
+
+// ─── Lead Activity Log ───────────────────────────────────────────────────────
+
+export async function createLeadActivity(activity: InsertLeadActivity): Promise<LeadActivity> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [result] = await db.insert(leadActivities).values(activity);
+  const insertId = (result as unknown as { insertId: number }).insertId ?? 0;
+  const created = await db.select().from(leadActivities).where(eq(leadActivities.id, insertId)).limit(1);
+  return created[0]!;
+}
+
+export async function getLeadActivities(leadId: number): Promise<LeadActivity[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(leadActivities)
+    .where(eq(leadActivities.leadId, leadId))
+    .orderBy(desc(leadActivities.createdAt));
 }
 
 // ─── Students ────────────────────────────────────────────────────────────────
