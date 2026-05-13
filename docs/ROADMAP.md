@@ -7,39 +7,62 @@ Both agents should check this before starting new work — something may already
 
 ---
 
-## 1. Student Attendance Tracker + Belt Testing Automation
+## 1. Student Attendance + Belt Rank System
 
-**Owner: Both (Manus = UI/DB, Claude = automation logic)**
-**Priority: High — needed before belt testing cycle**
+**Owner: Manus (UI + DB) → Claude (automation)**
+**Priority: High**
 
-### What's needed
-- Students CSV uploaded to dashboard (user will upload via existing Students tab)
-- Attendance tracking system: log class attendance per student per date
-- Belt testing eligibility logic: auto-flag students who meet requirements
-- Belt testing payment: Stripe checkout for parents to pay testing fee
-- Belt testing forms: shareable Google Doc / PDF form for parents to fill
+### Belt Ranks (ordered — this is the progression sequence)
+```
+White → Yellow → Orange → Green → Purple → Blue → Brown → Red → High-Red → Pre-Black
+→ 1st Dan Black → 1st Dan Black Lv.1 → 1st Dan Black Lv.2 → 1st Dan Black Lv.3 → 1st Dan Black Lv.4
+→ 2nd Dan Black → 2nd Dan Black Lv.1 → 2nd Dan Black Lv.2 → 2nd Dan Black Lv.3 → 2nd Dan Black Lv.4
+→ 3rd Dan Black
+```
+Store as a varchar on the student record (current `beltRank` column already exists). Rank up/down buttons must follow this exact order — no skipping.
 
-### Nuances (to be scoped in detail before building)
-- Belt rank progression varies by program (Taekwondo, BJJ, Kickboxing differ)
-- Minimum class count requirements per belt level (user to provide numbers)
-- Instructor override: auto-flag is a suggestion, instructor confirms
-- Testing cycles happen on a schedule (not continuous) — need to know cadence
-- Payment amount varies by belt level potentially
-- Form delivery: email to parent after instructor approves student for testing
+### Eligibility Rule
+- **15 classes attended** since last belt promotion = eligible to test
+- Same threshold for every rank
+- Eligibility is a flag/indicator only — instructor still manually confirms
 
-### Pending from user
-- [ ] Belt testing requirements doc (class counts per rank, programs)
-- [ ] Belt testing price structure (flat fee or per rank?)
-- [ ] Belt testing cycle cadence (monthly? quarterly?)
-- [ ] Confirmation of how attendance gets logged (manual staff entry? QR scan? other?)
+### DB Changes Needed (Manus)
+- [ ] Add `attendance` table:
+  ```sql
+  CREATE TABLE attendance (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    studentId INT NOT NULL,
+    checkedInAt TIMESTAMP DEFAULT NOW() NOT NULL,
+    classDate DATE NOT NULL,
+    loggedBy ENUM('kiosk', 'staff') DEFAULT 'kiosk',
+    FOREIGN KEY (studentId) REFERENCES students(id)
+  );
+  ```
+- [ ] Add `lastPromotedAt` timestamp column to `students` table (reset to NOW() whenever belt rank changes)
+- [ ] Add `attendanceSincePromotion` computed or cached int to `students` (count of attendance rows since lastPromotedAt) — can be computed on query, no need to store
 
-### Build sequence (once above is provided)
-- [ ] Manus: Add `attendance` table to schema (studentId, date, classType, loggedBy)
-- [ ] Manus: Attendance logging UI on admin dashboard
-- [ ] Manus: Belt testing eligibility view (students who hit class count threshold)
-- [ ] Manus: Stripe checkout for belt testing fee
-- [ ] Claude: n8n workflow — eligibility detected → email instructor summary weekly
-- [ ] Claude: n8n workflow — instructor approves → parent gets payment link + form
+### Attendance Kiosk Page (Manus — `/attendance`)
+- **No login required** — fully public page, meant to be open on a tablet/screen at the studio
+- Clean, large-touch-friendly UI
+- Student types their name → live search filters student list → student taps their name → checked in
+- Confirmation screen: "Welcome, [Name]! Checked in for today." with belt rank shown
+- Auto-reset to search screen after 5 seconds
+- Duplicate check: if student already checked in today, show "Already checked in today, [Name]!" instead
+- No ability to undo or edit from this page — staff-only
+
+### Students Tab Changes (Manus — admin dashboard)
+- [ ] Checkbox on each student row for multi-select
+- [ ] When 1+ students selected: action bar appears at top of list with:
+  - **Edit Info** — inline edit or modal: name, phone, email, program, status, emergency contact
+  - **Belt Rank +** — promote one rank up (follows ordered list above)
+  - **Belt Rank -** — demote one rank down
+  - **Mark Eligible** — manual override to flag as eligible regardless of class count
+- [ ] Eligibility indicator at top of Students tab: small banner/badge like "3 students eligible to test" — clicking it filters the list to eligible students only
+- [ ] Each student row shows: name, program, belt rank, classes since last promotion (e.g. "11/15"), eligibility badge if ≥15
+
+### Claude's Automation (after Manus completes DB + UI)
+- [ ] n8n workflow: runs weekly → queries students where attendanceSincePromotion ≥ 15 → sends email to tmasuwanee@gmail.com with list of eligible students
+- [ ] n8n workflow (future): instructor approves student → parent gets notification
 
 ---
 
@@ -57,92 +80,61 @@ Both agents should check this before starting new work — something may already
 ### What's pending
 - [ ] User to share reference video for ad strategy analysis
 - [ ] Claude: Analyze video → map to TMA's ad practices → build automation spec
-- [ ] Claude: n8n workflow — weekly ad performance report (spend, CPL, leads) → email to tmasuwanee@gmail.com
-- [ ] Claude: n8n workflow — CPL threshold alert (if cost per lead exceeds $X → alert)
-- [ ] Claude: n8n workflow — auto-pause underperforming ads via FB Marketing API (requires user approval on logic)
-- [ ] Claude: n8n workflow — lead volume drop alert (if leads < X in 48h window → alert)
-- [ ] Manus: Dashboard enhancements based on what video analysis surfaces
+- [ ] Claude: n8n — weekly ad performance report email (spend, CPL, leads)
+- [ ] Claude: n8n — CPL threshold alert
+- [ ] Claude: n8n — lead volume drop alert
+- [ ] Manus: Dashboard enhancements based on video analysis
 
 ### Pending from user
-- [ ] Reference video to analyze
-- [ ] CPL threshold (what's too expensive per lead for TMA?)
+- [ ] Reference video
+- [ ] CPL threshold (what's too expensive per lead?)
 - [ ] Decision: auto-pause ads or just alert?
 
 ---
 
 ## 3. SMS Automations via Twilio
 
-**Owner: Claude (n8n + Twilio API)**
-**Priority: High — needed for lead follow-up speed**
+**Owner: Claude (n8n + Twilio)**
+**Priority: High**
 
-### What's needed
-- Twilio phone number purchase
-- A2P 10DLC brand + campaign registration (required for business SMS in US)
-- SMS integrated into existing lead follow-up sequences
-
-### A2P Registration steps (user must do most of this)
-- [ ] Create Twilio account if not already done
-- [ ] Register brand (business name, EIN, address, vertical = Education/Martial Arts)
-- [ ] Register campaign (use case = Marketing, sample messages needed)
-- [ ] Wait for carrier approval (~1-7 days after submission)
-- [ ] Purchase local number (770 area code preferred to match existing TMA number)
+### What's pending
+- [ ] User: Create Twilio account + start A2P 10DLC registration (business name, EIN, vertical = Education)
+- [ ] User: Register SMS campaign (use case = Marketing, ~3 sample messages needed)
+- [ ] User: Purchase local number (770 area code preferred)
+- [ ] User: Add Twilio Account SID + Auth Token to .env + Manus Secrets
 
 ### Build sequence (after A2P approved)
-- [ ] Claude: Add Twilio credentials to n8n
-- [ ] Claude: n8n — new lead form submit → SMS to lead within 2 minutes ("Hey [name], this is TMA Suwanee...")
-- [ ] Claude: n8n — missed trial class → SMS same day (no-show recovery, alongside email)
-- [ ] Claude: n8n — belt testing approval → SMS to parent with payment link
-- [ ] Claude: n8n — 24h before trial class → SMS reminder to lead
-
-### Pending from user
-- [ ] Twilio account setup + A2P registration started
-- [ ] Confirm SMS copy tone (casual vs formal)
-- [ ] Twilio Account SID + Auth Token → add to .env + Manus Secrets once ready
+- [ ] Claude: New lead → SMS within 2 minutes
+- [ ] Claude: Missed trial → SMS same day
+- [ ] Claude: 24h before trial → SMS reminder
+- [ ] Claude: Belt testing approval → SMS to parent with payment link (future)
 
 ---
 
 ## 4. Retell AI Missed Call Agent
 
-**Owner: Claude (Retell + Twilio routing)**
-**Priority: High — missed calls = lost leads**
+**Owner: Claude (Retell config + n8n webhook)**
+**Priority: High**
 
-### What's needed
-- Retell AI agent configured for TMA (answers questions, captures lead info)
-- Call routing: forward missed calls from 770-277-3009 to Retell agent
-- Lead data from Retell calls → saved to TMA leads DB + fires n8n intake sequence
+### Pending decisions
+- [ ] Who is the carrier for 770-277-3009? (needed to evaluate porting vs forwarding)
+- [ ] Port number to Twilio, or forward missed calls only?
+- [ ] User: Create Retell account at retell.ai
 
-### Call routing options (need to evaluate)
-- **Option A:** Port 770-277-3009 to Twilio → Twilio handles routing → forward to Retell on no-answer
-- **Option B:** Set up call forwarding on existing carrier → forward to Twilio number → Retell picks up
-- **Option C:** Keep existing number on carrier, add Twilio as overflow only
-
-### Retell agent scope
-- Greet caller, explain it's TMA's virtual assistant
-- Answer: hours, location, programs offered, pricing questions
-- Capture: name, age of child, program interest, contact info
-- End: "We'll have someone call you back shortly" + fires SMS/email to staff
-
-### Build sequence
-- [ ] Confirm call routing approach with user (see options above)
-- [ ] Set up Retell account + API key → add to .env
-- [ ] Claude: Build Retell agent prompt (TMA-specific knowledge base)
+### Build sequence (after Twilio + routing decided)
+- [ ] Claude: Retell agent prompt (TMA hours, location, programs, pricing, lead capture)
 - [ ] Claude: Retell webhook → n8n → create lead in DB → fire intake sequence
-- [ ] Test end-to-end: call 770-277-3009 → Retell answers → lead appears in dashboard
-
-### Pending from user
-- [ ] Retell account created? (retell.ai)
-- [ ] Decision on call routing approach (port number vs forward vs overflow)
-- [ ] Confirm with carrier (who holds 770-277-3009?) — porting requires carrier info
+- [ ] Test: call 770-277-3009 → Retell answers → lead in dashboard
 
 ---
 
 ## Completed
 
-- [x] Lead intake form → DB → n8n webhook (Lead Intake v2)
+- [x] Lead intake form → DB → n8n webhook
 - [x] Staff alert email on new lead
-- [x] Day 2 + Day 4 follow-up email sequence (48h wait nodes)
+- [x] Day 2 + Day 4 follow-up email sequence (48h waits)
 - [x] Trial No-Show Recovery (daily 9 AM, Day 1 + Day 3 emails, stage updates)
 - [x] REST endpoints for n8n (/api/leads, /api/leads/:id/stage)
 - [x] no_show + no_show_final pipeline stages
 - [x] Facebook Marketing API sync + Ad Performance dashboard
-- [x] AGENTS.md + WORKFLOWS.md shared docs
+- [x] AGENTS.md + WORKFLOWS.md + ROADMAP.md shared docs
