@@ -16,6 +16,8 @@ export const ENV = {
   leadNotificationEmail: process.env.LEAD_NOTIFICATION_EMAIL ?? "",
   // n8n automation webhook — set N8N_WEBHOOK_URL in Secrets once you create the n8n workflow
   n8nWebhookUrl: process.env.N8N_WEBHOOK_URL ?? "",
+  // Attendance kiosk password gate
+  attendanceKioskPassword: process.env.ATTENDANCE_KIOSK_PASSWORD ?? "",
   // Meta / Facebook integrations — set these in Secrets
   facebookPixelId: process.env.FACEBOOK_PIXEL_ID ?? "",
   facebookCapiToken: process.env.FACEBOOK_CAPI_TOKEN ?? "",

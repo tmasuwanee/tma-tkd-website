@@ -75,6 +75,7 @@ export const students = mysqlTable("students", {
   program: varchar("program", { length: 255 }),
   enrollmentDate: varchar("enrollmentDate", { length: 50 }),
   beltRank: varchar("beltRank", { length: 100 }),
+  lastPromotedAt: timestamp("lastPromotedAt"), // reset to NOW() whenever belt rank changes
   status: varchar("status", { length: 50 }), // active, inactive, etc.
   emergencyContact: varchar("emergencyContact", { length: 255 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -83,6 +84,19 @@ export const students = mysqlTable("students", {
 
 export type Student = typeof students.$inferSelect;
 export type InsertStudent = typeof students.$inferInsert;
+
+// Attendance tracking table
+export const attendance = mysqlTable("attendance", {
+  id: int("id").autoincrement().primaryKey(),
+  studentId: int("studentId").notNull().references(() => students.id),
+  checkedInAt: timestamp("checkedInAt").defaultNow().notNull(),
+  classDate: varchar("classDate", { length: 20 }).notNull(), // YYYY-MM-DD
+  loggedBy: mysqlEnum("loggedBy", ["kiosk", "staff"]).default("kiosk").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type Attendance = typeof attendance.$inferSelect;
+export type InsertAttendance = typeof attendance.$inferInsert;
 
 // Summer camp registrations table
 export const campRegistrations = mysqlTable("campRegistrations", {

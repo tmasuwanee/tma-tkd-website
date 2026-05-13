@@ -470,7 +470,46 @@ export const appRouter = router({
         if (!input.query.trim()) return getAllStudents();
         return searchStudents(input.query);
       }),
+    // Get eligible students (15+ attendance since last promotion)
+    getEligible: publicProcedure.query(async () => {
+      const { getEligibleStudents } = await import('./db');
+      return getEligibleStudents();
+    }),
+    // Promote a student's belt rank
+    promoteBelt: publicProcedure
+      .input(z.object({ studentId: z.number() }))
+      .mutation(async ({ input }) => {
+        const { promoteBeltRank } = await import('./db');
+        return promoteBeltRank(input.studentId);
+      }),
+    // Demote a student's belt rank
+    demoteBelt: publicProcedure
+      .input(z.object({ studentId: z.number() }))
+      .mutation(async ({ input }) => {
+        const { demoteBeltRank } = await import('./db');
+        return demoteBeltRank(input.studentId);
+      }),
    }),
+  // ─── Attendance ──────────────────────────────────────────────────────────
+  attendance: router({
+    // Check in a student (kiosk)
+    checkIn: publicProcedure
+      .input(z.object({
+        studentId: z.number(),
+        classDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      }))
+      .mutation(async ({ input }) => {
+        const { checkInStudent } = await import('./db');
+        return checkInStudent(input.studentId, input.classDate);
+      }),
+    // Get attendance count since last promotion
+    countSincePromotion: publicProcedure
+      .input(z.object({ studentId: z.number() }))
+      .query(async ({ input }) => {
+        const { getAttendanceSincePromotion } = await import('./db');
+        return getAttendanceSincePromotion(input.studentId);
+      }),
+  }),
   // ─── Facebook Ad Insights ─────────────────────────────────────────────────
   ads: router({
     // Get stored ad insights for the last N days

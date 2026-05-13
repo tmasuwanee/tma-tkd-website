@@ -1,13 +1,15 @@
-import { eq, desc, or, like, inArray, isNotNull, and } from "drizzle-orm";
+import { eq, desc, or, like, inArray, isNotNull, and, gte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import mysql from "mysql2";
 import {
   InsertUser, users,
   leads, InsertLead, Lead,
   campRegistrations, InsertCampRegistration,
-  students, InsertStudent,
+  students, InsertStudent, Student,
+  attendance, InsertAttendance, Attendance,
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
+import { getNextRank, getPreviousRank } from "../shared/beltRanks";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 let _pool: ReturnType<typeof mysql.createPool> | null = null;
@@ -270,4 +272,114 @@ export async function restoreRegistration(id: number) {
   await db.update(campRegistrations)
     .set({ isDeleted: 0, deletedAt: null })
     .where(eq(campRegistrations.id, id));
+}
+
+
+// ─── Attendance ──────────────────────────────────────────────────────────────
+
+export async function checkInStudent(studentId: number, classDate: string): Promise<Attendance> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // Check if already checked in today
+  const today = new Date().toISOString().split('T')[0];
+  const existing = await db
+    .select()
+    .from(attendance)
+    .where(and(eq(attendance.studentId, studentId), eq(attendance.classDate, today)))
+    .limit(1);
+  
+  if (existing.length > 0) {
+    return existing[0];
+  }
+  
+  // Create new attendance record
+  const [result] = await db.insert(attendance).values({
+    studentId,
+    classDate,
+    loggedBy: 'kiosk',
+  });
+  
+  const insertId = (result as unknown as { insertId: number }).insertId ?? 0;
+  const newRecord = await db.select().from(attendance).where(eq(attendance.id, insertId)).limit(1);
+  return newRecord[0]!;
+}
+
+export async function getAttendanceSincePromotion(studentId: number): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const student = await db.select().from(students).where(eq(students.id, studentId)).limit(1);
+  if (!student.length) return 0;
+  
+  const lastPromotedAt = student[0].lastPromotedAt;
+  if (!lastPromotedAt) return 0;
+  
+  const result = await db
+    .select()
+    .from(attendance)
+    .where(and(eq(attendance.studentId, studentId), gte(attendance.checkedInAt, lastPromotedAt)));
+  
+  return result.length;
+}
+
+export async function getEligibleStudents(): Promise<(Student & { attendanceSincePromotion: number })[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const allStudents = await db.select().from(students);
+  const eligible = [];
+  
+  for (const student of allStudents) {
+    const count = await getAttendanceSincePromotion(student.id);
+    if (count >= 15) {
+      eligible.push({ ...student, attendanceSincePromotion: count });
+    }
+  }
+  
+  return eligible;
+}
+
+// ─── Belt Rank ───────────────────────────────────────────────────────────────
+
+export async function promoteBeltRank(studentId: number): Promise<Student | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const student = await db.select().from(students).where(eq(students.id, studentId)).limit(1);
+  if (!student.length) return null;
+  
+  const currentRank = student[0].beltRank;
+  const nextRank = getNextRank(currentRank);
+  
+  if (!nextRank) return student[0]; // Already at highest rank
+  
+  await db.update(students).set({
+    beltRank: nextRank,
+    lastPromotedAt: new Date(),
+  }).where(eq(students.id, studentId));
+  
+  const updated = await db.select().from(students).where(eq(students.id, studentId)).limit(1);
+  return updated[0] ?? null;
+}
+
+export async function demoteBeltRank(studentId: number): Promise<Student | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const student = await db.select().from(students).where(eq(students.id, studentId)).limit(1);
+  if (!student.length) return null;
+  
+  const currentRank = student[0].beltRank;
+  const previousRank = getPreviousRank(currentRank);
+  
+  if (!previousRank) return student[0]; // Already at lowest rank
+  
+  await db.update(students).set({
+    beltRank: previousRank,
+    lastPromotedAt: new Date(),
+  }).where(eq(students.id, studentId));
+  
+  const updated = await db.select().from(students).where(eq(students.id, studentId)).limit(1);
+  return updated[0] ?? null;
 }

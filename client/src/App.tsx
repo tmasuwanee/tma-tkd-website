@@ -15,6 +15,7 @@ import FreeClass from "./pages/FreeClass";
 import SpringBreakCamp from "./pages/SpringBreakCamp";
 import SpringBreakRegistration from "./pages/SpringBreakRegistration";
 import AdminRegistrations from "./pages/AdminRegistrations";
+import AttendanceKiosk from "./pages/AttendanceKiosk";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -30,6 +31,7 @@ function Router() {
       <Route path={"/free-class"} component={FreeClass} />
       <Route path={"/spring-break-camp"} component={SpringBreakCamp} />
       <Route path={"/spring-break-registration"} component={SpringBreakRegistration} />
+      <Route path={"/attendance"} component={AttendanceKiosk} />
       <Route path={"/admin/registrations"} component={AdminRegistrations} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}
