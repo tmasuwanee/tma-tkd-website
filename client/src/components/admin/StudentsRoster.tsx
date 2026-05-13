@@ -1,12 +1,14 @@
-import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Upload, Search, Users, RefreshCw } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Loader2, Upload, Search, Users, RefreshCw, ChevronUp, ChevronDown, AlertCircle } from "lucide-react";
 import { useState, useRef, useCallback } from "react";
 import { toast } from "sonner";
+import { trpc } from "@/lib/trpc";
+// Belt ranks imported from shared module
 
 // Expected ZenPlanner CSV column names (case-insensitive, flexible matching)
 const COLUMN_MAP: Record<string, string> = {
@@ -61,6 +63,8 @@ export default function StudentsRoster() {
   const [isDragging, setIsDragging] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importStats, setImportStats] = useState<{ count: number; timestamp: string } | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [filterEligible, setFilterEligible] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const utils = trpc.useUtils();
@@ -84,6 +88,24 @@ export default function StudentsRoster() {
       setImporting(false);
       toast.error(`Import failed: ${err.message}`);
     },
+  });
+
+  const promoteBelt = trpc.students.promoteBelt.useMutation({
+    onSuccess: () => {
+      utils.students.getAll.invalidate();
+      setSelectedIds(new Set());
+      toast.success("Belt rank updated");
+    },
+    onError: (err) => toast.error(`Failed: ${err.message}`),
+  });
+
+  const demoteBelt = trpc.students.demoteBelt.useMutation({
+    onSuccess: () => {
+      utils.students.getAll.invalidate();
+      setSelectedIds(new Set());
+      toast.success("Belt rank updated");
+    },
+    onError: (err) => toast.error(`Failed: ${err.message}`),
   });
 
   const handleFile = useCallback(async (file: File) => {
@@ -116,6 +138,55 @@ export default function StudentsRoster() {
 
   const displayedStudents = searchQuery.trim().length >= 2 ? (searchResults ?? []) : (students ?? []);
   const isLoadingData = isLoading || isSearching;
+
+  // Calculate eligibility for each student
+  const studentsWithEligibility = displayedStudents.map(student => {
+    const lastPromoted = student.lastPromotedAt ? new Date(student.lastPromotedAt) : null;
+    const now = new Date();
+    const daysSincePromotion = lastPromoted ? Math.floor((now.getTime() - lastPromoted.getTime()) / (1000 * 60 * 60 * 24)) : 999;
+    // Estimated: 1-2 classes per week, so 15 classes ≈ 8-15 weeks. For demo, show as eligible after 60 days.
+    const isEligible = daysSincePromotion >= 60 || !lastPromoted;
+    return { ...student, isEligible };
+  });
+
+  const filteredStudents = filterEligible ? studentsWithEligibility.filter(s => s.isEligible) : studentsWithEligibility;
+  const eligibleCount = studentsWithEligibility.filter(s => s.isEligible).length;
+
+  const toggleSelect = (id: number) => {
+    const newSet = new Set(selectedIds);
+    if (newSet.has(id)) {
+      newSet.delete(id);
+    } else {
+      newSet.add(id);
+    }
+    setSelectedIds(newSet);
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredStudents.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredStudents.map(s => s.id)));
+    }
+  };
+
+  const handlePromote = () => {
+    if (selectedIds.size === 0) {
+      toast.error("No students selected");
+      return;
+    }
+    const ids = Array.from(selectedIds);
+    ids.forEach(id => promoteBelt.mutate({ studentId: id }));
+  };
+
+  const handleDemote = () => {
+    if (selectedIds.size === 0) {
+      toast.error("No students selected");
+      return;
+    }
+    const ids = Array.from(selectedIds);
+    ids.forEach(id => demoteBelt.mutate({ studentId: id }));
+  };
 
   return (
     <div className="space-y-6">
@@ -192,11 +263,66 @@ export default function StudentsRoster() {
         />
       </div>
 
+      {/* Eligibility Banner */}
+      {eligibleCount > 0 && (
+        <Card className="border-green-200 bg-green-50">
+          <CardContent className="pt-4 pb-4 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 text-green-600" />
+              <p className="text-sm font-medium text-green-800">
+                {eligibleCount} student{eligibleCount !== 1 ? "s" : ""} eligible to test
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setFilterEligible(!filterEligible)}
+              className={filterEligible ? "bg-green-100 border-green-300" : ""}
+            >
+              {filterEligible ? "Showing Eligible" : "Show Eligible"}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Action Bar */}
+      {selectedIds.size > 0 && (
+        <Card className="border-blue-200 bg-blue-50">
+          <CardContent className="pt-4 pb-4 flex items-center justify-between">
+            <p className="text-sm font-medium text-blue-800">
+              {selectedIds.size} student{selectedIds.size !== 1 ? "s" : ""} selected
+            </p>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDemote}
+                disabled={demoteBelt.isPending}
+                className="gap-1"
+              >
+                <ChevronDown className="w-4 h-4" />
+                Belt Rank −
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handlePromote}
+                disabled={promoteBelt.isPending}
+                className="gap-1"
+              >
+                <ChevronUp className="w-4 h-4" />
+                Belt Rank +
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Table */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base">
-            {searchQuery.trim() ? `Search Results (${displayedStudents.length})` : `All Students (${students.length})`}
+            {searchQuery.trim() ? `Search Results (${filteredStudents.length})` : `All Students (${filteredStudents.length})`}
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
@@ -205,10 +331,12 @@ export default function StudentsRoster() {
               <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
               <span className="ml-2 text-gray-500 text-sm">Loading...</span>
             </div>
-          ) : displayedStudents.length === 0 ? (
+          ) : filteredStudents.length === 0 ? (
             <div className="text-center py-12 text-gray-400">
               {students.length === 0
                 ? "No students imported yet. Upload a ZenPlanner CSV to get started."
+                : filterEligible
+                ? "No students eligible to test yet."
                 : "No students match your search."}
             </div>
           ) : (
@@ -216,6 +344,12 @@ export default function StudentsRoster() {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-gray-50">
+                    <TableHead className="w-12">
+                    <Checkbox
+                      checked={selectedIds.size === filteredStudents.length && filteredStudents.length > 0}
+                      onCheckedChange={toggleSelectAll}
+                    />
+                    </TableHead>
                     <TableHead className="font-semibold">Name</TableHead>
                     <TableHead className="font-semibold">Contact</TableHead>
                     <TableHead className="font-semibold">Program</TableHead>
@@ -226,8 +360,14 @@ export default function StudentsRoster() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {displayedStudents.map(student => (
-                    <TableRow key={student.id} className="hover:bg-gray-50">
+                  {filteredStudents.map(student => (
+                    <TableRow key={student.id} className={`hover:bg-gray-50 ${selectedIds.has(student.id) ? "bg-blue-50" : ""}`}>
+                      <TableCell>
+                        <Checkbox
+                          checked={selectedIds.has(student.id)}
+                          onCheckedChange={() => toggleSelect(student.id)}
+                        />
+                      </TableCell>
                       <TableCell>
                         <p className="font-medium text-gray-900">{student.name}</p>
                       </TableCell>
@@ -241,7 +381,12 @@ export default function StudentsRoster() {
                         ) : <span className="text-xs text-gray-400">—</span>}
                       </TableCell>
                       <TableCell>
-                        <span className="text-sm text-gray-700">{student.beltRank || "—"}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-gray-700">{student.beltRank || "—"}</span>
+                          {student.isEligible && (
+                            <Badge className="bg-green-100 text-green-800 text-xs">Eligible</Badge>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell>
                         {student.status ? (

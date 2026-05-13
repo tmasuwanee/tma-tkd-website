@@ -93,3 +93,23 @@
 - [x] Set N8N_WEBHOOK_URL environment variable
 - [x] Verify GET /api/leads?stages=new_lead&hasTrialDate=false endpoint live
 - [x] Verify PATCH /api/leads/:leadId/stage endpoint live
+
+
+## Attendance & Belt Rank System (Phase 1-5)
+- [x] Add attendance table to DB (studentId, checkedInAt, classDate, loggedBy)
+- [x] Add lastPromotedAt TIMESTAMP column to students table
+- [x] Create shared/beltRanks.ts with full rank sequence and helpers
+- [x] Add belt rank helpers to server/db.ts (getNextRank, getPreviousRank, countAttendanceSincePromotion)
+- [x] Build /attendance kiosk page with password gate (ATTENDANCE_KIOSK_PASSWORD)
+- [x] Kiosk: name search, check-in confirmation, auto-reset after 5 seconds
+- [x] Kiosk: "Already checked in today" detection
+- [x] tRPC procedures: attendance.checkIn, attendance.countSincePromotion, students.promoteBelt, students.demoteBelt
+- [x] Students admin tab: multi-select checkboxes on each row
+- [x] Action bar appears when 1+ students selected with Belt Rank +/− buttons
+- [x] Belt Rank +/− follow the exact sequence (White → Yellow → ... → 3rd Dan Black)
+- [x] Promoting a rank sets lastPromotedAt = NOW()
+- [x] Each row shows: name, program, belt rank, eligible badge if ≥ 60 days since promotion
+- [x] Banner at top: "X students eligible to test" — clicking filters to eligible only
+- [x] Write vitest tests for attendance system (1 test passing)
+- [x] Update AGENTS.md with new DB columns and endpoints
+- [x] Update ROADMAP.md to mark kiosk complete, Phase 5 in progress
