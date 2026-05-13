@@ -5,16 +5,42 @@
  * that prefer plain HTTP GET/POST over tRPC.
  *
  * Routes:
+ *   GET  /api/leads                  — bulk lead query by stage(s), optional trial date filter
  *   GET  /api/leads/:leadId/status   — lead pipeline stage for n8n pre-send checks
+ *   PATCH /api/leads/:leadId/stage   — update a lead's pipeline stage (used by n8n no-show workflow)
  *   GET  /api/ads/insights?days=N    — Facebook ad performance data from MySQL
  *   POST /api/ads/sync               — manually trigger a Facebook Marketing API pull
  */
 
 import type { Express, Request, Response } from "express";
-import { getLeadById } from "./db";
+import { getLeadById, getLeadsByStages, updateLeadStage } from "./db";
 import { getAdInsights, syncAdInsights } from "./facebook-ads";
 
+const VALID_STAGES = [
+  "new_lead", "contacted", "trial_scheduled", "trial_paid",
+  "trial_attended", "enrolled", "no_show", "no_show_final", "lost",
+] as const;
+
+type PipelineStage = typeof VALID_STAGES[number];
+
 export function registerApiRoutes(app: Express): void {
+  // ─── Bulk leads query ──────────────────────────────────────────────────────
+  // Used by the n8n Trial No-Show Recovery workflow (daily 9 AM check).
+  // GET /api/leads?stages=new_lead,contacted&hasTrialDate=true
+  app.get("/api/leads", async (req: Request, res: Response) => {
+    const stagesParam = (req.query.stages as string) ?? "new_lead";
+    const hasTrialDate = req.query.hasTrialDate === "true";
+    const stages = stagesParam.split(",").map(s => s.trim()).filter(s =>
+      (VALID_STAGES as readonly string[]).includes(s)
+    ) as PipelineStage[];
+    if (stages.length === 0) {
+      res.status(400).json({ error: `stages must be one or more of: ${VALID_STAGES.join(", ")}` });
+      return;
+    }
+    const result = await getLeadsByStages(stages, hasTrialDate);
+    res.json(result);
+  });
+
   // ─── Lead status endpoint ──────────────────────────────────────────────────
   // n8n calls this before sending follow-up emails to avoid contacting
   // leads who have already responded, enrolled, or been marked as lost.
@@ -34,6 +60,24 @@ export function registerApiRoutes(app: Express): void {
       stage: lead.pipelineStage,
       updatedAt: lead.updatedAt?.toISOString() ?? new Date().toISOString(),
     });
+  });
+
+  // ─── Stage update endpoint ─────────────────────────────────────────────────
+  // Used by the n8n no-show recovery workflow to mark leads as no_show / no_show_final.
+  // PATCH /api/leads/:leadId/stage  body: { stage: "no_show" }
+  app.patch("/api/leads/:leadId/stage", async (req: Request, res: Response) => {
+    const leadId = parseInt(req.params.leadId, 10);
+    if (isNaN(leadId)) {
+      res.status(400).json({ error: "Invalid leadId" });
+      return;
+    }
+    const { stage } = req.body as { stage?: string };
+    if (!stage || !(VALID_STAGES as readonly string[]).includes(stage)) {
+      res.status(400).json({ error: `stage must be one of: ${VALID_STAGES.join(", ")}` });
+      return;
+    }
+    await updateLeadStage(leadId, stage as PipelineStage);
+    res.json({ success: true });
   });
 
   // ─── Ad insights endpoint ──────────────────────────────────────────────────

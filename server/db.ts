@@ -1,4 +1,4 @@
-import { eq, desc, or, like } from "drizzle-orm";
+import { eq, desc, or, like, inArray, isNotNull, and } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import mysql from "mysql2";
 import {
@@ -120,6 +120,18 @@ export async function getAllLeads(): Promise<Lead[]> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   return db.select().from(leads).orderBy(desc(leads.createdAt));
+}
+
+export async function getLeadsByStages(
+  stages: Lead['pipelineStage'][],
+  hasTrialDate?: boolean,
+): Promise<Lead[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const where = hasTrialDate
+    ? and(inArray(leads.pipelineStage, stages), isNotNull(leads.trialClassDate))
+    : inArray(leads.pipelineStage, stages);
+  return db.select().from(leads).where(where).orderBy(desc(leads.createdAt));
 }
 
 export async function updateLeadStage(

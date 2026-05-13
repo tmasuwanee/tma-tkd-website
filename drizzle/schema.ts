@@ -44,6 +44,8 @@ export const leads = mysqlTable("leads", {
     "trial_paid",
     "trial_attended",
     "enrolled",
+    "no_show",
+    "no_show_final",
     "lost"
   ]).default("new_lead").notNull(),
   trialPaidAmount: int("trialPaidAmount").default(0), // in cents, e.g. 3000 = $30
