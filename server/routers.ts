@@ -4,7 +4,8 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import {
-  createLead, getLeadById, getAllLeads, updateLeadStage, updateLeadProgram, updateLeadNotes, deleteLead,
+  createLead, getLeadById, getAllLeads, updateLeadStage, updateLeadProgram, updateLeadNotes, updateLeadTags, deleteLead,
+  upsertLeadFromFacebook,
   createCampRegistration, updateCampRegistrationPayment,
   getCampRegistrationByPaymentIntentId, getAllCampRegistrations,
   softDeleteRegistration, restoreRegistration,
@@ -288,6 +289,8 @@ export const appRouter = router({
         trialClassDate: z.string().optional(),   // YYYY-MM-DD
         trialClassTime: z.string().optional(),   // e.g. "5:50 PM"
         trialClassDay: z.string().optional(),    // e.g. "Monday"
+        // Tags
+        tags: z.array(z.string()).optional(),
       }))
       .mutation(async ({ input }) => {
         try {
@@ -307,6 +310,7 @@ export const appRouter = router({
             trialClassDate: input.trialClassDate,
             trialClassTime: input.trialClassTime,
             trialClassDay: input.trialClassDay,
+            tags: input.tags ? JSON.stringify(input.tags) : null,
           });
 
           const leadForIntegrations = {
@@ -329,6 +333,7 @@ export const appRouter = router({
             trialClassDate: input.trialClassDate ?? null,
             trialClassTime: input.trialClassTime ?? null,
             trialClassDay: input.trialClassDay ?? null,
+            tags: input.tags ? JSON.stringify(input.tags) : null,
             createdAt: new Date(),
             updatedAt: new Date(),
           };
@@ -377,9 +382,13 @@ export const appRouter = router({
         }
       }),
 
-    // Admin: get all leads
+    // Admin: get all leads (tags returned as parsed array)
     getAll: publicProcedure.query(async () => {
-      return getAllLeads();
+      const allLeads = await getAllLeads();
+      return allLeads.map(lead => ({
+        ...lead,
+        tags: lead.tags ? JSON.parse(lead.tags) as string[] : [],
+      }));
     }),
 
     // Admin: update pipeline stage
@@ -428,6 +437,58 @@ export const appRouter = router({
         return { success: true };
       }),
 
+    // Admin: update tags (replaces full array — client merges before calling)
+    updateTags: publicProcedure
+      .input(z.object({
+        id: z.number(),
+        tags: z.array(z.string()),
+      }))
+      .mutation(async ({ input }) => {
+        await updateLeadTags(input.id, input.tags);
+        return { success: true };
+      }),
+
+    // Internal: upsert a lead from Facebook Lead Ads (called by n8n sync workflow).
+    // Matches by email — safe to call repeatedly; never overwrites notes, stage, or existing tags.
+    upsertFromFacebook: publicProcedure
+      .input(z.object({
+        parentName: z.string(),
+        kidName: z.string().optional().default(""),
+        kidAge: z.string().optional().default(""),
+        programInterest: z.string().optional().default("summer_camp"),
+        email: z.string().email(),
+        phone: z.string().optional().default(""),
+        utmSource: z.string().optional(),
+        utmMedium: z.string().optional(),
+        utmCampaign: z.string().optional(),
+        utmContent: z.string().optional(),
+        tags: z.array(z.string()).optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const result = await upsertLeadFromFacebook(input);
+
+        // Only fire n8n intake sequence for brand-new leads (not updates)
+        if (result.isNew) {
+          void fireN8nWebhook({
+            leadId: result.id,
+            name: input.parentName,
+            email: input.email,
+            phone: input.phone || "",
+            programInterest: input.programInterest || "summer_camp",
+            utmSource: input.utmSource ?? "facebook",
+            utmMedium: input.utmMedium ?? "lead_ad",
+            utmCampaign: input.utmCampaign ?? null,
+            utmContent: input.utmContent ?? null,
+            trialClassDate: null,
+            trialClassTime: null,
+            trialClassDay: null,
+            timestamp: new Date().toISOString(),
+          });
+        }
+
+        return result;
+      }),
+
     // Admin: delete a lead
     delete: publicProcedure
       .input(z.object({ id: z.number() }))
@@ -446,7 +507,7 @@ export const appRouter = router({
           name: z.string(),
           email: z.string().optional(),
           phone: z.string().optional(),
-          program: z.string().optional(),
+          programs: z.string().optional(),
           enrollmentDate: z.string().optional(),
           beltRank: z.string().optional(),
           status: z.string().optional(),
@@ -496,7 +557,7 @@ export const appRouter = router({
         name: z.string().optional(),
         email: z.string().nullable().optional(),
         phone: z.string().nullable().optional(),
-        program: z.string().nullable().optional(),
+        programs: z.string().nullable().optional(),
         enrollmentDate: z.string().nullable().optional(),
         beltRank: z.string().nullable().optional(),
         status: z.string().nullable().optional(),
@@ -513,7 +574,7 @@ export const appRouter = router({
         name: z.string().min(1),
         email: z.string().nullable().optional(),
         phone: z.string().nullable().optional(),
-        program: z.string().nullable().optional(),
+        programs: z.string().nullable().optional(),
         enrollmentDate: z.string().nullable().optional(),
         beltRank: z.string().nullable().optional(),
         status: z.string().nullable().optional(),
