@@ -1,4 +1,4 @@
-import { eq, desc, or, like, inArray, isNotNull, and, gte } from "drizzle-orm";
+import { eq, desc, or, like, inArray, isNotNull, and, gte, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import mysql from "mysql2";
 import {
@@ -168,17 +168,39 @@ export async function deleteLead(id: number) {
 
 // ─── Students ────────────────────────────────────────────────────────────────
 
-export async function upsertStudents(rows: InsertStudent[]) {
+export async function upsertStudents(rows: InsertStudent[]): Promise<{ added: number; updated: number }> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  // Clear all existing students and replace with fresh CSV data
-  await db.delete(students);
-  if (rows.length > 0) {
-    // Insert in batches of 100 to avoid query size limits
-    for (let i = 0; i < rows.length; i += 100) {
-      await db.insert(students).values(rows.slice(i, i + 100));
+
+  const existing = await db.select().from(students);
+  const existingByName = new Map(existing.map(s => [s.name.trim().toLowerCase(), s]));
+
+  const toInsert: InsertStudent[] = [];
+
+  for (const row of rows) {
+    const normalizedName = (row.name ?? "").trim().toLowerCase();
+    const match = existingByName.get(normalizedName);
+    if (match) {
+      // Update CSV-sourced fields; never overwrite manually-edited belt/attendance data
+      await db.update(students).set({
+        email: row.email ?? match.email,
+        phone: row.phone ?? match.phone,
+        program: row.program ?? match.program,
+        enrollmentDate: row.enrollmentDate ?? match.enrollmentDate,
+        beltRank: row.beltRank ?? match.beltRank,
+        status: row.status ?? match.status,
+        emergencyContact: row.emergencyContact ?? match.emergencyContact,
+      }).where(eq(students.id, match.id));
+    } else {
+      toInsert.push(row);
     }
   }
+
+  for (let i = 0; i < toInsert.length; i += 100) {
+    await db.insert(students).values(toInsert.slice(i, i + 100));
+  }
+
+  return { added: toInsert.length, updated: rows.length - toInsert.length };
 }
 
 export async function getAllStudents() {
@@ -190,14 +212,22 @@ export async function getAllStudents() {
 export async function searchStudents(query: string) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const q = `%${query}%`;
-  return db.select().from(students).where(
-    or(
-      like(students.name, q),
-      like(students.email, q),
-      like(students.phone, q),
-    )
-  ).orderBy(students.name);
+  const trimmed = query.trim();
+  if (!trimmed) return getAllStudents();
+
+  const nameLike = `%${trimmed}%`;
+  const digitsOnly = trimmed.replace(/\D/g, "");
+
+  const conditions: ReturnType<typeof sql>[] = [
+    sql`LOWER(${students.name}) LIKE LOWER(${nameLike})`,
+  ];
+
+  if (digitsOnly.length > 0) {
+    const phoneLike = `%${digitsOnly}%`;
+    conditions.push(sql`REGEXP_REPLACE(${students.phone}, '[^0-9]', '') LIKE ${phoneLike}`);
+  }
+
+  return db.select().from(students).where(or(...conditions)).orderBy(students.name);
 }
 
 /** Check if an email or name matches an active student */
@@ -210,6 +240,23 @@ export async function isExistingStudent(email: string, name?: string): Promise<b
     or(...conditions)
   ).limit(1);
   return result.length > 0;
+}
+
+export async function updateStudent(id: number, updates: Partial<InsertStudent>): Promise<Student | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(students).set(updates).where(eq(students.id, id));
+  const result = await db.select().from(students).where(eq(students.id, id)).limit(1);
+  return result[0] ?? null;
+}
+
+export async function createStudent(student: InsertStudent): Promise<Student> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [result] = await db.insert(students).values(student);
+  const insertId = (result as unknown as { insertId: number }).insertId ?? 0;
+  const created = await db.select().from(students).where(eq(students.id, insertId)).limit(1);
+  return created[0]!;
 }
 
 // ─── Camp Registrations ───────────────────────────────────────────────────────
