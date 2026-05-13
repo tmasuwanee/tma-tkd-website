@@ -118,6 +118,16 @@ export async function getLeadById(id: number): Promise<Lead | null> {
   return result[0] ?? null;
 }
 
+export async function getLeadByEmail(email: string): Promise<Lead | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select().from(leads)
+    .where(eq(leads.email, email.toLowerCase().trim()))
+    .orderBy(desc(leads.createdAt))
+    .limit(1);
+  return result[0] ?? null;
+}
+
 export async function getAllLeads(): Promise<Lead[]> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -160,10 +170,71 @@ export async function updateLeadNotes(id: number, internalNotes: string) {
   await db.update(leads).set({ internalNotes }).where(eq(leads.id, id));
 }
 
+export async function updateLeadTags(id: number, tags: string[]): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(leads).set({ tags: JSON.stringify(tags) }).where(eq(leads.id, id));
+}
+
 export async function deleteLead(id: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   await db.delete(leads).where(eq(leads.id, id));
+}
+
+// Upsert a lead from Facebook Lead Ads — matches by email.
+// Existing leads: merges tags, fills blank UTM fields. Never overwrites notes, stage, or existing tags.
+// New leads: inserts with utmSource=facebook and provided tags.
+export async function upsertLeadFromFacebook(input: {
+  parentName: string;
+  kidName?: string;
+  kidAge?: string;
+  programInterest?: string;
+  email: string;
+  phone?: string;
+  utmSource?: string | null;
+  utmMedium?: string | null;
+  utmCampaign?: string | null;
+  utmContent?: string | null;
+  tags?: string[];
+}): Promise<{ id: number; isNew: boolean }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const existing = await getLeadByEmail(input.email);
+
+  if (existing) {
+    const existingTags: string[] = existing.tags ? JSON.parse(existing.tags) : [];
+    const newTags = input.tags ?? ["facebook_lead"];
+    const mergedTags = Array.from(new Set([...existingTags, ...newTags]));
+
+    await db.update(leads).set({
+      phone: existing.phone || input.phone || existing.phone,
+      utmSource: existing.utmSource || input.utmSource || "facebook",
+      utmMedium: existing.utmMedium || input.utmMedium || "lead_ad",
+      utmCampaign: existing.utmCampaign || input.utmCampaign,
+      utmContent: existing.utmContent || input.utmContent,
+      tags: JSON.stringify(mergedTags),
+    }).where(eq(leads.id, existing.id));
+
+    return { id: existing.id, isNew: false };
+  }
+
+  const id = await createLead({
+    parentName: input.parentName,
+    kidName: input.kidName || "",
+    kidAge: input.kidAge || "",
+    programInterest: input.programInterest || "summer_camp",
+    email: input.email,
+    phone: input.phone || "",
+    utmSource: input.utmSource || "facebook",
+    utmMedium: input.utmMedium || "lead_ad",
+    utmCampaign: input.utmCampaign || null,
+    utmContent: input.utmContent || null,
+    tags: JSON.stringify(input.tags ?? ["facebook_lead"]),
+  });
+
+  return { id, isNew: true };
 }
 
 // ─── Students ────────────────────────────────────────────────────────────────
@@ -185,7 +256,7 @@ export async function upsertStudents(rows: InsertStudent[]): Promise<{ added: nu
       await db.update(students).set({
         email: row.email ?? match.email,
         phone: row.phone ?? match.phone,
-        program: row.program ?? match.program,
+        programs: row.programs ?? match.programs,
         enrollmentDate: row.enrollmentDate ?? match.enrollmentDate,
         beltRank: row.beltRank ?? match.beltRank,
         status: row.status ?? match.status,
@@ -327,7 +398,7 @@ export async function restoreRegistration(id: number) {
 export async function checkInStudent(studentId: number, classDate: string): Promise<Attendance> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  
+
   // Check if already checked in today
   const today = new Date().toISOString().split('T')[0];
   const existing = await db
@@ -335,18 +406,18 @@ export async function checkInStudent(studentId: number, classDate: string): Prom
     .from(attendance)
     .where(and(eq(attendance.studentId, studentId), eq(attendance.classDate, today)))
     .limit(1);
-  
+
   if (existing.length > 0) {
     return existing[0];
   }
-  
+
   // Create new attendance record
   const [result] = await db.insert(attendance).values({
     studentId,
     classDate,
     loggedBy: 'kiosk',
   });
-  
+
   const insertId = (result as unknown as { insertId: number }).insertId ?? 0;
   const newRecord = await db.select().from(attendance).where(eq(attendance.id, insertId)).limit(1);
   return newRecord[0]!;
@@ -355,35 +426,35 @@ export async function checkInStudent(studentId: number, classDate: string): Prom
 export async function getAttendanceSincePromotion(studentId: number): Promise<number> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  
+
   const student = await db.select().from(students).where(eq(students.id, studentId)).limit(1);
   if (!student.length) return 0;
-  
+
   const lastPromotedAt = student[0].lastPromotedAt;
   if (!lastPromotedAt) return 0;
-  
+
   const result = await db
     .select()
     .from(attendance)
     .where(and(eq(attendance.studentId, studentId), gte(attendance.checkedInAt, lastPromotedAt)));
-  
+
   return result.length;
 }
 
 export async function getEligibleStudents(): Promise<(Student & { attendanceSincePromotion: number })[]> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  
+
   const allStudents = await db.select().from(students);
   const eligible = [];
-  
+
   for (const student of allStudents) {
     const count = await getAttendanceSincePromotion(student.id);
     if (count >= 15) {
       eligible.push({ ...student, attendanceSincePromotion: count });
     }
   }
-  
+
   return eligible;
 }
 
@@ -392,20 +463,20 @@ export async function getEligibleStudents(): Promise<(Student & { attendanceSinc
 export async function promoteBeltRank(studentId: number): Promise<Student | null> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  
+
   const student = await db.select().from(students).where(eq(students.id, studentId)).limit(1);
   if (!student.length) return null;
-  
+
   const currentRank = student[0].beltRank;
   const nextRank = getNextRank(currentRank);
-  
+
   if (!nextRank) return student[0]; // Already at highest rank
-  
+
   await db.update(students).set({
     beltRank: nextRank,
     lastPromotedAt: new Date(),
   }).where(eq(students.id, studentId));
-  
+
   const updated = await db.select().from(students).where(eq(students.id, studentId)).limit(1);
   return updated[0] ?? null;
 }
@@ -413,22 +484,20 @@ export async function promoteBeltRank(studentId: number): Promise<Student | null
 export async function demoteBeltRank(studentId: number): Promise<Student | null> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  
+
   const student = await db.select().from(students).where(eq(students.id, studentId)).limit(1);
   if (!student.length) return null;
-  
+
   const currentRank = student[0].beltRank;
   const previousRank = getPreviousRank(currentRank);
-  
+
   if (!previousRank) return student[0]; // Already at lowest rank
-  
+
   await db.update(students).set({
     beltRank: previousRank,
     lastPromotedAt: new Date(),
   }).where(eq(students.id, studentId));
-  
+
   const updated = await db.select().from(students).where(eq(students.id, studentId)).limit(1);
   return updated[0] ?? null;
 }
-
-
