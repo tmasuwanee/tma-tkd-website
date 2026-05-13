@@ -1,7 +1,7 @@
 # TMA Website — Agent Handbook
 
 This file is the shared operating bible for all AI agents working on this codebase.
-**Read this before making any changes.** Last updated: 2026-05-12.
+**Read this before making any changes.** Last updated: 2026-05-13.
 
 ---
 
@@ -107,8 +107,12 @@ All active n8n workflows are documented in `docs/WORKFLOWS.md`.
 | `FACEBOOK_CAPI_TOKEN` | Server-side conversion events → Facebook |
 | `FACEBOOK_MARKETING_API_TOKEN` | Read ad performance data from Meta |
 | `FACEBOOK_AD_ACCOUNT_ID` | Meta ad account (e.g. 1008273610146745) |
-| `LEAD_NOTIFICATION_EMAIL` | Staff email for new lead alerts |
+| `LEAD_NOTIFICATION_EMAIL` | Staff email for new lead alerts (tmasuwanee@gmail.com) |
+| `VITE_TMA_STRIPE_PUBLISHABLE_KEY` | Camp registration payments (client-side publishable key) |
+| `JWT_SECRET` | Session cookie signing — Manus-managed, do not touch |
+| `VITE_APP_ID` | Manus OAuth app ID — Manus-managed, do not touch |
 | `VITE_FRONTEND_FORGE_API_URL` | Manus internal — do not touch |
+| `VITE_FRONTEND_FORGE_API_KEY` | Manus internal — do not touch |
 
 ---
 
