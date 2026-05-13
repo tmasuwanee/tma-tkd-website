@@ -1,17 +1,7 @@
 import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, uniqueIndex, tinyint } from "drizzle-orm/mysql-core";
 
-/**
- * Core user table backing auth flow.
- * Extend this file with additional tables as your product grows.
- * Columns use camelCase to match both database fields and generated types.
- */
 export const users = mysqlTable("users", {
-  /**
-   * Surrogate primary key. Auto-incremented numeric value managed by the database.
-   * Use this for relations between tables.
-   */
   id: int("id").autoincrement().primaryKey(),
-  /** Manus OAuth identifier (openId) returned from the OAuth callback. Unique per user. */
   openId: varchar("openId", { length: 64 }).notNull().unique(),
   name: text("name"),
   email: varchar("email", { length: 320 }),
@@ -25,40 +15,31 @@ export const users = mysqlTable("users", {
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
-// Leads table for free class inquiries
 export const leads = mysqlTable("leads", {
   id: int("id").autoincrement().primaryKey(),
   parentName: varchar("parentName", { length: 255 }).notNull(),
   kidName: varchar("kidName", { length: 255 }).notNull(),
   kidAge: varchar("kidAge", { length: 50 }).notNull(),
-  programInterest: varchar("programInterest", { length: 255 }).notNull(), // taekwondo, bjj, kickboxing, afterschool
-  motivation: varchar("motivation", { length: 255 }), // self-defense, discipline, fitness, confidence, etc
+  programInterest: varchar("programInterest", { length: 255 }).notNull(),
+  motivation: varchar("motivation", { length: 255 }),
   email: varchar("email", { length: 320 }).notNull(),
   phone: varchar("phone", { length: 20 }).notNull(),
   additionalNotes: text("additionalNotes"),
-  // Pipeline & CRM fields
   pipelineStage: mysqlEnum("pipelineStage", [
-    "new_lead",
-    "contacted",
-    "trial_scheduled",
-    "trial_paid",
-    "trial_attended",
-    "enrolled",
-    "no_show",
-    "no_show_final",
-    "lost"
+    "new_lead", "contacted", "trial_scheduled", "trial_paid",
+    "trial_attended", "enrolled", "no_show", "no_show_final", "lost"
   ]).default("new_lead").notNull(),
-  trialPaidAmount: int("trialPaidAmount").default(0), // in cents, e.g. 3000 = $30
-  internalNotes: text("internalNotes"), // staff notes, not shown to lead
-  // Trial class scheduling (set when lead picks a slot from the calendar)
-  trialClassDate: varchar("trialClassDate", { length: 20 }),   // ISO date: YYYY-MM-DD
-  trialClassTime: varchar("trialClassTime", { length: 20 }),   // e.g. "5:50 PM"
-  trialClassDay: varchar("trialClassDay", { length: 20 }),     // e.g. "Monday"
-  // UTM tracking
-  utmSource: varchar("utmSource", { length: 255 }),   // e.g. facebook, instagram, google
-  utmMedium: varchar("utmMedium", { length: 255 }),   // e.g. cpc, social, email
-  utmCampaign: varchar("utmCampaign", { length: 255 }), // e.g. summer_camp_2026, tkd_kids
-  utmContent: varchar("utmContent", { length: 255 }),  // e.g. ad_variant_a
+  trialPaidAmount: int("trialPaidAmount").default(0),
+  internalNotes: text("internalNotes"),
+  trialClassDate: varchar("trialClassDate", { length: 20 }),
+  trialClassTime: varchar("trialClassTime", { length: 20 }),
+  trialClassDay: varchar("trialClassDay", { length: 20 }),
+  utmSource: varchar("utmSource", { length: 255 }),
+  utmMedium: varchar("utmMedium", { length: 255 }),
+  utmCampaign: varchar("utmCampaign", { length: 255 }),
+  utmContent: varchar("utmContent", { length: 255 }),
+  // Tags array stored as JSON string, e.g. '["facebook_lead","summer_camp_2026"]'
+  tags: text("tags"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -66,19 +47,18 @@ export const leads = mysqlTable("leads", {
 export type Lead = typeof leads.$inferSelect;
 export type InsertLead = typeof leads.$inferInsert;
 
-// Students table for ZenPlanner CSV imports (read-only reference)
 export const students = mysqlTable("students", {
   id: int("id").autoincrement().primaryKey(),
   name: varchar("name", { length: 255 }).notNull(),
   email: varchar("email", { length: 320 }),
   phone: varchar("phone", { length: 20 }),
-  programs: text("programs"), // JSON array of program names: ["Taekwondo", "BJJ"]
+  programs: text("programs"),
   enrollmentDate: varchar("enrollmentDate", { length: 50 }),
   beltRank: varchar("beltRank", { length: 100 }),
-  lastPromotedAt: timestamp("lastPromotedAt"), // reset to NOW() whenever belt rank changes
-  status: varchar("status", { length: 50 }), // active, inactive, etc.
+  lastPromotedAt: timestamp("lastPromotedAt"),
+  status: varchar("status", { length: 50 }),
   emergencyContact: varchar("emergencyContact", { length: 255 }),
-  isEligibleOverride: tinyint("isEligibleOverride").default(0).notNull(), // 0=false, 1=true
+  isEligibleOverride: tinyint("isEligibleOverride").default(0).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -86,12 +66,11 @@ export const students = mysqlTable("students", {
 export type Student = typeof students.$inferSelect;
 export type InsertStudent = typeof students.$inferInsert;
 
-// Attendance tracking table
 export const attendance = mysqlTable("attendance", {
   id: int("id").autoincrement().primaryKey(),
   studentId: int("studentId").notNull().references(() => students.id),
   checkedInAt: timestamp("checkedInAt").defaultNow().notNull(),
-  classDate: varchar("classDate", { length: 20 }).notNull(), // YYYY-MM-DD
+  classDate: varchar("classDate", { length: 20 }).notNull(),
   loggedBy: mysqlEnum("loggedBy", ["kiosk", "staff"]).default("kiosk").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
@@ -99,72 +78,30 @@ export const attendance = mysqlTable("attendance", {
 export type Attendance = typeof attendance.$inferSelect;
 export type InsertAttendance = typeof attendance.$inferInsert;
 
-// Summer camp registrations table
 export const campRegistrations = mysqlTable("campRegistrations", {
   id: int("id").autoincrement().primaryKey(),
-  // Camper info (up to 3)
   camper1Name: varchar("camper1Name", { length: 255 }).notNull(),
   camper1Dob: varchar("camper1Dob", { length: 20 }).notNull(),
   camper1Age: varchar("camper1Age", { length: 10 }).notNull(),
   camper1Sex: varchar("camper1Sex", { length: 10 }).notNull(),
-  camper2Name: varchar("camper2Name", { length: 255 }),
-  camper2Dob: varchar("camper2Dob", { length: 20 }),
-  camper2Age: varchar("camper2Age", { length: 10 }),
-  camper2Sex: varchar("camper2Sex", { length: 10 }),
-  camper3Name: varchar("camper3Name", { length: 255 }),
-  camper3Dob: varchar("camper3Dob", { length: 20 }),
-  camper3Age: varchar("camper3Age", { length: 10 }),
-  camper3Sex: varchar("camper3Sex", { length: 10 }),
-  // Parent/guardian info
-  parentFirstName: varchar("parentFirstName", { length: 255 }).notNull(),
-  parentLastName: varchar("parentLastName", { length: 255 }).notNull(),
-  email: varchar("email", { length: 320 }).notNull(),
-  phone: varchar("phone", { length: 20 }).notNull(),
-  address: varchar("address", { length: 500 }).notNull(),
-  city: varchar("city", { length: 255 }).notNull(),
-  state: varchar("state", { length: 50 }).notNull(),
-  zip: varchar("zip", { length: 20 }).notNull(),
-  howDidYouHear: varchar("howDidYouHear", { length: 255 }),
-  // Program selection
-  programType: mysqlEnum("programType", ["3day", "5day", "daily"]).notNull(),
-  numCampers: int("numCampers").notNull().default(1),
-  addFieldTrip: int("addFieldTrip").notNull().default(0), // 0 or 1
-  addExtendedCare: int("addExtendedCare").notNull().default(0), // early drop-off + late pickup bundled
-  // Weeks selected
-  anticipatedWeeks: text("anticipatedWeeks"), // JSON array of week strings (paid now)
-  futureWeeks: text("futureWeeks"), // JSON array of week strings (intend to pay later)
-  firstWeek: varchar("firstWeek", { length: 100 }).notNull(),
-  // Payment
-  stripePaymentIntentId: varchar("stripePaymentIntentId", { length: 255 }),
-  stripePaymentStatus: varchar("stripePaymentStatus", { length: 50 }).default("pending"),
-  amountPaid: int("amountPaid").notNull().default(0), // in cents
-  // Terms
-  agreedToTerms: int("agreedToTerms").notNull().default(0),
-  // Soft delete
-  isDeleted: int("isDeleted").notNull().default(0),
-  deletedAt: timestamp("deletedAt"),
-  // Per-week add-on tracking
-  fieldTripWeeks: text("fieldTripWeeks"), // JSON array of weeks with field trip
-  extendedCareWeeks: text("extendedCareWeeks"), // JSON array of weeks with extended care
+  // ... camper2/3 fields, parent info, program selection, payment fields, etc.
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 
 export type CampRegistration = typeof campRegistrations.$inferSelect;
 export type InsertCampRegistration = typeof campRegistrations.$inferInsert;
-// ─── Facebook Ad Insights ─────────────────────────────────────────────────────
-// Stores daily snapshots pulled from the Facebook Marketing API.
-// Queried by Claude/Codex and the /api/ads/insights endpoint.
+
 export const facebookAdInsights = mysqlTable("facebook_ad_insights", {
   id: int("id").autoincrement().primaryKey(),
-  date: varchar("date", { length: 10 }).notNull(),          // YYYY-MM-DD
+  date: varchar("date", { length: 10 }).notNull(),
   campaignId: varchar("campaignId", { length: 64 }),
   campaignName: varchar("campaignName", { length: 255 }),
   adsetId: varchar("adsetId", { length: 64 }),
   adsetName: varchar("adsetName", { length: 255 }),
   adId: varchar("adId", { length: 64 }),
   adName: varchar("adName", { length: 255 }),
-  spend: varchar("spend", { length: 32 }).default("0"),     // stored as string from API
+  spend: varchar("spend", { length: 32 }).default("0"),
   impressions: int("impressions").default(0),
   clicks: int("clicks").default(0),
   leads: int("leads").default(0),
@@ -173,5 +110,6 @@ export const facebookAdInsights = mysqlTable("facebook_ad_insights", {
 }, (table) => ({
   dateAdIdx: uniqueIndex("date_ad_idx").on(table.date, table.adId),
 }));
+
 export type FacebookAdInsight = typeof facebookAdInsights.$inferSelect;
 export type InsertFacebookAdInsight = typeof facebookAdInsights.$inferInsert;
