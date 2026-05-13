@@ -86,3 +86,10 @@
 - [x] Update n8n webhook payload to include trialClassDate, trialClassTime, trialClassDay
 - [x] Admin leads pipeline confirmed working at /admin/registrations; trialClassDate shown in lead detail cards
 - [x] Write vitest tests for classSchedule eligibility logic (9 tests, all passing)
+
+## n8n No-Show Recovery Integration (Claude Code PR #1)
+- [x] Merge PR #1 branch claude/add-n8n-rest-routes into main
+- [x] Run DB migration: add no_show and no_show_final to pipelineStage enum
+- [x] Set N8N_WEBHOOK_URL environment variable
+- [x] Verify GET /api/leads?stages=new_lead&hasTrialDate=false endpoint live
+- [x] Verify PATCH /api/leads/:leadId/stage endpoint live
