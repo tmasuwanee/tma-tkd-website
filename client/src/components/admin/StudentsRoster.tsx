@@ -792,7 +792,7 @@ function StudentEditDialog({
                   onCheckedChange={v => onStudentChange({ ...student, isEligibleOverride: !!v })}
                 />
                 <span className="text-sm text-gray-600">
-                  {student.isEligibleOverride ? "Mark as Eligible" : "Mark as Ineligible"}
+                  Eligible for Belt Test
                 </span>
               </div>
               <p className="text-xs text-gray-500">Override automatic eligibility based on attendance. When enabled, this student is marked as eligible to test regardless of attendance count.</p>
