@@ -37,6 +37,17 @@ async function startServer() {
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
+
+  // Redirect www.tmatkd.com to tmatkd.com (301 permanent redirect)
+  app.use((req: Request, res: Response, next) => {
+    const host = req.get('host') || '';
+    if (host.startsWith('www.tmatkd.com')) {
+      const newUrl = `https://tmatkd.com${req.originalUrl}`;
+      return res.redirect(301, newUrl);
+    }
+    next();
+  });
+
   registerStorageProxy(app);
   registerOAuthRoutes(app);
   registerApiRoutes(app);
