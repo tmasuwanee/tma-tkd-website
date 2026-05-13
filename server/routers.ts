@@ -8,7 +8,7 @@ import {
   createCampRegistration, updateCampRegistrationPayment,
   getCampRegistrationByPaymentIntentId, getAllCampRegistrations,
   softDeleteRegistration, restoreRegistration,
-  upsertStudents, getAllStudents, searchStudents,
+  upsertStudents, getAllStudents, searchStudents, updateStudent, createStudent,
 } from "./db";
 import { sendToGoogleSheets, sendToSlack, sendEmailNotification, sendCampRegistrationConfirmation } from "./integrations";
 import { fireLeadEvent, firePurchaseEvent } from "./meta-capi";
@@ -454,8 +454,8 @@ export const appRouter = router({
         })),
       }))
       .mutation(async ({ input }) => {
-        await upsertStudents(input.rows);
-        return { success: true, count: input.rows.length };
+        const result = await upsertStudents(input.rows);
+        return { success: true, count: input.rows.length, added: result.added, updated: result.updated };
       }),
 
     // Admin: get all students
