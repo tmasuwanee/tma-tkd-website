@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE IF NOT EXISTS `leadActivities` (\n  `id` int NOT NULL AUTO_INCREMENT,\n  `leadId` int NOT NULL,\n  `type` enum('email','sms','call','note') NOT NULL,\n  `subject` varchar(255) DEFAULT NULL,\n  `body` text,\n  `sentBy` varchar(100) DEFAULT NULL,\n  `status` varchar(50) DEFAULT 'sent',\n  `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  PRIMARY KEY (`id`),\n  CONSTRAINT `leadActivities_leadId_fk` FOREIGN KEY (`leadId`) REFERENCES `leads` (`id`)\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3SwZhQGwFybjoYh.root --database cXp7keMiYsMkePUngpTNmV --execute CREATE TABLE IF NOT EXISTS `leadActivities` (\n  `id` int NOT NULL AUTO_INCREMENT,\n  `leadId` int NOT NULL,\n  `type` enum('email','sms','call','note') NOT NULL,\n  `subject` varchar(255) DEFAULT NULL,\n  `body` text,\n  `sentBy` varchar(100) DEFAULT NULL,\n  `status` varchar(50) DEFAULT 'sent',\n  `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  PRIMARY KEY (`id`),\n  CONSTRAINT `leadActivities_leadId_fk` FOREIGN KEY (`leadId`) REFERENCES `leads` (`id`)\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 449
+}

@@ -1,7 +1,8 @@
 import { trpc } from "@/lib/trpc";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -16,8 +17,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Phone, Mail, User, Tag, ChevronRight, ChevronLeft, Trash2, StickyNote, Globe } from "lucide-react";
-import { useState } from "react";
+import { Loader2, Phone, Mail, User, Tag, ChevronRight, ChevronLeft, Trash2, StickyNote, Globe, X, Plus } from "lucide-react";
+import { useState, useMemo } from "react";
 import { toast } from "sonner";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -51,6 +52,13 @@ const PROGRAM_COLORS: Record<string, string> = {
   "Multiple Programs": "bg-teal-700 text-white",
 };
 
+// Tag color mapping
+function getTagColor(tag: string): string {
+  if (tag === "facebook_lead") return "bg-blue-100 text-blue-800 border-blue-200";
+  if (tag.startsWith("summer_camp")) return "bg-green-100 text-green-800 border-green-200";
+  return "bg-gray-100 text-gray-700 border-gray-200";
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type Lead = {
@@ -73,9 +81,36 @@ type Lead = {
   trialClassDate: string | null;
   trialClassTime: string | null;
   trialClassDay: string | null;
+  tags: string[];
   createdAt: Date;
   updatedAt: Date;
 };
+
+// ─── Tag Chips ────────────────────────────────────────────────────────────────
+
+function TagChips({ tags, onRemove }: { tags: string[]; onRemove?: (tag: string) => void }) {
+  if (!tags || tags.length === 0) return null;
+  return (
+    <div className="flex flex-wrap gap-1">
+      {tags.map(tag => (
+        <span
+          key={tag}
+          className={`inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded border font-medium ${getTagColor(tag)}`}
+        >
+          {tag}
+          {onRemove && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onRemove(tag); }}
+              className="ml-0.5 hover:opacity-70"
+            >
+              <X className="w-2.5 h-2.5" />
+            </button>
+          )}
+        </span>
+      ))}
+    </div>
+  );
+}
 
 // ─── Lead Card ────────────────────────────────────────────────────────────────
 
@@ -116,6 +151,13 @@ function LeadCard({ lead, stageIndex, totalStages, onOpen, onMove }: {
         </div>
       )}
 
+      {/* Tags */}
+      {lead.tags && lead.tags.length > 0 && (
+        <div className="mb-2">
+          <TagChips tags={lead.tags} />
+        </div>
+      )}
+
       <div className="flex items-center justify-between mt-2">
         <span className="text-xs text-gray-400">{daysAgo === 0 ? "Today" : `${daysAgo}d ago`}</span>
         <div className="flex gap-1">
@@ -153,6 +195,7 @@ function LeadDetailDialog({ lead, open, onClose, onRefresh }: {
 }) {
   const [notes, setNotes] = useState(lead?.internalNotes ?? "");
   const [editingNotes, setEditingNotes] = useState(false);
+  const [newTag, setNewTag] = useState("");
   const utils = trpc.useUtils();
 
   const updateStage = trpc.leads.updateStage.useMutation({
@@ -174,6 +217,11 @@ function LeadDetailDialog({ lead, open, onClose, onRefresh }: {
     onError: () => toast.error("Failed to save notes"),
   });
 
+  const updateTags = trpc.leads.updateTags.useMutation({
+    onSuccess: () => { utils.leads.getAll.invalidate(); onRefresh(); },
+    onError: () => toast.error("Failed to update tags"),
+  });
+
   const deleteLead = trpc.leads.delete.useMutation({
     onSuccess: () => {
       utils.leads.getAll.invalidate();
@@ -185,7 +233,19 @@ function LeadDetailDialog({ lead, open, onClose, onRefresh }: {
 
   if (!lead) return null;
 
-  const currentStage = STAGES.find(s => s.value === lead.pipelineStage);
+  const currentTags = lead.tags ?? [];
+
+  const handleAddTag = () => {
+    const tag = newTag.trim().toLowerCase().replace(/\s+/g, "_");
+    if (!tag || currentTags.includes(tag)) return;
+    updateTags.mutate({ id: lead.id, tags: [...currentTags, tag] });
+    setNewTag("");
+  };
+
+  const handleRemoveTag = (tag: string) => {
+    updateTags.mutate({ id: lead.id, tags: currentTags.filter(t => t !== tag) });
+  };
+
   const daysAgo = Math.floor((Date.now() - new Date(lead.createdAt).getTime()) / 86400000);
 
   return (
@@ -262,6 +322,39 @@ function LeadDetailDialog({ lead, open, onClose, onRefresh }: {
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          {/* Tags */}
+          <div>
+            <p className="text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-1.5">
+              <Tag className="w-3.5 h-3.5" /> Tags
+            </p>
+            {currentTags.length > 0 ? (
+              <div className="mb-2">
+                <TagChips tags={currentTags} onRemove={handleRemoveTag} />
+              </div>
+            ) : (
+              <p className="text-xs text-gray-400 italic mb-2">No tags yet</p>
+            )}
+            <div className="flex gap-2">
+              <Input
+                value={newTag}
+                onChange={e => setNewTag(e.target.value)}
+                placeholder="Add tag (e.g. summer_camp_2026)"
+                className="text-sm h-8"
+                onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleAddTag(); } }}
+              />
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleAddTag}
+                disabled={!newTag.trim() || updateTags.isPending}
+                className="h-8 gap-1 shrink-0"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Add
+              </Button>
+            </div>
           </div>
 
           {/* Motivation / Notes from lead */}
@@ -358,6 +451,7 @@ function LeadDetailDialog({ lead, open, onClose, onRefresh }: {
 
 export default function LeadsPipeline() {
   const [programFilter, setProgramFilter] = useState("all");
+  const [tagFilter, setTagFilter] = useState("all");
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
 
   const { data: leads = [], isLoading, refetch } = trpc.leads.getAll.useQuery();
@@ -366,9 +460,19 @@ export default function LeadsPipeline() {
     onError: () => toast.error("Failed to move lead"),
   });
 
-  const filteredLeads = programFilter === "all"
-    ? leads
-    : leads.filter(l => l.programInterest === programFilter);
+  // Collect all unique tags across all leads
+  const allTags = useMemo(() => {
+    const tagSet = new Set<string>();
+    leads.forEach(l => (l.tags ?? []).forEach(t => tagSet.add(t)));
+    return Array.from(tagSet).sort();
+  }, [leads]);
+
+  const filteredLeads = useMemo(() => {
+    let result = leads as Lead[];
+    if (programFilter !== "all") result = result.filter(l => l.programInterest === programFilter);
+    if (tagFilter !== "all") result = result.filter(l => (l.tags ?? []).includes(tagFilter));
+    return result;
+  }, [leads, programFilter, tagFilter]);
 
   const handleMove = (lead: Lead, direction: "forward" | "back") => {
     const idx = STAGES.findIndex(s => s.value === lead.pipelineStage);
@@ -419,10 +523,46 @@ export default function LeadsPipeline() {
         </Card>
       </div>
 
-      {/* Filter */}
+      {/* Tag filter */}
+      {allTags.length > 0 && (
+        <div className="flex items-center gap-3">
+          <Tag className="w-4 h-4 text-gray-400 shrink-0" />
+          <p className="text-sm text-gray-600 font-medium shrink-0">Filter by tag:</p>
+          <div className="flex gap-2 flex-wrap">
+            <button
+              onClick={() => setTagFilter("all")}
+              className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${
+                tagFilter === "all"
+                  ? "bg-[#1a2d5a] text-white border-[#1a2d5a]"
+                  : "bg-white text-gray-600 border-gray-300 hover:border-[#1a2d5a] hover:text-[#1a2d5a]"
+              }`}
+            >
+              All Tags
+            </button>
+            {allTags.map(tag => (
+              <button
+                key={tag}
+                onClick={() => setTagFilter(tag === tagFilter ? "all" : tag)}
+                className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${
+                  tagFilter === tag
+                    ? "bg-[#1a2d5a] text-white border-[#1a2d5a]"
+                    : `${getTagColor(tag)} hover:border-[#1a2d5a]`
+                }`}
+              >
+                {tag}
+                <span className="ml-1 opacity-70">
+                  ({leads.filter(l => (l.tags ?? []).includes(tag)).length})
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Program Filter */}
       <div className="flex items-center gap-3">
-        <Tag className="w-4 h-4 text-gray-400" />
-        <p className="text-sm text-gray-600 font-medium">Filter by program:</p>
+        <Tag className="w-4 h-4 text-gray-400 shrink-0" />
+        <p className="text-sm text-gray-600 font-medium shrink-0">Filter by program:</p>
         <div className="flex gap-2 flex-wrap">
           {PROGRAMS.map(p => (
             <button
