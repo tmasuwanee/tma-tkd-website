@@ -591,6 +591,7 @@ export const appRouter = router({
         beltRank: z.string().nullable().optional(),
         status: z.string().nullable().optional(),
         emergencyContact: z.string().nullable().optional(),
+        isEligibleOverride: z.number().int().min(0).max(1).optional(),
       }))
       .mutation(async ({ input }) => {
         const { updateStudent } = await import('./db');
