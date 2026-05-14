@@ -188,8 +188,8 @@ export default function AttendanceKiosk() {
                   className="bg-blue-50 hover:bg-blue-100 border-2 border-blue-200 rounded-lg p-4 text-left transition-colors"
                 >
                   <p className="font-semibold text-lg text-gray-800">{student.name}</p>
-                  {student.program && (
-                    <p className="text-sm text-gray-600">{student.program}</p>
+                  {student.programs && (
+                    <p className="text-sm text-gray-600">{student.programs}</p>
                   )}
                   {student.beltRank && (
                     <p className="text-sm text-blue-600 font-medium mt-1">{student.beltRank}</p>

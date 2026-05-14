@@ -442,6 +442,7 @@ export default function AdsInsightsDashboard() {
     hexColor: string;
     isCurrency?: boolean;
     chartType?: "area" | "bar";
+    isLeads?: boolean;
   }[] = [
     {
       key: "spend",
@@ -556,7 +557,7 @@ export default function AdsInsightsDashboard() {
               sub={m.sub}
               color={m.color}
               hexColor={m.hexColor}
-              onClick={() => (m as any).isLeads ? setLeadsPopupOpen(true) : setOpenMetric(m.key)}
+              onClick={() => m.isLeads ? setLeadsPopupOpen(true) : setOpenMetric(m.key)}
             />
           ))}
         </div>
@@ -647,7 +648,7 @@ export default function AdsInsightsDashboard() {
       )}
 
       {/* Metric popup charts */}
-      {metricConfig.filter(m => !(m as any).isLeads).map(m => (
+      {metricConfig.filter(m => !m.isLeads).map(m => (
         <MetricPopup
           key={m.key}
           open={openMetric === m.key}
