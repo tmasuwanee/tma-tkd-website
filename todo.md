@@ -152,11 +152,11 @@
 - [x] Change Program field to support multiple selections (students can be in multiple programs)
 - [x] Update students table schema to store multiple programs (renamed program → programs column)
 - [x] Update StudentsRoster component to show multi-select checkboxes for programs
-- [ ] Update CSV import to handle multiple programs per student
+- [x] Update CSV import to handle multiple programs per student
 
 - [x] Add editable attendance count field in Belt & Eligibility tab (manual override for class count)
 - [x] Update StudentEditState to include editableAttendanceCount field
-- [ ] Create tRPC procedure to update attendance count directly (backend not yet wired)
+- [x] Create tRPC procedure to update attendance count directly (attendance.setCount added to routers.ts + setAttendanceCount in db.ts)
 
 ## Claude's 5 Fixes + NaN Bug (2026-05-14)
 - [x] Fix NaN children error on Camp Registrations page (completed campRegistrations schema stub)
