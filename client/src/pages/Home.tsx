@@ -184,6 +184,29 @@ export default function Home() {
       </section>
 
 
+      {/* Summer Camp Banner */}
+      <section className="bg-[#c41e3a] text-white py-4">
+        <div className="container mx-auto px-4">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 text-center sm:text-left">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">☀️</span>
+              <div>
+                <span className="font-bold text-lg">TMA Summer Camp 2026</span>
+                <span className="mx-3 text-white/70">|</span>
+                <span className="text-white/90">Starts May 26 &bull; 9:00 AM – 4:00 PM &bull; Full Week $239 &bull; 3-Day $199</span>
+              </div>
+            </div>
+            <Button
+              onClick={() => navigate('/camp-registration')}
+              size="sm"
+              className="bg-white text-[#c41e3a] hover:bg-white/90 font-bold shrink-0"
+            >
+              Register Now
+            </Button>
+          </div>
+        </div>
+      </section>
+
       {/* About Section */}
       <section id="about" className="py-20 bg-white">
         <div className="container mx-auto px-4">
