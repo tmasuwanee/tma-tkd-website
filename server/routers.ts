@@ -635,6 +635,14 @@ export const appRouter = router({
         const { getAttendanceSincePromotion } = await import('./db');
         return getAttendanceSincePromotion(input.studentId);
       }),
+    // Manually set attendance count (staff override)
+    setCount: publicProcedure
+      .input(z.object({ studentId: z.number(), count: z.number().int().min(0).max(999) }))
+      .mutation(async ({ input }) => {
+        const { setAttendanceCount } = await import('./db');
+        await setAttendanceCount(input.studentId, input.count);
+        return { success: true };
+      }),
   }),
   // ─── Facebook Ad Insights ─────────────────────────────────────────────────
   ads: router({

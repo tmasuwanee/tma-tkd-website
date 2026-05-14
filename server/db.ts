@@ -521,3 +521,46 @@ export async function demoteBeltRank(studentId: number): Promise<Student | null>
   const updated = await db.select().from(students).where(eq(students.id, studentId)).limit(1);
   return updated[0] ?? null;
 }
+
+/**
+ * Manually set the attendance count for a student since their last promotion.
+ * Adds synthetic "staff" records or deletes existing records to reach the target count.
+ */
+export async function setAttendanceCount(studentId: number, targetCount: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const currentCount = await getAttendanceSincePromotion(studentId);
+  if (targetCount === currentCount) return;
+
+  if (targetCount > currentCount) {
+    const toAdd = targetCount - currentCount;
+    const baseDate = new Date();
+    const records: InsertAttendance[] = [];
+    for (let i = 0; i < toAdd; i++) {
+      const d = new Date(baseDate);
+      d.setDate(d.getDate() - (i + 1));
+      const dateStr = d.toISOString().split("T")[0];
+      records.push({
+        studentId,
+        classDate: dateStr,
+        loggedBy: "staff",
+        checkedInAt: d,
+      });
+    }
+    await db.insert(attendance).values(records);
+  } else {
+    const toRemove = currentCount - targetCount;
+    const student = await db.select().from(students).where(eq(students.id, studentId)).limit(1);
+    const lastPromotedAt = student[0]?.lastPromotedAt ?? new Date(0);
+    const existing = await db
+      .select()
+      .from(attendance)
+      .where(and(eq(attendance.studentId, studentId), gte(attendance.checkedInAt, lastPromotedAt)))
+      .orderBy(desc(attendance.checkedInAt))
+      .limit(toRemove);
+    for (const rec of existing) {
+      await db.delete(attendance).where(eq(attendance.id, rec.id));
+    }
+  }
+}

@@ -161,6 +161,11 @@ export default function StudentsRoster() {
     onError: (err) => toast.error(`Failed: ${err.message}`),
   });
 
+  const setAttendanceCount = trpc.attendance.setCount.useMutation({
+    onSuccess: () => utils.attendance.countSincePromotion.invalidate(),
+    onError: (err) => toast.error(`Failed to update class count: ${err.message}`),
+  });
+
   const handleFile = useCallback(async (file: File) => {
     if (!file.name.endsWith(".csv")) {
       toast.error("Please upload a CSV file");
@@ -302,6 +307,13 @@ export default function StudentsRoster() {
         beltRank: editingStudent.beltRank || null,
         isEligibleOverride: editingStudent.isEligibleOverride ? 1 : 0,
       });
+      // If attendance count was manually edited, persist it
+      if (editingStudent.attendanceCount !== undefined) {
+        await setAttendanceCount.mutateAsync({
+          studentId: editingStudent.id,
+          count: editingStudent.attendanceCount,
+        });
+      }
     } else {
       await createStudent.mutateAsync({
         name: editingStudent.name,

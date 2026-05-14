@@ -149,20 +149,23 @@
 ## Checkbox Visibility & Multiple Programs
 - [x] Add dark outline (border-2 border-gray-800) to all checkboxes for visibility
 - [x] Add centered flex container around Select All checkbox in header
-- [ ] Change Program field to support multiple selections (students can be in multiple programs)
-- [ ] Update students table schema to store multiple programs (JSON array or separate column)
-- [ ] Update StudentsRoster component to show multi-select for programs
+- [x] Change Program field to support multiple selections (students can be in multiple programs)
+- [x] Update students table schema to store multiple programs (renamed program → programs column)
+- [x] Update StudentsRoster component to show multi-select checkboxes for programs
 - [ ] Update CSV import to handle multiple programs per student
 
-- [ ] Add editable attendance count field in Belt & Eligibility tab (manual override for class count)
-- [ ] Create tRPC procedure to update attendance count directly
-- [ ] Update StudentEditState to include editableAttendanceCount field
+- [x] Add editable attendance count field in Belt & Eligibility tab (manual override for class count)
+- [x] Update StudentEditState to include editableAttendanceCount field
+- [ ] Create tRPC procedure to update attendance count directly (backend not yet wired)
 
 ## Claude's 5 Fixes + NaN Bug (2026-05-14)
-- [ ] Fix NaN children error on Camp Registrations page
-- [ ] FIX 1: Activity tab in LeadsPipeline detail dialog (timeline + Add Note)
-- [ ] FIX 2: Specialize Leads popup in AdsInsightsDashboard as Facebook Leads Center
-- [ ] FIX 3: Multi-program checkbox group in StudentsRoster edit dialog
-- [ ] FIX 4: Eligibility badge respects isEligibleOverride in StudentRow and Edit Dialog
-- [ ] FIX 5: Add "Eligible to Test" stat card in StudentsRoster (clickable filter)
-- [ ] Update db.ts getEligibleStudents to include isEligibleOverride === 1
+- [x] Fix NaN children error on Camp Registrations page (completed campRegistrations schema stub)
+- [x] FIX 1: Activity tab in LeadsPipeline detail dialog (timeline + Add Note)
+- [x] FIX 2: Specialize Leads popup in AdsInsightsDashboard as Facebook Leads Center
+- [x] FIX 3: Multi-program checkbox group in StudentsRoster edit dialog
+- [x] FIX 4: Eligibility badge respects isEligibleOverride in StudentRow and Edit Dialog
+- [x] FIX 5: Add "Eligible to Test" stat card in StudentsRoster (clickable filter)
+- [x] Update db.ts getEligibleStudents to include isEligibleOverride === 1
+- [x] Fix TypeScript: isLeads type in AdsInsightsDashboard, program→programs in AttendanceKiosk
+- [x] leadActivities table created in DB
+- [x] tags column added to leads table in DB
