@@ -31,7 +31,7 @@ const COLUMN_MAP: Record<string, string> = {
   "name": "name", "full name": "name", "student name": "name",
   "email": "email", "email address": "email",
   "phone": "phone", "phone number": "phone", "cell": "phone", "mobile": "phone",
-  "program": "program", "class": "program", "program name": "program",
+  "program": "programs", "class": "programs", "program name": "programs",
   "enrollment date": "enrollmentDate", "enroll date": "enrollmentDate", "start date": "enrollmentDate",
   "belt rank": "beltRank", "rank": "beltRank", "belt": "beltRank",
   "status": "status", "member status": "status",
@@ -69,7 +69,7 @@ interface StudentEditState {
   name: string;
   email: string;
   phone: string;
-  program: string;
+  programs: string;
   enrollmentDate: string;
   emergencyContact: string;
   status: string;
@@ -179,7 +179,7 @@ export default function StudentsRoster() {
           name: string;
           email?: string;
           phone?: string;
-          program?: string;
+          programs?: string;
           enrollmentDate?: string;
           beltRank?: string;
           status?: string;
@@ -248,7 +248,7 @@ export default function StudentsRoster() {
         name: student.name,
         email: student.email || "",
         phone: student.phone || "",
-        program: student.program || "",
+        programs: student.programs || "",
         enrollmentDate: student.enrollmentDate || "",
         emergencyContact: student.emergencyContact || "",
         status: student.status || "",
@@ -264,7 +264,7 @@ export default function StudentsRoster() {
       name: "",
       email: "",
       phone: "",
-      program: "",
+      programs: "",
       enrollmentDate: "",
       emergencyContact: "",
       status: "Active",
@@ -286,7 +286,7 @@ export default function StudentsRoster() {
         name: editingStudent.name,
         email: editingStudent.email || null,
         phone: editingStudent.phone || null,
-        program: editingStudent.program || null,
+        programs: editingStudent.programs || null,
         enrollmentDate: editingStudent.enrollmentDate || null,
         emergencyContact: editingStudent.emergencyContact || null,
         status: editingStudent.status || null,
@@ -298,7 +298,7 @@ export default function StudentsRoster() {
         name: editingStudent.name,
         email: editingStudent.email || null,
         phone: editingStudent.phone || null,
-        program: editingStudent.program || null,
+        programs: editingStudent.programs || null,
         enrollmentDate: editingStudent.enrollmentDate || null,
         emergencyContact: editingStudent.emergencyContact || null,
         status: editingStudent.status || null,
@@ -586,9 +586,9 @@ function StudentRow({
         {student.phone && <p className="text-xs text-gray-500">{student.phone}</p>}
       </TableCell>
       <TableCell>
-        {student.program ? (
+        {student.programs ? (
           <Badge variant="outline" className="text-xs">
-            {student.program}
+            {student.programs}
           </Badge>
         ) : (
           <span className="text-xs text-gray-400">—</span>
@@ -702,7 +702,7 @@ function StudentEditDialog({
             </div>
             <div>
               <label className="text-sm font-medium text-gray-700">Program</label>
-              <Select value={student.program} onValueChange={v => onStudentChange({ ...student, program: v })}>
+              <Select value={student.programs} onValueChange={v => onStudentChange({ ...student, programs: v })}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select program" />
                 </SelectTrigger>
