@@ -50,16 +50,16 @@ function getProgramPrice(programType: "3day" | "5day" | "daily", couponApplied =
 
 const CAMP_WEEKS_2026 = [
   "Week 1: May 26 – May 29 (Tue–Fri)",
-  "Week 2: June 2 – June 6",
-  "Week 3: June 9 – June 13",
-  "Week 4: June 16 – June 20",
-  "Week 5: June 23 – June 27",
-  "Week 6: June 30 – July 3 (Mon–Thu, No Camp July 4th)",
-  "Week 7: July 7 – July 11",
-  "Week 8: July 14 – July 18",
-  "Week 9: July 21 – July 25",
-  "Week 10: July 28 – August 1",
-  "Week 11: August 4 – August 8",
+  "Week 2: June 1 – June 5",
+  "Week 3: June 8 – June 12",
+  "Week 4: June 15 – June 19",
+  "Week 5: June 22 – June 26",
+  "Week 6: June 29 – July 3",
+  "Week 7: July 6 – July 10",
+  "Week 8: July 13 – July 17",
+  "Week 9: July 20 – July 24",
+  "Week 10: July 27 – July 31",
+  "Week 11: August 3 – August 7",
 ];
 
 interface CamperInfo {
@@ -842,3 +842,4 @@ export default function CampRegistration() {
     </div>
   );
 }
+
