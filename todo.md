@@ -18,7 +18,7 @@
 - [x] Set TMA_STRIPE_SECRET_KEY in Settings → Secrets
 - [x] Set VITE_TMA_STRIPE_PUBLISHABLE_KEY in Settings → Secrets
 - [x] Set RESEND_API_KEY in Settings → Secrets
-- [ ] Set LEAD_NOTIFICATION_EMAIL in Settings → Secrets
+- [x] Set LEAD_NOTIFICATION_EMAIL in Settings → Secrets
 - [ ] Set GOOGLE_SERVICE_ACCOUNT_JSON in Settings → Secrets (optional)
 - [ ] Set GOOGLE_SHEETS_ID in Settings → Secrets (optional)
 - [ ] Set SLACK_WEBHOOK_URL in Settings → Secrets (optional)
