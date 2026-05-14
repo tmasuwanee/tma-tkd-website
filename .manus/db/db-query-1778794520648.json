@@ -1,0 +1,26 @@
+{
+  "query": "SELECT parentFirstName, parentLastName, email, camper1Name, camper2Name, camper3Name, programType, anticipatedWeeks, futureWeeks, firstWeek, addFieldTrip, addExtendedCare, amountPaid, createdAt FROM campRegistrations WHERE email = 'phuongthuyt238@icloud.com' ORDER BY createdAt DESC LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3SwZhQGwFybjoYh.root --database cXp7keMiYsMkePUngpTNmV --execute SELECT parentFirstName, parentLastName, email, camper1Name, camper2Name, camper3Name, programType, anticipatedWeeks, futureWeeks, firstWeek, addFieldTrip, addExtendedCare, amountPaid, createdAt FROM campRegistrations WHERE email = 'phuongthuyt238@icloud.com' ORDER BY createdAt DESC LIMIT 5;",
+  "rows": [
+    {
+      "parentFirstName": "Thuy",
+      "parentLastName": "Nguyen",
+      "email": "phuongthuyt238@icloud.com",
+      "camper1Name": "Henry Nguyen",
+      "camper2Name": "NULL",
+      "camper3Name": "NULL",
+      "programType": "5day",
+      "anticipatedWeeks": "[\"Week 1: May 26 – May 29 (Tue–Fri)\",\"Week 2: June 2 – June 6\",\"Week 3: June 9 – June 13\",\"Week 4: June 16 – June 20\",\"Week 5: June 23 – June 27\",\"Week 6: June 30 – July 3 (Mon–Thu, No Camp July 4th)\"]",
+      "futureWeeks": "[]",
+      "firstWeek": "Week 1: May 26 – May 29 (Tue–Fri)",
+      "addFieldTrip": "1",
+      "addExtendedCare": "1",
+      "amountPaid": "155400",
+      "createdAt": "2026-05-11 22:29:51"
+    }
+  ],
+  "messages": [],
+  "stdout": "parentFirstName\tparentLastName\temail\tcamper1Name\tcamper2Name\tcamper3Name\tprogramType\tanticipatedWeeks\tfutureWeeks\tfirstWeek\taddFieldTrip\taddExtendedCare\tamountPaid\tcreatedAt\nThuy\tNguyen\tphuongthuyt238@icloud.com\tHenry Nguyen\tNULL\tNULL\t5day\t[\"Week 1: May 26 – May 29 (Tue–Fri)\",\"Week 2: June 2 – June 6\",\"Week 3: June 9 – June 13\",\"Week 4: June 16 – June 20\",\"Week 5: June 23 – June 27\",\"Week 6: June 30 – July 3 (Mon–Thu, No Camp July 4th)\"]\t[]\tWeek 1: May 26 – May 29 (Tue–Fri)\t1\t1\t155400\t2026-05-11 22:29:51\n",
+  "stderr": "",
+  "execution_time_ms": 266
+}

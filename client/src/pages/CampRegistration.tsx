@@ -17,14 +17,10 @@ import { useLocation } from "wouter";
 
 const stripePromise = loadStripe(import.meta.env.VITE_TMA_STRIPE_PUBLISHABLE_KEY);
 
-// Early bird deadline: April 30, 2026
-const EARLY_BIRD_DEADLINE = new Date("2026-04-30T23:59:59");
-const isEarlyBird = () => new Date() <= EARLY_BIRD_DEADLINE;
-
-// Valid coupon codes and what they unlock
-const COUPON_CODES: Record<string, { label: string; type: "earlybird" }> = {
-  EARLYBIRD2026: { label: "Early Registration Discount", type: "earlybird" },
-  TMAEARLYBIRD: { label: "Early Registration Discount", type: "earlybird" },
+// Valid coupon codes
+const COUPON_CODES: Record<string, { label: string }> = {
+  EARLYBIRD2026: { label: "Registration Discount" },
+  TMAEARLYBIRD: { label: "Registration Discount" },
 };
 
 // Pricing constants
@@ -34,18 +30,12 @@ const PRICING = {
     "5day": 239_00,   // $239 per camper per week
     "daily": 70_00,   // $70 per day per camper
   },
-  earlyBird: {
-    "3day": 179_00,   // $179 early bird
-    "5day": 209_00,   // $209 early bird
-    "daily": 70_00,   // $70 — no early bird discount for daily drop-in
-  },
   fieldTrip: 25_00,
   extendedCare: 25_00,  // Early drop-off + late pickup bundled together
 };
 
-function getProgramPrice(programType: "3day" | "5day" | "daily", couponApplied = false) {
-  const useDiscount = isEarlyBird() || couponApplied;
-  return useDiscount ? PRICING.earlyBird[programType] : PRICING.regular[programType];
+function getProgramPrice(programType: "3day" | "5day" | "daily", _couponApplied = false) {
+  return PRICING.regular[programType];
 }
 
 const CAMP_WEEKS_2026 = [
@@ -563,16 +553,13 @@ function Step3({ data, onChange, onNext, onBack }: { data: FormData; onChange: (
             </div>
             {data.addFieldTrip && <div className="flex justify-between"><span>Field Trip Fee × {numCampers}{data.programType !== "daily" && numWeeks > 1 ? ` × ${numWeeks} wks` : ""}</span><span>{formatCurrency(PRICING.fieldTrip * numCampers * (data.programType === "daily" ? 1 : numWeeks))}</span></div>}
             {data.addExtendedCare && <div className="flex justify-between"><span>Early Drop-Off &amp; Late Pick-Up{data.programType !== "daily" && numWeeks > 1 ? ` × ${numWeeks} wks` : ""}</span><span>{formatCurrency(PRICING.extendedCare * (data.programType === "daily" ? 1 : numWeeks))}</span></div>}
-            {(isEarlyBird() || data.couponApplied) && data.programType !== "daily" && (
+            {data.couponApplied && regularTotal !== total && (
               <div className="flex justify-between text-green-700 font-medium">
-                <span>{data.couponApplied ? `🎉 Coupon: ${COUPON_CODES[data.couponCode]?.label}` : "🎉 Early Bird Discount Applied"}</span>
-                {data.couponApplied && !isEarlyBird() && regularTotal !== total && (
-                  <span className="text-green-700">-{formatCurrency(regularTotal - total)}</span>
-                )}
-                {!data.couponApplied && <span>✓</span>}
+                <span>🎉 Coupon: Discount Applied</span>
+                <span className="text-green-700">-{formatCurrency(regularTotal - total)}</span>
               </div>
             )}
-            {data.couponApplied && !isEarlyBird() && regularTotal !== total && (
+            {data.couponApplied && regularTotal !== total && (
               <div className="flex justify-between text-gray-400 text-xs">
                 <span>Original price</span>
                 <span className="line-through">{formatCurrency(regularTotal)}</span>

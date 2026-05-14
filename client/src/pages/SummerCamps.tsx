@@ -122,18 +122,6 @@ export default function SummerCamps() {
       {/* Pricing Section */}
       <section className="py-20 bg-gray-50">
         <div className="container mx-auto px-4">
-          {/* Early Bird Banner */}
-          <div className="max-w-4xl mx-auto mb-10 bg-gradient-to-r from-[#1a2d5a] to-[#c41e3a] rounded-2xl p-6 text-white text-center shadow-lg">
-            <div className="inline-block bg-yellow-400 text-[#1a2d5a] text-xs font-bold px-3 py-1 rounded-full mb-3 uppercase tracking-wide">🎉 Early Bird Special</div>
-            <h3 className="text-2xl font-bold mb-2">Register by April 30 & Save!</h3>
-            <p className="text-white/85 text-sm">Lock in discounted rates before the deadline. Prices increase May 1st.</p>
-            <div className="flex flex-wrap justify-center gap-6 mt-4 text-sm font-semibold">
-              <span>5-Day Week: <span className="line-through text-white/50">$239</span> → <span className="text-yellow-300">$209</span></span>
-              <span>3-Day Week: <span className="line-through text-white/50">$199</span> → <span className="text-yellow-300">$179</span></span>
-              <span>Daily Drop-In: <span className="text-yellow-300">$70</span> (no discount)</span>
-            </div>
-          </div>
-
           <div className="text-center mb-12">
             <h2 className="text-4xl font-bold text-[#1a2d5a] mb-4">2026 Pricing</h2>
             <p className="text-gray-600 max-w-xl mx-auto">Flexible options to fit your schedule. All prices are per camper per week.</p>
@@ -145,8 +133,6 @@ export default function SummerCamps() {
               {
                 title: "Full Week",
                 price: "$239",
-                earlyBirdPrice: "$209",
-                hasDiscount: true,
                 per: "per camper / week",
                 days: "Monday – Friday",
                 highlight: true,
@@ -155,8 +141,6 @@ export default function SummerCamps() {
               {
                 title: "3-Day Week",
                 price: "$199",
-                earlyBirdPrice: "$179",
-                hasDiscount: true,
                 per: "per camper / week",
                 days: "Mon, Wed & Fri",
                 highlight: false,
@@ -165,8 +149,6 @@ export default function SummerCamps() {
               {
                 title: "Daily Drop-In",
                 price: "$70",
-                earlyBirdPrice: "$70",
-                hasDiscount: false,
                 per: "per camper / day",
                 days: "Any single day",
                 highlight: false,
@@ -182,17 +164,9 @@ export default function SummerCamps() {
                 <CardContent className="pt-8 pb-6 text-center">
                   <h3 className="font-bold text-[#1a2d5a] text-xl mb-1">{plan.title}</h3>
                   <p className="text-gray-500 text-sm mb-4">{plan.days}</p>
-                  <div className="mb-1">
-                    {plan.hasDiscount && (
-                      <span className="text-2xl text-gray-400 line-through mr-2">{plan.price}</span>
-                    )}
-                    <span className="text-5xl font-bold text-[#c41e3a]">{plan.earlyBirdPrice}</span>
+                  <div className="mb-4">
+                    <span className="text-5xl font-bold text-[#c41e3a]">{plan.price}</span>
                   </div>
-                  {plan.hasDiscount ? (
-                    <p className="text-yellow-600 text-xs font-semibold mb-1">Early Bird (by Apr 30)</p>
-                  ) : (
-                    <p className="text-gray-400 text-xs mb-1">Standard rate</p>
-                  )}
                   <p className="text-gray-400 text-sm">{plan.per}</p>
                 </CardContent>
               </Card>
