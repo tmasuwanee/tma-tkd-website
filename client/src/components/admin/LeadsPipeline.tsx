@@ -17,8 +17,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Phone, Mail, User, Tag, ChevronRight, ChevronLeft, Trash2, StickyNote, Globe, X, Plus } from "lucide-react";
+import { Loader2, Phone, Mail, User, Tag, ChevronRight, ChevronLeft, Trash2, StickyNote, Globe, X, Plus, Clock, MessageSquare, PhoneCall, Send } from "lucide-react";
 import { useState, useMemo } from "react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -187,6 +188,108 @@ function LeadCard({ lead, stageIndex, totalStages, onOpen, onMove }: {
 
 // ─── Lead Detail Dialog ───────────────────────────────────────────────────────
 
+function ActivityTimeline({ leadId }: { leadId: number }) {
+  const [noteText, setNoteText] = useState("");
+  const utils = trpc.useUtils();
+
+  const { data: activities = [], isLoading } = trpc.leads.getActivity.useQuery(
+    { leadId },
+    { enabled: !!leadId }
+  );
+
+  const logActivity = trpc.leads.logActivity.useMutation({
+    onSuccess: () => {
+      utils.leads.getActivity.invalidate({ leadId });
+      setNoteText("");
+      toast.success("Note added");
+    },
+    onError: () => toast.error("Failed to add note"),
+  });
+
+  const handleAddNote = () => {
+    if (!noteText.trim()) return;
+    logActivity.mutate({
+      leadId,
+      type: "note",
+      body: noteText.trim(),
+      sentBy: "staff",
+      status: "sent",
+    });
+  };
+
+  const typeIcon = (type: string) => {
+    if (type === "email") return <Send className="w-3.5 h-3.5 text-blue-500" />;
+    if (type === "sms") return <MessageSquare className="w-3.5 h-3.5 text-green-500" />;
+    if (type === "call") return <PhoneCall className="w-3.5 h-3.5 text-purple-500" />;
+    return <StickyNote className="w-3.5 h-3.5 text-amber-500" />;
+  };
+
+  const typeLabel = (type: string) => {
+    if (type === "email") return "Email sent";
+    if (type === "sms") return "SMS sent";
+    if (type === "call") return "Call logged";
+    return "Note";
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Add Note */}
+      <div className="space-y-2">
+        <p className="text-sm font-medium text-gray-700">Add Note</p>
+        <Textarea
+          value={noteText}
+          onChange={e => setNoteText(e.target.value)}
+          placeholder="Add a note about this lead..."
+          rows={3}
+          className="text-sm"
+        />
+        <Button
+          size="sm"
+          className="bg-[#1a2d5a] hover:bg-[#1a2d5a]/90"
+          onClick={handleAddNote}
+          disabled={!noteText.trim() || logActivity.isPending}
+        >
+          {logActivity.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : null}
+          Save Note
+        </Button>
+      </div>
+
+      {/* Timeline */}
+      <div>
+        <p className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-1.5">
+          <Clock className="w-3.5 h-3.5" /> Activity Log
+        </p>
+        {isLoading ? (
+          <div className="flex items-center gap-2 text-gray-400 text-sm py-4">
+            <Loader2 className="w-4 h-4 animate-spin" /> Loading...
+          </div>
+        ) : activities.length === 0 ? (
+          <p className="text-sm text-gray-400 italic py-4">No activity yet.</p>
+        ) : (
+          <div className="space-y-2">
+            {activities.map((act: any) => (
+              <div key={act.id} className="flex gap-2.5 bg-gray-50 rounded-lg p-2.5">
+                <div className="mt-0.5 shrink-0">{typeIcon(act.type)}</div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-medium text-gray-700">{typeLabel(act.type)}</p>
+                    <p className="text-xs text-gray-400 shrink-0">
+                      {new Date(act.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                    </p>
+                  </div>
+                  {act.subject && <p className="text-xs text-gray-600 font-medium mt-0.5">{act.subject}</p>}
+                  {act.body && <p className="text-xs text-gray-500 mt-0.5 whitespace-pre-wrap">{act.body}</p>}
+                  {act.sentBy && <p className="text-xs text-gray-400 mt-0.5">by {act.sentBy}</p>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function LeadDetailDialog({ lead, open, onClose, onRefresh }: {
   lead: Lead | null;
   open: boolean;
@@ -259,7 +362,18 @@ function LeadDetailDialog({ lead, open, onClose, onRefresh }: {
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4 mt-2">
+        <Tabs defaultValue="details" className="w-full mt-2">
+          <TabsList className="grid w-full grid-cols-2 mb-4">
+            <TabsTrigger value="details">Details</TabsTrigger>
+            <TabsTrigger value="activity">Activity</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="activity">
+            <ActivityTimeline leadId={lead.id} />
+          </TabsContent>
+
+          <TabsContent value="details">
+        <div className="space-y-4">
           {/* Contact Info */}
           <div className="bg-gray-50 rounded-lg p-3 space-y-1.5">
             <p className="text-sm font-medium text-gray-700 mb-1">Contact</p>
@@ -442,6 +556,8 @@ function LeadDetailDialog({ lead, open, onClose, onRefresh }: {
             </Button>
           </div>
         </div>
+          </TabsContent>
+        </Tabs>
       </DialogContent>
     </Dialog>
   );

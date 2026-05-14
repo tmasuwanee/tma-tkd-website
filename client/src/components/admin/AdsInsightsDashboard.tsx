@@ -14,7 +14,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { RefreshCw, TrendingUp, DollarSign, MousePointer, Users, AlertCircle, Info, X } from "lucide-react";
+import { RefreshCw, TrendingUp, DollarSign, MousePointer, Users, AlertCircle, Info, X, Phone, Mail, ExternalLink } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from "recharts";
@@ -156,6 +157,171 @@ function MetricPopup({
   );
 }
 
+// ─── Facebook Leads Center Popup ─────────────────────────────────────────────
+
+function LeadsPopup({
+  open,
+  onClose,
+  data,
+  days,
+}: {
+  open: boolean;
+  onClose: () => void;
+  data: { date: string; value: number }[];
+  days: number;
+}) {
+  const total = data.reduce((s, r) => s + r.value, 0);
+  const avg = data.length > 0 ? total / data.length : 0;
+  const max = data.length > 0 ? Math.max(...data.map(r => r.value)) : 0;
+
+  // Get leads from DB filtered to facebook/paid sources
+  const { data: allLeads = [] } = trpc.leads.getAll.useQuery(undefined, { enabled: open });
+
+  // Filter to leads from the last N days with a UTM source
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - days);
+  const fbLeads = allLeads.filter(l => {
+    const created = new Date(l.createdAt);
+    return created >= cutoff && (l.utmSource || l.utmCampaign || l.utmMedium);
+  });
+
+  const stageColors: Record<string, string> = {
+    new_lead: "bg-gray-100 text-gray-700",
+    contacted: "bg-blue-100 text-blue-700",
+    trial_scheduled: "bg-yellow-100 text-yellow-700",
+    trial_paid: "bg-orange-100 text-orange-700",
+    trial_attended: "bg-purple-100 text-purple-700",
+    enrolled: "bg-green-100 text-green-700",
+    lost: "bg-red-100 text-red-700",
+  };
+
+  const stageLabel: Record<string, string> = {
+    new_lead: "New",
+    contacted: "Contacted",
+    trial_scheduled: "Trial Sched.",
+    trial_paid: "Trial Paid",
+    trial_attended: "Trial Done",
+    enrolled: "Enrolled",
+    lost: "Lost",
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={o => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Users className="w-5 h-5 text-blue-600" />
+            Facebook Leads Center
+          </DialogTitle>
+        </DialogHeader>
+
+        <Tabs defaultValue="chart" className="flex-1 overflow-hidden flex flex-col">
+          <TabsList className="grid w-full grid-cols-2 mb-3">
+            <TabsTrigger value="chart">Daily Trend</TabsTrigger>
+            <TabsTrigger value="leads">Lead List ({fbLeads.length})</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="chart" className="space-y-4 overflow-y-auto">
+            {/* Summary stats */}
+            <div className="grid grid-cols-3 gap-3">
+              <div className="bg-gray-50 rounded-lg p-3 text-center">
+                <p className="text-xs text-gray-500 mb-0.5">Total</p>
+                <p className="text-lg font-bold text-gray-900">{total}</p>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-3 text-center">
+                <p className="text-xs text-gray-500 mb-0.5">Daily Avg</p>
+                <p className="text-lg font-bold text-gray-900">{avg.toFixed(1)}</p>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-3 text-center">
+                <p className="text-xs text-gray-500 mb-0.5">Peak Day</p>
+                <p className="text-lg font-bold text-gray-900">{max}</p>
+              </div>
+            </div>
+            <div className="h-48">
+              {data.length === 0 ? (
+                <div className="flex items-center justify-center h-full text-gray-400 text-sm">No data</div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={data} margin={{ top: 4, right: 4, bottom: 4, left: 4 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={d => d.slice(5)} />
+                    <YAxis tick={{ fontSize: 10 }} width={30} />
+                    <Tooltip formatter={(v: number) => [v, "Leads"]} labelStyle={{ fontSize: 11 }} />
+                    <Bar dataKey="value" fill="#2563eb" radius={[3, 3, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+            {data.length > 0 && (
+              <div className="max-h-40 overflow-y-auto border rounded-lg">
+                <table className="w-full text-xs">
+                  <thead className="bg-gray-50 sticky top-0">
+                    <tr>
+                      <th className="text-left px-3 py-2 font-medium text-gray-600">Date</th>
+                      <th className="text-right px-3 py-2 font-medium text-gray-600">Leads</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...data].reverse().map(row => (
+                      <tr key={row.date} className="border-t border-gray-100 hover:bg-gray-50">
+                        <td className="px-3 py-1.5 text-gray-600">{row.date}</td>
+                        <td className="px-3 py-1.5 text-right font-medium text-gray-900">{row.value}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="leads" className="overflow-y-auto flex-1">
+            {fbLeads.length === 0 ? (
+              <div className="text-center py-8 text-gray-400 text-sm">
+                No Facebook leads found in the last {days} days.
+                <p className="text-xs mt-1">Leads must have UTM parameters to appear here.</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {fbLeads.map(lead => (
+                  <div key={lead.id} className="flex items-start gap-3 bg-gray-50 rounded-lg p-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-medium text-gray-900">{lead.kidName}</p>
+                        <span className="text-xs text-gray-500">age {lead.kidAge}</span>
+                        <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${stageColors[lead.pipelineStage ?? "new_lead"] ?? "bg-gray-100 text-gray-700"}`}>
+                          {stageLabel[lead.pipelineStage ?? "new_lead"] ?? lead.pipelineStage}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-0.5">{lead.parentName}</p>
+                      <div className="flex items-center gap-3 mt-1">
+                        <a href={`mailto:${lead.email}`} className="text-xs text-blue-600 hover:underline flex items-center gap-1">
+                          <Mail className="w-3 h-3" />{lead.email}
+                        </a>
+                        <a href={`tel:${lead.phone}`} className="text-xs text-blue-600 hover:underline flex items-center gap-1">
+                          <Phone className="w-3 h-3" />{lead.phone}
+                        </a>
+                      </div>
+                      {(lead.utmSource || lead.utmCampaign) && (
+                        <p className="text-xs text-gray-400 mt-1">
+                          {lead.utmSource && <span>src: {lead.utmSource}</span>}
+                          {lead.utmCampaign && <span className="ml-2">campaign: {lead.utmCampaign}</span>}
+                        </p>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-400 shrink-0">
+                      {new Date(lead.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── Clickable Metric Card ────────────────────────────────────────────────────
 
 function MetricCard({
@@ -207,6 +373,7 @@ export default function AdsInsightsDashboard() {
   const [days, setDays] = useState<DaysOption>(7);
   const [syncing, setSyncing] = useState(false);
   const [openMetric, setOpenMetric] = useState<MetricKey | null>(null);
+  const [leadsPopupOpen, setLeadsPopupOpen] = useState(false);
 
   const { data: rows = [], isLoading, refetch } = trpc.ads.getInsights.useQuery({ days });
   const syncMutation = trpc.ads.sync.useMutation({
@@ -295,7 +462,8 @@ export default function AdsInsightsDashboard() {
       sub: cpl !== "—" ? `$${cpl} / lead` : undefined,
       color: "text-blue-600",
       hexColor: "#2563eb",
-      chartType: "bar",
+      chartType: "bar" as const,
+      isLeads: true,
     },
     {
       key: "clicks",
@@ -388,7 +556,7 @@ export default function AdsInsightsDashboard() {
               sub={m.sub}
               color={m.color}
               hexColor={m.hexColor}
-              onClick={() => setOpenMetric(m.key)}
+              onClick={() => (m as any).isLeads ? setLeadsPopupOpen(true) : setOpenMetric(m.key)}
             />
           ))}
         </div>
@@ -479,7 +647,7 @@ export default function AdsInsightsDashboard() {
       )}
 
       {/* Metric popup charts */}
-      {metricConfig.map(m => (
+      {metricConfig.filter(m => !(m as any).isLeads).map(m => (
         <MetricPopup
           key={m.key}
           open={openMetric === m.key}
@@ -491,6 +659,12 @@ export default function AdsInsightsDashboard() {
           chartType={m.chartType}
         />
       ))}
+      <LeadsPopup
+        open={leadsPopupOpen}
+        onClose={() => setLeadsPopupOpen(false)}
+        data={chartDataFor("leads")}
+        days={days}
+      />
     </div>
   );
 }

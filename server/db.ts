@@ -470,7 +470,7 @@ export async function getEligibleStudents(): Promise<(Student & { attendanceSinc
 
   for (const student of allStudents) {
     const count = await getAttendanceSincePromotion(student.id);
-    if (count >= 15) {
+    if (count >= 15 || student.isEligibleOverride === 1) {
       eligible.push({ ...student, attendanceSincePromotion: count });
     }
   }

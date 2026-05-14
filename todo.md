@@ -157,3 +157,12 @@
 - [ ] Add editable attendance count field in Belt & Eligibility tab (manual override for class count)
 - [ ] Create tRPC procedure to update attendance count directly
 - [ ] Update StudentEditState to include editableAttendanceCount field
+
+## Claude's 5 Fixes + NaN Bug (2026-05-14)
+- [ ] Fix NaN children error on Camp Registrations page
+- [ ] FIX 1: Activity tab in LeadsPipeline detail dialog (timeline + Add Note)
+- [ ] FIX 2: Specialize Leads popup in AdsInsightsDashboard as Facebook Leads Center
+- [ ] FIX 3: Multi-program checkbox group in StudentsRoster edit dialog
+- [ ] FIX 4: Eligibility badge respects isEligibleOverride in StudentRow and Edit Dialog
+- [ ] FIX 5: Add "Eligible to Test" stat card in StudentsRoster (clickable filter)
+- [ ] Update db.ts getEligibleStudents to include isEligibleOverride === 1

@@ -5,7 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-  Loader2, Upload, Search, Users, RefreshCw, ChevronUp, ChevronDown, AlertCircle, X,
+  Loader2, Upload, Search, Users, RefreshCw, ChevronUp, ChevronDown, AlertCircle, X, Award,
 } from "lucide-react";
 import { useState, useRef, useCallback, useMemo } from "react";
 import { toast } from "sonner";
@@ -92,6 +92,7 @@ export default function StudentsRoster() {
   const [editingStudent, setEditingStudent] = useState<StudentEditState | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [hoveredRowId, setHoveredRowId] = useState<number | null>(null);
+  const [eligibleFilter, setEligibleFilter] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const utils = trpc.useUtils();
@@ -216,6 +217,14 @@ export default function StudentsRoster() {
     ? displayedStudents
     : displayedStudents.filter(s => s.beltRank === beltFilter);
 
+  // Count eligible students (isEligibleOverride = 1)
+  const eligibleCount = students.filter(s => s.isEligibleOverride === 1).length;
+
+  // Apply eligible filter
+  const filteredStudents = eligibleFilter
+    ? filteredByBelt.filter(s => s.isEligibleOverride === 1)
+    : filteredByBelt;
+
   const toggleSelect = (id: number) => {
     const newSet = new Set(selectedIds);
     if (newSet.has(id)) {
@@ -329,7 +338,7 @@ export default function StudentsRoster() {
   return (
     <div className="space-y-6">
       {/* Stats + Upload */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardContent className="pt-5 pb-4">
             <div className="flex items-center gap-3">
@@ -347,6 +356,24 @@ export default function StudentsRoster() {
                 Last updated: {importStats.timestamp}
               </p>
             )}
+          </CardContent>
+        </Card>
+
+        <Card
+          className={`cursor-pointer transition-colors ${eligibleFilter ? "ring-2 ring-green-500 bg-green-50" : "hover:bg-gray-50"}`}
+          onClick={() => setEligibleFilter(f => !f)}
+        >
+          <CardContent className="pt-5 pb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                <Award className="w-5 h-5 text-green-700" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Eligible to Test</p>
+                <p className="text-2xl font-bold text-gray-900">{eligibleCount}</p>
+              </div>
+            </div>
+            <p className="text-xs text-gray-400 mt-2">{eligibleFilter ? "Showing eligible only — click to clear" : "Click to filter"}</p>
           </CardContent>
         </Card>
 
@@ -506,7 +533,7 @@ export default function StudentsRoster() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredByBelt.map(student => (
+                  {filteredStudents.map(student => (
                     <StudentRow
                       key={student.id}
                       student={student}
@@ -564,7 +591,7 @@ function StudentRow({
     { enabled: !!student.id }
   );
 
-  const isEligible = attendanceCount >= 15;
+  const isEligible = attendanceCount >= 15 || student.isEligibleOverride === 1;
 
   return (
     <TableRow
@@ -658,7 +685,7 @@ function StudentEditDialog({
     { enabled: !!student.id }
   );
 
-  const isEligible = attendanceCount >= 15;
+  const isEligible = attendanceCount >= 15 || student.isEligibleOverride;
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -701,19 +728,29 @@ function StudentEditDialog({
               />
             </div>
             <div>
-              <label className="text-sm font-medium text-gray-700">Program</label>
-              <Select value={student.programs} onValueChange={v => onStudentChange({ ...student, programs: v })}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select program" />
-                </SelectTrigger>
-                <SelectContent>
-                  {PROGRAMS.map(p => (
-                    <SelectItem key={p} value={p}>
-                      {p}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <label className="text-sm font-medium text-gray-700">Programs</label>
+              <div className="grid grid-cols-2 gap-2 mt-1">
+                {PROGRAMS.map(p => {
+                  const selected = (student.programs || "").split(",").map(x => x.trim()).filter(Boolean);
+                  const isChecked = selected.includes(p);
+                  return (
+                    <label key={p} className="flex items-center gap-2 cursor-pointer p-2 rounded-md border border-gray-200 hover:bg-gray-50">
+                      <Checkbox
+                        checked={isChecked}
+                        onCheckedChange={checked => {
+                          const current = (student.programs || "").split(",").map(x => x.trim()).filter(Boolean);
+                          const updated = checked
+                            ? [...current.filter(x => x !== p), p]
+                            : current.filter(x => x !== p);
+                          onStudentChange({ ...student, programs: updated.join(", ") });
+                        }}
+                        className="border-2 border-gray-700"
+                      />
+                      <span className="text-sm text-gray-700">{p}</span>
+                    </label>
+                  );
+                })}
+              </div>
             </div>
             <div>
               <label className="text-sm font-medium text-gray-700">Enrollment Date</label>

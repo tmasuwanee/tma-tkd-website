@@ -1,0 +1,124 @@
+{
+  "query": "SELECT COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'campRegistrations' ORDER BY ORDINAL_POSITION LIMIT 39 OFFSET 20;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3SwZhQGwFybjoYh.root --database cXp7keMiYsMkePUngpTNmV --execute SELECT COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'campRegistrations' ORDER BY ORDINAL_POSITION LIMIT 39 OFFSET 20;",
+  "rows": [
+    {
+      "COLUMN_NAME": "zip",
+      "COLUMN_TYPE": "varchar(20)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "NULL"
+    },
+    {
+      "COLUMN_NAME": "howDidYouHear",
+      "COLUMN_TYPE": "varchar(255)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "NULL"
+    },
+    {
+      "COLUMN_NAME": "programType",
+      "COLUMN_TYPE": "enum('3day','5day','daily')",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "NULL"
+    },
+    {
+      "COLUMN_NAME": "numCampers",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "1"
+    },
+    {
+      "COLUMN_NAME": "addFieldTrip",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "0"
+    },
+    {
+      "COLUMN_NAME": "addExtendedCare",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "0"
+    },
+    {
+      "COLUMN_NAME": "anticipatedWeeks",
+      "COLUMN_TYPE": "text",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "NULL"
+    },
+    {
+      "COLUMN_NAME": "futureWeeks",
+      "COLUMN_TYPE": "text",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "NULL"
+    },
+    {
+      "COLUMN_NAME": "firstWeek",
+      "COLUMN_TYPE": "varchar(100)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "NULL"
+    },
+    {
+      "COLUMN_NAME": "stripePaymentIntentId",
+      "COLUMN_TYPE": "varchar(255)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "NULL"
+    },
+    {
+      "COLUMN_NAME": "stripePaymentStatus",
+      "COLUMN_TYPE": "varchar(50)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "pending"
+    },
+    {
+      "COLUMN_NAME": "amountPaid",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "0"
+    },
+    {
+      "COLUMN_NAME": "agreedToTerms",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "0"
+    },
+    {
+      "COLUMN_NAME": "isDeleted",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "0"
+    },
+    {
+      "COLUMN_NAME": "deletedAt",
+      "COLUMN_TYPE": "timestamp",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "NULL"
+    },
+    {
+      "COLUMN_NAME": "fieldTripWeeks",
+      "COLUMN_TYPE": "text",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "NULL"
+    },
+    {
+      "COLUMN_NAME": "extendedCareWeeks",
+      "COLUMN_TYPE": "text",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "NULL"
+    },
+    {
+      "COLUMN_NAME": "createdAt",
+      "COLUMN_TYPE": "timestamp",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "CURRENT_TIMESTAMP"
+    },
+    {
+      "COLUMN_NAME": "updatedAt",
+      "COLUMN_TYPE": "timestamp",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "CURRENT_TIMESTAMP"
+    }
+  ],
+  "messages": [],
+  "stdout": "COLUMN_NAME\tCOLUMN_TYPE\tIS_NULLABLE\tCOLUMN_DEFAULT\nzip\tvarchar(20)\tNO\tNULL\nhowDidYouHear\tvarchar(255)\tYES\tNULL\nprogramType\tenum('3day','5day','daily')\tNO\tNULL\nnumCampers\tint\tNO\t1\naddFieldTrip\tint\tNO\t0\naddExtendedCare\tint\tNO\t0\nanticipatedWeeks\ttext\tYES\tNULL\nfutureWeeks\ttext\tYES\tNULL\nfirstWeek\tvarchar(100)\tNO\tNULL\nstripePaymentIntentId\tvarchar(255)\tYES\tNULL\nstripePaymentStatus\tvarchar(50)\tYES\tpending\namountPaid\tint\tNO\t0\nagreedToTerms\tint\tNO\t0\nisDeleted\tint\tNO\t0\ndeletedAt\ttimestamp\tYES\tNULL\nfieldTripWeeks\ttext\tYES\tNULL\nextendedCareWeeks\ttext\tYES\tNULL\ncreatedAt\ttimestamp\tNO\tCURRENT_TIMESTAMP\nupdatedAt\ttimestamp\tNO\tCURRENT_TIMESTAMP\n",
+  "stderr": "",
+  "execution_time_ms": 258
+}

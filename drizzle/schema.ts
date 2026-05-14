@@ -96,11 +96,50 @@ export type InsertAttendance = typeof attendance.$inferInsert;
 
 export const campRegistrations = mysqlTable("campRegistrations", {
   id: int("id").autoincrement().primaryKey(),
+  // Camper 1 (required)
   camper1Name: varchar("camper1Name", { length: 255 }).notNull(),
   camper1Dob: varchar("camper1Dob", { length: 20 }).notNull(),
   camper1Age: varchar("camper1Age", { length: 10 }).notNull(),
   camper1Sex: varchar("camper1Sex", { length: 10 }).notNull(),
-  // ... camper2/3 fields, parent info, program selection, payment fields, etc.
+  // Camper 2 (optional)
+  camper2Name: varchar("camper2Name", { length: 255 }),
+  camper2Dob: varchar("camper2Dob", { length: 20 }),
+  camper2Age: varchar("camper2Age", { length: 10 }),
+  camper2Sex: varchar("camper2Sex", { length: 10 }),
+  // Camper 3 (optional)
+  camper3Name: varchar("camper3Name", { length: 255 }),
+  camper3Dob: varchar("camper3Dob", { length: 20 }),
+  camper3Age: varchar("camper3Age", { length: 10 }),
+  camper3Sex: varchar("camper3Sex", { length: 10 }),
+  // Parent / guardian info
+  parentFirstName: varchar("parentFirstName", { length: 255 }).notNull(),
+  parentLastName: varchar("parentLastName", { length: 255 }).notNull(),
+  email: varchar("email", { length: 320 }).notNull(),
+  phone: varchar("phone", { length: 20 }).notNull(),
+  address: varchar("address", { length: 500 }).notNull(),
+  city: varchar("city", { length: 255 }).notNull(),
+  state: varchar("state", { length: 50 }).notNull(),
+  zip: varchar("zip", { length: 20 }).notNull(),
+  howDidYouHear: varchar("howDidYouHear", { length: 255 }),
+  // Program selection
+  programType: mysqlEnum("programType", ["3day", "5day", "daily"]).notNull(),
+  numCampers: int("numCampers").default(1).notNull(),
+  addFieldTrip: int("addFieldTrip").default(0).notNull(),
+  addExtendedCare: int("addExtendedCare").default(0).notNull(),
+  anticipatedWeeks: text("anticipatedWeeks"),
+  futureWeeks: text("futureWeeks"),
+  firstWeek: varchar("firstWeek", { length: 100 }).notNull(),
+  // Payment
+  stripePaymentIntentId: varchar("stripePaymentIntentId", { length: 255 }),
+  stripePaymentStatus: varchar("stripePaymentStatus", { length: 50 }).default("pending"),
+  amountPaid: int("amountPaid").default(0).notNull(),
+  agreedToTerms: int("agreedToTerms").default(0).notNull(),
+  // Soft delete
+  isDeleted: int("isDeleted").default(0).notNull(),
+  deletedAt: timestamp("deletedAt"),
+  // Per-week add-on selections (JSON arrays)
+  fieldTripWeeks: text("fieldTripWeeks"),
+  extendedCareWeeks: text("extendedCareWeeks"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
