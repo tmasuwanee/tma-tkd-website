@@ -58,7 +58,7 @@ Claude's n8n instance: https://n8n.arfaconsults.com
 
 ### TMA - Facebook Lead Ads Sync
 - **ID:** `lJwUNK9XpYbPDBBn`
-- **Status:** Inactive — requires `FB_LEAD_FORM_ID` env var before activating
+- **Status:** Inactive — blocked on Meta asset assignment before `FB_LEAD_FORM_ID` can be confirmed
 - **Trigger:** Schedule — every 15 minutes
 - **What it does:**
   1. Reads last sync timestamp from workflow static data (defaults to 24h ago on first run)
@@ -74,7 +74,8 @@ Claude's n8n instance: https://n8n.arfaconsults.com
   - `FB_LEAD_FORM_ID` — Lead form ID from Meta Business Suite > Instant Forms. Find via: `GET /v19.0/act_1008273610146745/leadgen_forms?access_token=TOKEN`
   - `FB_CAMPAIGN_NAME` — optional, defaults to `summer_camp_2026`. Change per campaign.
   - `FACEBOOK_MARKETING_API_TOKEN` — already set; must have `leads_retrieval` permission (in addition to `ads_read`)
-- **Last updated:** 2026-05-13 — initial build
+- **Immediate pending:** User must go to Meta Business Manager > Settings > System Users > `Conversions API System User` > Add Assets, then assign Ad Account `1008273610146745` with Manage campaigns and the TMA Facebook Page with Manage Page. After that: regenerate token, provide it to the agent, query `GET /{page_id}/leadgen_forms`, update `FB_LEAD_FORM_ID`, and activate the workflow.
+- **Last updated:** 2026-05-15 — documented Meta asset-assignment blocker and Codex handoff
 
 ---
 

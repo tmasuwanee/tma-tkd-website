@@ -30,6 +30,13 @@ Use this to know which agent to ask. Wrong agent = wasted time.
 - **GitHub PRs** — Claude pushes branches; Manus merges and redeploys
 - Things Claude will flag to Manus: any UI/layout work, schema changes, migration runs
 
+### Ask Codex when you need:
+- **Repo maintenance from this Windows workstation** — inspect, edit, test, commit, and push website changes
+- **Cross-checks before changes** — Codex must read this `AGENTS.md` before editing anything in the repo
+- **Local credential handoff** — GitHub token is stored outside the repo at `C:\Users\tmasuwanee\Desktop\.env` as `TMA_GITHUB_TOKEN`
+- **Source-of-truth alignment** — GitHub repo `https://github.com/tmasuwanee/tma-tkd-website` is the canonical source; live site is `https://tmatkd.com`
+- Things Codex will flag to Manus/Claude: Manus-owned deploy/settings/DB secret work and Claude-owned n8n automation changes
+
 ### When you need both:
 If a feature touches the **website AND a new automation** (e.g. new form field that also needs an n8n trigger), tell Manus first to update the schema and frontend, then tell Claude to wire the n8n side.
 
@@ -48,6 +55,7 @@ If a feature touches the **website AND a new automation** (e.g. new form field t
 | Payments | Stripe (summer camp registrations) |
 | Ads | Facebook Marketing API + CAPI (pixel events) |
 | Version Control | GitHub — tmasuwanee/tma-tkd-website |
+| Live Site | https://tmatkd.com |
 
 ---
 
@@ -121,10 +129,23 @@ All active n8n workflows are documented in `docs/WORKFLOWS.md`.
 
 ## GitHub Workflow
 
+- Source of truth: `https://github.com/tmasuwanee/tma-tkd-website`
+- Live site: `https://tmatkd.com`
+- Codex is now part of the edit/push pipeline from this workstation and may create commits/branches after reading this file
+- Codex local GitHub token location: `C:\Users\tmasuwanee\Desktop\.env` (`TMA_GITHUB_TOKEN`); do not copy the token into tracked files
 - Claude pushes changes as branches (e.g. `claude/feature-name`)
 - Manus reviews and merges to `main` → auto-redeploys
 - Manus can also push directly to `main` for UI/frontend changes
 - Never force-push to `main`
+
+---
+
+## Immediate Pending - Facebook Lead Ads Sync
+
+- n8n workflow `lJwUNK9XpYbPDBBn` (`TMA - Facebook Lead Ads Sync`) is currently inactive
+- Current blocker: Meta system user token has correct scopes (`leads_retrieval`, `ads_management`, `ads_read`, `pages_show_list`, `pages_read_engagement`) but the system user has not been assigned assets yet
+- User action needed in Meta Business Manager: Settings → System Users → `Conversions API System User` → Add Assets → assign Ad Account `1008273610146745` with Manage campaigns + TMA Facebook Page with Manage Page
+- After assets are assigned: regenerate token, provide it to the agent, find `FB_LEAD_FORM_ID` via `GET /{page_id}/leadgen_forms`, update the n8n workflow, then activate it
 
 ---
 

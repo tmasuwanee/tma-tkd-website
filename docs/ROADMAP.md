@@ -1,9 +1,18 @@
 # TMA Automation Roadmap
 
-Shared backlog for Claude and Manus. Updated as items are scoped, started, or completed.
+Shared backlog for Claude, Manus, and Codex. Updated as items are scoped, started, or completed.
 Both agents should check this before starting new work — something may already be specced or in progress.
 
 **Status legend:** `[ ]` not started · `[~]` in progress · `[x]` done · `[!]` blocked
+
+---
+
+## Agent Pipeline Notes
+
+- Source of truth: `https://github.com/tmasuwanee/tma-tkd-website`
+- Live site: `https://tmatkd.com`
+- Codex can inspect/edit/test/commit/push from this workstation after reading `AGENTS.md`
+- Codex local GitHub token location: `C:\Users\tmasuwanee\Desktop\.env` (`TMA_GITHUB_TOKEN`); never commit token values
 
 ---
 
@@ -68,6 +77,9 @@ Store as a varchar on the student record (current `beltRank` column already exis
 - Daily auto-sync via Heartbeat cron (`POST /api/scheduled/sync-fb-ads`)
 
 ### What's pending
+- [!] Facebook Lead Ads Sync workflow `lJwUNK9XpYbPDBBn` is inactive until Meta assets are assigned to the `Conversions API System User`
+- [ ] User: Meta Business Manager > Settings > System Users > `Conversions API System User` > Add Assets > assign Ad Account `1008273610146745` (Manage campaigns) + TMA Facebook Page (Manage Page)
+- [ ] After assignment: regenerate token, provide it to the agent, find `FB_LEAD_FORM_ID` via `GET /{page_id}/leadgen_forms`, update n8n workflow, activate
 - [ ] User to share reference video for ad strategy analysis
 - [ ] Claude: Analyze video → map to TMA's ad practices → build automation spec
 - [ ] Claude: n8n — weekly ad performance report email (spend, CPL, leads)
