@@ -472,9 +472,6 @@ function Step3({ data, onChange, onNext, onBack }: { data: FormData; onChange: (
             <p className="text-xs text-amber-700 mt-1">
               Select any additional weeks you plan to register for in the future. These are <strong>not charged today</strong> — you will pay separately for each.
             </p>
-            <p className="text-xs font-semibold text-amber-800 mt-1">
-              ⚠️ Early bird pricing ends April 30, 2026. You must pay before that date to receive the discounted rate.
-            </p>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
