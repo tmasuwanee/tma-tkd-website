@@ -16,6 +16,8 @@ import SpringBreakCamp from "./pages/SpringBreakCamp";
 import SpringBreakRegistration from "./pages/SpringBreakRegistration";
 import AdminRegistrations from "./pages/AdminRegistrations";
 import AttendanceKiosk from "./pages/AttendanceKiosk";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
+import Terms from "./pages/Terms";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -33,6 +35,8 @@ function Router() {
       <Route path={"/spring-break-registration"} component={SpringBreakRegistration} />
       <Route path={"/attendance"} component={AttendanceKiosk} />
       <Route path={"/admin/registrations"} component={AdminRegistrations} />
+      <Route path={"/privacy-policy"} component={PrivacyPolicy} />
+      <Route path={"/terms"} component={Terms} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}
       <Route component={NotFound} />
