@@ -18,9 +18,10 @@ import { useLocation } from "wouter";
 const stripePromise = loadStripe(import.meta.env.VITE_TMA_STRIPE_PUBLISHABLE_KEY);
 
 // Valid coupon codes
-const COUPON_CODES: Record<string, { label: string }> = {
+const COUPON_CODES: Record<string, { label: string; prices?: { "3day": number; "5day": number } }> = {
   EARLYBIRD2026: { label: "Registration Discount" },
   TMAEARLYBIRD: { label: "Registration Discount" },
+  AS2026: { label: "$20/wk Discount", prices: { "3day": 179_00, "5day": 219_00 } },
 };
 
 // Pricing constants
@@ -34,7 +35,11 @@ const PRICING = {
   extendedCare: 25_00,  // Early drop-off + late pickup bundled together
 };
 
-function getProgramPrice(programType: "3day" | "5day" | "daily", _couponApplied = false) {
+function getProgramPrice(programType: "3day" | "5day" | "daily", couponApplied = false, couponCode = "") {
+  if (couponApplied && programType !== "daily") {
+    const coupon = COUPON_CODES[couponCode.toUpperCase()];
+    if (coupon?.prices) return coupon.prices[programType as "3day" | "5day"];
+  }
   return PRICING.regular[programType];
 }
 
@@ -87,7 +92,7 @@ function formatCurrency(cents: number) {
 function calculateTotal(data: FormData): number {
   const numCampers = data.campers.filter(c => c.name.trim()).length || 1;
   const numWeeks = data.programType === "daily" ? 1 : Math.max(data.selectedWeeks.length, 1);
-  let base = getProgramPrice(data.programType, data.couponApplied) * numCampers * numWeeks;
+  let base = getProgramPrice(data.programType, data.couponApplied, data.couponCode) * numCampers * numWeeks;
   if (data.addFieldTrip) base += PRICING.fieldTrip * numCampers * numWeeks;
   if (data.addExtendedCare) base += PRICING.extendedCare * numWeeks;
   return base;
@@ -549,7 +554,7 @@ function Step3({ data, onChange, onNext, onBack }: { data: FormData; onChange: (
                 {data.programType !== "daily" && ` × ${numCampers} camper${numCampers > 1 ? "s" : ""} × ${numWeeks} week${numWeeks > 1 ? "s" : ""}`}
                 {data.programType === "daily" && ` × ${numCampers} camper${numCampers > 1 ? "s" : ""}`}
               </span>
-              <span>{formatCurrency(getProgramPrice(data.programType, data.couponApplied) * numCampers * (data.programType === "daily" ? 1 : numWeeks))}</span>
+              <span>{formatCurrency(getProgramPrice(data.programType, data.couponApplied, data.couponCode) * numCampers * (data.programType === "daily" ? 1 : numWeeks))}</span>
             </div>
             {data.addFieldTrip && <div className="flex justify-between"><span>Field Trip Fee × {numCampers}{data.programType !== "daily" && numWeeks > 1 ? ` × ${numWeeks} wks` : ""}</span><span>{formatCurrency(PRICING.fieldTrip * numCampers * (data.programType === "daily" ? 1 : numWeeks))}</span></div>}
             {data.addExtendedCare && <div className="flex justify-between"><span>Early Drop-Off &amp; Late Pick-Up{data.programType !== "daily" && numWeeks > 1 ? ` × ${numWeeks} wks` : ""}</span><span>{formatCurrency(PRICING.extendedCare * (data.programType === "daily" ? 1 : numWeeks))}</span></div>}
