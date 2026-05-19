@@ -10,6 +10,13 @@ import {
   getCampRegistrationByPaymentIntentId, getAllCampRegistrations,
   softDeleteRegistration, restoreRegistration,
   upsertStudents, getAllStudents, searchStudents, updateStudent, createStudent,
+  // Lead Conductor (2026-05-19)
+  pauseLeadAutomation, resumeLeadAutomation,
+  scheduleSequenceTouch, listSequenceByLead, getSequenceTouchById,
+  skipSequenceTouch, cancelSequenceTouch, cancelSequenceByLeadAndKey,
+  overrideSequenceTouch, triggerSequenceNow,
+  getDueSequenceTouches, markTouchProcessing, markTouchSent, markTouchSkipped, markTouchFailed,
+  hasTouchBeenSent,
 } from "./db";
 import { sendToGoogleSheets, sendToSlack, sendEmailNotification, sendCampRegistrationConfirmation } from "./integrations";
 import { fireLeadEvent, firePurchaseEvent } from "./meta-capi";
@@ -294,6 +301,10 @@ export const appRouter = router({
       }))
       .mutation(async ({ input }) => {
         try {
+          // Phase 1b (Lead Conductor): auto-progress stage to trial_scheduled when a booking is present.
+          // Otherwise leave default 'new_lead'.
+          const initialStage = input.trialClassDate ? 'trial_scheduled' as const : undefined;
+
           const newLeadId = await createLead({
             parentName: input.parentName,
             kidName: input.kidName,
@@ -303,6 +314,7 @@ export const appRouter = router({
             email: input.email,
             phone: input.phone,
             additionalNotes: input.additionalNotes,
+            ...(initialStage ? { pipelineStage: initialStage } : {}),
             utmSource: input.utmSource,
             utmMedium: input.utmMedium,
             utmCampaign: input.utmCampaign,
@@ -518,12 +530,191 @@ export const appRouter = router({
         return getLeadActivities(input.leadId);
       }),
 
+    // ── Lead Conductor: structured automation pause (2026-05-19) ───────────
+    // Workflows check leads.automationPaused boolean directly. Staff toggles via UI.
+    pauseAutomation: publicProcedure
+      .input(z.object({
+        leadId: z.number(),
+        reason: z.string().min(1).max(255),
+        pausedBy: z.string().min(1).max(100),
+      }))
+      .mutation(async ({ input }) => {
+        await pauseLeadAutomation(input.leadId, input.pausedBy, input.reason);
+        await createLeadActivity({
+          leadId: input.leadId,
+          type: "note",
+          subject: "Automation paused",
+          body: `Paused by ${input.pausedBy}. Reason: ${input.reason}`,
+          sentBy: `staff:${input.pausedBy}`,
+          status: "sent",
+        });
+        return { success: true };
+      }),
+
+    resumeAutomation: publicProcedure
+      .input(z.object({
+        leadId: z.number(),
+        resumedBy: z.string().min(1).max(100),
+      }))
+      .mutation(async ({ input }) => {
+        await resumeLeadAutomation(input.leadId, input.resumedBy);
+        await createLeadActivity({
+          leadId: input.leadId,
+          type: "note",
+          subject: "Automation resumed",
+          body: `Resumed by ${input.resumedBy}`,
+          sentBy: `staff:${input.resumedBy}`,
+          status: "sent",
+        });
+        return { success: true };
+      }),
+
     // Admin: delete a lead
     delete: publicProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input }) => {
         await deleteLead(input.id);
         return { success: true };
+      }),
+  }),
+
+  // ─── Lead Conductor: Sequence Queue (2026-05-19) ────────────────────────
+  // Planned future touches per lead. The n8n Sequence Dispatcher polls
+  // getDue() every 5 minutes and processes them. Staff can edit, skip,
+  // cancel, or send-now any scheduled row from the Lead Conductor UI panel.
+  sequence: router({
+    listByLead: publicProcedure
+      .input(z.object({ leadId: z.number() }))
+      .query(async ({ input }) => {
+        return listSequenceByLead(input.leadId);
+      }),
+
+    scheduleTouch: publicProcedure
+      .input(z.object({
+        leadId: z.number(),
+        channel: z.enum(["email", "sms", "call_reminder", "internal_task"]),
+        sequenceKey: z.string().optional(),
+        touchKey: z.string().min(1).max(100),
+        scheduledFor: z.string(),  // ISO datetime
+        touchSubject: z.string().optional(),
+        touchBodyTemplate: z.string().optional(),
+        createdBy: z.string().min(1).max(100).default("system"),
+      }))
+      .mutation(async ({ input }) => {
+        const id = await scheduleSequenceTouch({
+          leadId: input.leadId,
+          channel: input.channel,
+          sequenceKey: input.sequenceKey ?? null,
+          touchKey: input.touchKey,
+          scheduledFor: new Date(input.scheduledFor),
+          touchSubject: input.touchSubject ?? null,
+          touchBodyTemplate: input.touchBodyTemplate ?? null,
+          createdBy: input.createdBy,
+        });
+        return { id };
+      }),
+
+    skipTouch: publicProcedure
+      .input(z.object({
+        id: z.number(),
+        reason: z.string().min(1).max(255),
+        updatedBy: z.string().min(1).max(100),
+      }))
+      .mutation(async ({ input }) => {
+        await skipSequenceTouch(input.id, input.reason, input.updatedBy);
+        return { success: true };
+      }),
+
+    cancelTouch: publicProcedure
+      .input(z.object({
+        id: z.number(),
+        reason: z.string().min(1).max(255),
+        updatedBy: z.string().min(1).max(100),
+      }))
+      .mutation(async ({ input }) => {
+        await cancelSequenceTouch(input.id, input.reason, input.updatedBy);
+        return { success: true };
+      }),
+
+    cancelBySequence: publicProcedure
+      .input(z.object({
+        leadId: z.number(),
+        sequenceKey: z.string().min(1).max(100),
+        reason: z.string().min(1).max(255),
+        updatedBy: z.string().min(1).max(100),
+      }))
+      .mutation(async ({ input }) => {
+        await cancelSequenceByLeadAndKey(input.leadId, input.sequenceKey, input.reason, input.updatedBy);
+        return { success: true };
+      }),
+
+    overrideTouch: publicProcedure
+      .input(z.object({
+        id: z.number(),
+        touchSubject: z.string().optional(),
+        touchBodyOverride: z.string().optional(),
+        updatedBy: z.string().min(1).max(100),
+      }))
+      .mutation(async ({ input }) => {
+        await overrideSequenceTouch(
+          input.id,
+          { touchSubject: input.touchSubject, touchBodyOverride: input.touchBodyOverride },
+          input.updatedBy,
+        );
+        return { success: true };
+      }),
+
+    triggerNow: publicProcedure
+      .input(z.object({
+        id: z.number(),
+        updatedBy: z.string().min(1).max(100),
+      }))
+      .mutation(async ({ input }) => {
+        await triggerSequenceNow(input.id, input.updatedBy);
+        return { success: true };
+      }),
+
+    // ── Dispatcher-facing endpoints (called by n8n) ──
+    // List rows that are due. Caller MUST then call markProcessing to claim each.
+    due: publicProcedure
+      .input(z.object({ limit: z.number().min(1).max(200).optional() }).optional())
+      .query(async ({ input }) => {
+        return getDueSequenceTouches(input?.limit ?? 50);
+      }),
+
+    markProcessing: publicProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        const ok = await markTouchProcessing(input.id);
+        return { claimed: ok };
+      }),
+
+    markSent: publicProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await markTouchSent(input.id);
+        return { success: true };
+      }),
+
+    markSkipped: publicProcedure
+      .input(z.object({ id: z.number(), reason: z.string().max(255) }))
+      .mutation(async ({ input }) => {
+        await markTouchSkipped(input.id, input.reason);
+        return { success: true };
+      }),
+
+    markFailed: publicProcedure
+      .input(z.object({ id: z.number(), reason: z.string().max(1000) }))
+      .mutation(async ({ input }) => {
+        await markTouchFailed(input.id, input.reason);
+        return { success: true };
+      }),
+
+    hasBeenSent: publicProcedure
+      .input(z.object({ leadId: z.number(), touchKey: z.string().min(1).max(100) }))
+      .query(async ({ input }) => {
+        const sent = await hasTouchBeenSent(input.leadId, input.touchKey);
+        return { sent };
       }),
   }),
 
@@ -661,3 +852,4 @@ export const appRouter = router({
   }),
 });
 export type AppRouter = typeof appRouter;
+
