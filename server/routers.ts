@@ -346,6 +346,10 @@ export const appRouter = router({
             trialClassTime: input.trialClassTime ?? null,
             trialClassDay: input.trialClassDay ?? null,
             tags: input.tags ? JSON.stringify(input.tags) : null,
+            automationPaused: 0,
+            automationPausedAt: null,
+            automationPausedBy: null,
+            automationPauseReason: null,
             createdAt: new Date(),
             updatedAt: new Date(),
           };
