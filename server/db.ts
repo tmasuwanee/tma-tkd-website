@@ -722,14 +722,16 @@ export async function getDueSequenceTouches(limit = 50): Promise<LeadSequenceQue
 /**
  * Atomically mark a row as 'processing' — only succeeds if the row is still 'scheduled'.
  * Returns true if the CAS succeeded (caller has exclusive ownership), false otherwise.
+ *
+ * Drizzle mysql2 returns MySqlQueryResult<T> = [OkPacket, FieldPacket[]] from .update(),
+ * so we destructure the first element to access affectedRows.
  */
 export async function markTouchProcessing(id: number): Promise<boolean> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const result = await db.update(leadSequenceQueue).set({ status: 'processing' })
+  const [okPacket] = await db.update(leadSequenceQueue).set({ status: 'processing' })
     .where(and(eq(leadSequenceQueue.id, id), eq(leadSequenceQueue.status, 'scheduled')));
-  // mysql2 returns affectedRows on the OkPacket
-  const affected = (result as unknown as { affectedRows?: number }).affectedRows;
+  const affected = (okPacket as unknown as { affectedRows?: number }).affectedRows;
   return (affected ?? 0) > 0;
 }
 
