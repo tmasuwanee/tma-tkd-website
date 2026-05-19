@@ -58,6 +58,15 @@ export function registerApiRoutes(app: Express): void {
     res.json({
       leadId: lead.id,
       stage: lead.pipelineStage,
+      pipelineStage: lead.pipelineStage,  // alias — workflows reference both names
+      // Lead Conductor (2026-05-19): expose fields the Sequence Dispatcher needs
+      email: lead.email,
+      phone: lead.phone,
+      parentName: lead.parentName,
+      kidName: lead.kidName,
+      automationPaused: lead.automationPaused === 1,  // tinyint → boolean
+      automationPauseReason: lead.automationPauseReason ?? null,
+      trialClassDate: lead.trialClassDate ?? null,
       updatedAt: lead.updatedAt?.toISOString() ?? new Date().toISOString(),
     });
   });
