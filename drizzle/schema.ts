@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, uniqueIndex, tinyint } from "drizzle-orm/mysql-core";
+import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, uniqueIndex, tinyint, index, boolean } from "drizzle-orm/mysql-core";
 
 export const users = mysqlTable("users", {
   id: int("id").autoincrement().primaryKey(),
@@ -40,6 +40,12 @@ export const leads = mysqlTable("leads", {
   utmContent: varchar("utmContent", { length: 255 }),
   // Tags array stored as JSON string, e.g. '["facebook_lead","summer_camp_2026"]'
   tags: text("tags"),
+  // Lead Conductor (2026-05-19): structured automation pause flag.
+  // Workflows check this boolean directly instead of parsing internalNotes for '[AUTOMATION_PAUSED]'.
+  automationPaused: tinyint("automationPaused").default(0).notNull(),
+  automationPausedAt: timestamp("automationPausedAt"),
+  automationPausedBy: varchar("automationPausedBy", { length: 100 }),
+  automationPauseReason: varchar("automationPauseReason", { length: 255 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -168,3 +174,63 @@ export const facebookAdInsights = mysqlTable("facebook_ad_insights", {
 
 export type FacebookAdInsight = typeof facebookAdInsights.$inferSelect;
 export type InsertFacebookAdInsight = typeof facebookAdInsights.$inferInsert;
+
+// Lead Conductor (2026-05-19): planned future touches.
+// The Sequence Dispatcher workflow polls this table every 5 minutes,
+// finds due rows, runs pre-send checks, dispatches via Resend (email)
+// or Twilio (sms, when available), then marks row sent/skipped/failed.
+//
+// leadActivities = immutable history of what already happened
+// leadSequenceQueue = planned future touches
+//
+// Staff can edit, skip, cancel, or send-now any row before dispatch
+// via the tRPC sequence.* procedures.
+export const leadSequenceQueue = mysqlTable("leadSequenceQueue", {
+  id: int("id").autoincrement().primaryKey(),
+  leadId: int("leadId").notNull().references(() => leads.id),
+
+  scheduledFor: timestamp("scheduledFor").notNull(),
+
+  channel: mysqlEnum("channel", ["email", "sms", "call_reminder", "internal_task"]).notNull(),
+  // Logical sequence grouping (e.g. 'lead_intake_nurture', 'no_show_recovery')
+  // Used for bulk cancel ("cancel all nurture for this lead").
+  sequenceKey: varchar("sequenceKey", { length: 100 }),
+  // Stable per-touch identifier (e.g. 'day_2_nurture_email', 'trial_24h_reminder_email').
+  // Use this for idempotency checks AND UI labels.
+  touchKey: varchar("touchKey", { length: 100 }).notNull(),
+
+  touchSubject: varchar("touchSubject", { length: 255 }),
+  // Template body — dispatcher uses this if no override.
+  touchBodyTemplate: text("touchBodyTemplate"),
+  // Per-lead override set via UI editor. Dispatcher prefers this when present.
+  touchBodyOverride: text("touchBodyOverride"),
+
+  status: mysqlEnum("status", ["scheduled", "processing", "sent", "skipped", "cancelled", "failed"])
+    .default("scheduled").notNull(),
+
+  skipReason: varchar("skipReason", { length: 255 }),
+  cancelReason: varchar("cancelReason", { length: 255 }),
+  failureReason: text("failureReason"),
+
+  sentAt: timestamp("sentAt"),
+  skippedAt: timestamp("skippedAt"),
+  cancelledAt: timestamp("cancelledAt"),
+  failedAt: timestamp("failedAt"),
+
+  createdBy: varchar("createdBy", { length: 100 }).default("system").notNull(),
+  updatedBy: varchar("updatedBy", { length: 100 }),
+
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  // Dispatcher's main query: where scheduledFor <= NOW() AND status = 'scheduled'
+  dispatchIdx: index("dispatch_idx").on(table.scheduledFor, table.status),
+  // Per-lead lookups (UI Lead Conductor panel)
+  leadIdx: index("queue_lead_idx").on(table.leadId),
+  // Idempotency check: "has this touchKey already been scheduled/sent for this lead?"
+  touchKeyIdx: index("queue_touch_key_idx").on(table.leadId, table.touchKey, table.status),
+}));
+
+export type LeadSequenceQueue = typeof leadSequenceQueue.$inferSelect;
+export type InsertLeadSequenceQueue = typeof leadSequenceQueue.$inferInsert;
+
