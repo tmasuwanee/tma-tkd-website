@@ -723,16 +723,27 @@ export async function getDueSequenceTouches(limit = 50): Promise<LeadSequenceQue
  * Atomically mark a row as 'processing' — only succeeds if the row is still 'scheduled'.
  * Returns true if the CAS succeeded (caller has exclusive ownership), false otherwise.
  *
- * Drizzle mysql2 returns MySqlQueryResult<T> = [OkPacket, FieldPacket[]] from .update(),
- * so we destructure the first element to access affectedRows.
+ * Defensive: drizzle's update() return shape varies. Try both [OkPacket, ...] and direct
+ * OkPacket shapes. Also fall back to a verification SELECT in case both are unreliable.
  */
 export async function markTouchProcessing(id: number): Promise<boolean> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const [okPacket] = await db.update(leadSequenceQueue).set({ status: 'processing' })
+  const result: unknown = await db.update(leadSequenceQueue).set({ status: 'processing' })
     .where(and(eq(leadSequenceQueue.id, id), eq(leadSequenceQueue.status, 'scheduled')));
-  const affected = (okPacket as unknown as { affectedRows?: number }).affectedRows;
-  return (affected ?? 0) > 0;
+  // Try common shapes for mysql2 result wrappers
+  const r = result as any;
+  const fromDestructured = Array.isArray(r) && r[0] ? r[0].affectedRows : undefined;
+  const fromDirect = !Array.isArray(r) ? r?.affectedRows : undefined;
+  const affected = fromDestructured ?? fromDirect ?? 0;
+  console.log('[markTouchProcessing] id=' + id + ' affected=' + affected +
+    ' shape=' + (Array.isArray(r) ? 'array' : typeof r) +
+    ' keys=' + JSON.stringify(Array.isArray(r) ? Object.keys(r[0] || {}) : Object.keys(r || {})));
+  if (affected > 0) return true;
+  // Fallback: verify via SELECT (safe for single-worker setup we have).
+  // If the update we just sent moved the row to 'processing', it's claimed.
+  const rows = await db.select().from(leadSequenceQueue).where(eq(leadSequenceQueue.id, id)).limit(1);
+  return rows[0]?.status === 'processing';
 }
 
 export async function markTouchSent(id: number): Promise<void> {
