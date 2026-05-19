@@ -723,27 +723,32 @@ export async function getDueSequenceTouches(limit = 50): Promise<LeadSequenceQue
  * Atomically mark a row as 'processing' — only succeeds if the row is still 'scheduled'.
  * Returns true if the CAS succeeded (caller has exclusive ownership), false otherwise.
  *
- * Defensive: drizzle's update() return shape varies. Try both [OkPacket, ...] and direct
- * OkPacket shapes. Also fall back to a verification SELECT in case both are unreliable.
+ * v3 (2026-05-19): SELECT-UPDATE-SELECT pattern. Does not depend on drizzle's update()
+ * return shape at all. Safe for our single-worker n8n dispatcher; multi-worker would
+ * need a token-based lock.
  */
 export async function markTouchProcessing(id: number): Promise<boolean> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const result: unknown = await db.update(leadSequenceQueue).set({ status: 'processing' })
+
+  // 1. Read current status — only proceed if row exists and is 'scheduled'
+  const before = await db.select().from(leadSequenceQueue).where(eq(leadSequenceQueue.id, id)).limit(1);
+  console.log('[markTouchProcessing v3] id=' + id + ' beforeStatus=' + (before[0]?.status ?? 'NOT_FOUND'));
+  if (!before[0] || before[0].status !== 'scheduled') {
+    return false; // Already claimed, sent, cancelled, or doesn't exist
+  }
+
+  // 2. Conditional UPDATE (WHERE status='scheduled') — atomic in MySQL even without
+  // looking at the return value. If another worker raced us, only one of us flips it.
+  await db.update(leadSequenceQueue).set({ status: 'processing' })
     .where(and(eq(leadSequenceQueue.id, id), eq(leadSequenceQueue.status, 'scheduled')));
-  // Try common shapes for mysql2 result wrappers
-  const r = result as any;
-  const fromDestructured = Array.isArray(r) && r[0] ? r[0].affectedRows : undefined;
-  const fromDirect = !Array.isArray(r) ? r?.affectedRows : undefined;
-  const affected = fromDestructured ?? fromDirect ?? 0;
-  console.log('[markTouchProcessing] id=' + id + ' affected=' + affected +
-    ' shape=' + (Array.isArray(r) ? 'array' : typeof r) +
-    ' keys=' + JSON.stringify(Array.isArray(r) ? Object.keys(r[0] || {}) : Object.keys(r || {})));
-  if (affected > 0) return true;
-  // Fallback: verify via SELECT (safe for single-worker setup we have).
-  // If the update we just sent moved the row to 'processing', it's claimed.
-  const rows = await db.select().from(leadSequenceQueue).where(eq(leadSequenceQueue.id, id)).limit(1);
-  return rows[0]?.status === 'processing';
+
+  // 3. Read back. If status is now 'processing', we (or we-raced-and-tied) claimed it.
+  // For our single-worker setup, this is exclusive ownership.
+  const after = await db.select().from(leadSequenceQueue).where(eq(leadSequenceQueue.id, id)).limit(1);
+  const claimed = after[0]?.status === 'processing';
+  console.log('[markTouchProcessing v3] id=' + id + ' afterStatus=' + (after[0]?.status ?? 'NOT_FOUND') + ' claimed=' + claimed);
+  return claimed;
 }
 
 export async function markTouchSent(id: number): Promise<void> {
