@@ -346,10 +346,6 @@ export const appRouter = router({
             trialClassTime: input.trialClassTime ?? null,
             trialClassDay: input.trialClassDay ?? null,
             tags: input.tags ? JSON.stringify(input.tags) : null,
-            automationPaused: 0,
-            automationPausedAt: null,
-            automationPausedBy: null,
-            automationPauseReason: null,
             createdAt: new Date(),
             updatedAt: new Date(),
           };
@@ -689,8 +685,19 @@ export const appRouter = router({
     markProcessing: publicProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input }) => {
+        // Deployment sentinel: if you see _version='v3-sentinel-2026-05-19' in the response,
+        // the v3 code IS deployed. If you don't see it, deploys aren't taking effect.
+        const beforeStatus = await getSequenceTouchById(input.id);
         const ok = await markTouchProcessing(input.id);
-        return { claimed: ok };
+        const afterStatus = await getSequenceTouchById(input.id);
+        return {
+          claimed: ok,
+          _version: 'v3-sentinel-2026-05-19',
+          _debug: {
+            beforeStatus: beforeStatus?.status ?? 'NOT_FOUND',
+            afterStatus: afterStatus?.status ?? 'NOT_FOUND',
+          },
+        };
       }),
 
     markSent: publicProcedure
