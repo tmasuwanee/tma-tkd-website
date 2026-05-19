@@ -8,7 +8,9 @@ import {
   campRegistrations, InsertCampRegistration,
   students, InsertStudent, Student,
   attendance, InsertAttendance, Attendance,
+  leadSequenceQueue, InsertLeadSequenceQueue, LeadSequenceQueue,
 } from "../drizzle/schema";
+import { lte } from "drizzle-orm";
 import { ENV } from './_core/env';
 import { getNextRank, getPreviousRank } from "../shared/beltRanks";
 
@@ -564,3 +566,211 @@ export async function setAttendanceCount(studentId: number, targetCount: number)
     }
   }
 }
+
+// ============================================================================
+// Lead Conductor — automation pause + sequence queue (2026-05-19)
+// ============================================================================
+
+export async function pauseLeadAutomation(
+  id: number,
+  pausedBy: string,
+  reason: string,
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(leads).set({
+    automationPaused: 1,
+    automationPausedAt: new Date(),
+    automationPausedBy: pausedBy,
+    automationPauseReason: reason,
+  }).where(eq(leads.id, id));
+}
+
+export async function resumeLeadAutomation(id: number, resumedBy: string): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(leads).set({
+    automationPaused: 0,
+    automationPausedAt: null,
+    automationPausedBy: null,
+    automationPauseReason: null,
+  }).where(eq(leads.id, id));
+  // Caller is responsible for writing the resume note to leadActivities
+}
+
+/**
+ * Improved no-show filter (Phase 1c).
+ * Returns leads whose trialClassDate matches the given date (YYYY-MM-DD)
+ * AND pipelineStage is in the given list AND have not been auto-enrolled.
+ * Use this in the No-Show Recovery workflow instead of the broad getLeadsByStages.
+ */
+export async function getLeadsByStagesAndTrialDate(
+  stages: Lead['pipelineStage'][],
+  trialDate: string,
+): Promise<Lead[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(leads).where(and(
+    inArray(leads.pipelineStage, stages),
+    eq(leads.trialClassDate, trialDate),
+  )).orderBy(desc(leads.createdAt));
+}
+
+// ---- Sequence queue CRUD ----
+
+export async function scheduleSequenceTouch(input: InsertLeadSequenceQueue): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [result] = await db.insert(leadSequenceQueue).values(input);
+  return (result as unknown as { insertId: number }).insertId ?? 0;
+}
+
+export async function listSequenceByLead(leadId: number): Promise<LeadSequenceQueue[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(leadSequenceQueue)
+    .where(eq(leadSequenceQueue.leadId, leadId))
+    .orderBy(desc(leadSequenceQueue.scheduledFor));
+}
+
+export async function getSequenceTouchById(id: number): Promise<LeadSequenceQueue | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select().from(leadSequenceQueue).where(eq(leadSequenceQueue.id, id)).limit(1);
+  return result[0] ?? null;
+}
+
+export async function skipSequenceTouch(id: number, reason: string, updatedBy: string): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(leadSequenceQueue).set({
+    status: 'skipped',
+    skipReason: reason,
+    skippedAt: new Date(),
+    updatedBy,
+  }).where(and(eq(leadSequenceQueue.id, id), eq(leadSequenceQueue.status, 'scheduled')));
+}
+
+export async function cancelSequenceTouch(id: number, reason: string, updatedBy: string): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(leadSequenceQueue).set({
+    status: 'cancelled',
+    cancelReason: reason,
+    cancelledAt: new Date(),
+    updatedBy,
+  }).where(and(eq(leadSequenceQueue.id, id), inArray(leadSequenceQueue.status, ['scheduled', 'processing'])));
+}
+
+export async function cancelSequenceByLeadAndKey(
+  leadId: number,
+  sequenceKey: string,
+  reason: string,
+  updatedBy: string,
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(leadSequenceQueue).set({
+    status: 'cancelled',
+    cancelReason: reason,
+    cancelledAt: new Date(),
+    updatedBy,
+  }).where(and(
+    eq(leadSequenceQueue.leadId, leadId),
+    eq(leadSequenceQueue.sequenceKey, sequenceKey),
+    eq(leadSequenceQueue.status, 'scheduled'),
+  ));
+}
+
+export async function overrideSequenceTouch(
+  id: number,
+  override: { touchSubject?: string; touchBodyOverride?: string },
+  updatedBy: string,
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const set: Record<string, unknown> = { updatedBy };
+  if (override.touchSubject !== undefined) set.touchSubject = override.touchSubject;
+  if (override.touchBodyOverride !== undefined) set.touchBodyOverride = override.touchBodyOverride;
+  await db.update(leadSequenceQueue).set(set)
+    .where(and(eq(leadSequenceQueue.id, id), eq(leadSequenceQueue.status, 'scheduled')));
+}
+
+export async function triggerSequenceNow(id: number, updatedBy: string): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(leadSequenceQueue).set({
+    scheduledFor: new Date(),
+    updatedBy,
+  }).where(and(eq(leadSequenceQueue.id, id), eq(leadSequenceQueue.status, 'scheduled')));
+}
+
+/**
+ * Dispatcher query: returns up to `limit` rows that are due and still scheduled.
+ * Caller MUST atomically flip each row to 'processing' before doing any send work
+ * (use markTouchProcessing) to prevent double-dispatch.
+ */
+export async function getDueSequenceTouches(limit = 50): Promise<LeadSequenceQueue[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(leadSequenceQueue).where(and(
+    eq(leadSequenceQueue.status, 'scheduled'),
+    lte(leadSequenceQueue.scheduledFor, new Date()),
+  )).orderBy(leadSequenceQueue.scheduledFor).limit(limit);
+}
+
+/**
+ * Atomically mark a row as 'processing' — only succeeds if the row is still 'scheduled'.
+ * Returns true if the CAS succeeded (caller has exclusive ownership), false otherwise.
+ */
+export async function markTouchProcessing(id: number): Promise<boolean> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.update(leadSequenceQueue).set({ status: 'processing' })
+    .where(and(eq(leadSequenceQueue.id, id), eq(leadSequenceQueue.status, 'scheduled')));
+  // mysql2 returns affectedRows on the OkPacket
+  const affected = (result as unknown as { affectedRows?: number }).affectedRows;
+  return (affected ?? 0) > 0;
+}
+
+export async function markTouchSent(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(leadSequenceQueue).set({
+    status: 'sent',
+    sentAt: new Date(),
+  }).where(eq(leadSequenceQueue.id, id));
+}
+
+export async function markTouchSkipped(id: number, reason: string): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(leadSequenceQueue).set({
+    status: 'skipped',
+    skipReason: reason,
+    skippedAt: new Date(),
+  }).where(eq(leadSequenceQueue.id, id));
+}
+
+export async function markTouchFailed(id: number, reason: string): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(leadSequenceQueue).set({
+    status: 'failed',
+    failureReason: reason,
+    failedAt: new Date(),
+  }).where(eq(leadSequenceQueue.id, id));
+}
+
+/** Idempotency check: has this exact (leadId, touchKey) already been sent? */
+export async function hasTouchBeenSent(leadId: number, touchKey: string): Promise<boolean> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select().from(leadSequenceQueue).where(and(
+    eq(leadSequenceQueue.leadId, leadId),
+    eq(leadSequenceQueue.touchKey, touchKey),
+    eq(leadSequenceQueue.status, 'sent'),
+  )).limit(1);
+  return result.length > 0;
+}
+
