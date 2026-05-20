@@ -109,8 +109,13 @@ export async function getUserByOpenId(openId: string) {
 export async function createLead(lead: InsertLead): Promise<number> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const [result] = await db.insert(leads).values(lead);
-  // MySQL returns insertId on the raw OkPacket
+  // Normalize email to lowercase on insert so getLeadByEmail can find it
+  // reliably regardless of source casing. Defense-in-depth alongside the
+  // case-insensitive LOWER() match in getLeadByEmail.
+  const normalized: InsertLead = lead.email
+    ? { ...lead, email: lead.email.toLowerCase().trim() }
+    : lead;
+  const [result] = await db.insert(leads).values(normalized);
   return (result as unknown as { insertId: number }).insertId ?? 0;
 }
 
@@ -124,8 +129,14 @@ export async function getLeadById(id: number): Promise<Lead | null> {
 export async function getLeadByEmail(email: string): Promise<Lead | null> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  // Case-insensitive match via SQL LOWER() to handle mixed-case emails in storage.
+  // History (2026-05-20 incident): mixed-case emails stored from FB sync caused
+  // getLeadByEmail to return null on case-mismatch, so upsertLeadFromFacebook
+  // created duplicate rows on every FB sync cycle → 14× duplicate leads per email
+  // → 14× Lead Intake v2 executions → Day 4 email bursts when 96h waits expired.
+  const normalized = email.toLowerCase().trim();
   const result = await db.select().from(leads)
-    .where(eq(leads.email, email.toLowerCase().trim()))
+    .where(sql`LOWER(${leads.email}) = ${normalized}`)
     .orderBy(desc(leads.createdAt))
     .limit(1);
   return result[0] ?? null;
