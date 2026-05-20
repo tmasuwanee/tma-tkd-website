@@ -22,7 +22,13 @@ export const leads = mysqlTable("leads", {
   kidAge: varchar("kidAge", { length: 50 }).notNull(),
   programInterest: varchar("programInterest", { length: 255 }).notNull(),
   motivation: varchar("motivation", { length: 255 }),
-  email: varchar("email", { length: 320 }).notNull(),
+  // UNIQUE — defense in depth against the 2026-05-20 duplicate-lead incident.
+  // App code already lowercases on insert (server/db.ts createLead) and uses LOWER()
+  // on read (server/db.ts getLeadByEmail). This unique index is the backstop.
+  // BEFORE applying this migration, Manus MUST run:
+  //   UPDATE leads SET email = LOWER(TRIM(email));
+  // (and resolve any remaining duplicate rows from the legacy data) or `drizzle-kit push` will fail.
+  email: varchar("email", { length: 320 }).notNull().unique(),
   phone: varchar("phone", { length: 20 }).notNull(),
   additionalNotes: text("additionalNotes"),
   pipelineStage: mysqlEnum("pipelineStage", [
