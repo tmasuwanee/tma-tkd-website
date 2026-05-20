@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, uniqueIndex, tinyint, index, boolean } from "drizzle-orm/mysql-core";
+﻿import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, uniqueIndex, tinyint, index, boolean } from "drizzle-orm/mysql-core";
 
 export const users = mysqlTable("users", {
   id: int("id").autoincrement().primaryKey(),
@@ -239,4 +239,174 @@ export const leadSequenceQueue = mysqlTable("leadSequenceQueue", {
 
 export type LeadSequenceQueue = typeof leadSequenceQueue.$inferSelect;
 export type InsertLeadSequenceQueue = typeof leadSequenceQueue.$inferInsert;
+
+// =====================================================================
+// LIFECYCLE ARCHITECTURE v1 (2026-05-20)
+// Added in response to TMA 5/20 dupe-email + tagging-mismatch incident.
+// See TMA_LIFECYCLE_ARCHITECTURE.md (Desktop) for full design rationale.
+// =====================================================================
+
+// --- Subsystem B: Editable email/SMS templates ---
+// One row per (sequenceKey, touchKey). Admin UI reads/writes these.
+// The Sequence Dispatcher reads the active template at dispatch time and
+// snapshots subject+body into the queue row before sending — so an in-flight
+// touch is not affected by mid-flight edits.
+export const sequenceTemplates = mysqlTable("sequenceTemplates", {
+  id: int("id").autoincrement().primaryKey(),
+  sequenceKey: varchar("sequenceKey", { length: 100 }).notNull(),
+  touchKey: varchar("touchKey", { length: 100 }).notNull(),
+  // Display order within the sequence (for admin UI)
+  orderIndex: int("orderIndex").default(0).notNull(),
+  // Hours after sequence-enrollment-event that this touch fires
+  delayHours: int("delayHours").default(0).notNull(),
+  channel: mysqlEnum("channel", ["email", "sms", "call_reminder", "internal_task"])
+    .default("email").notNull(),
+  // Handlebars-style merge fields: {{firstName}}, {{trialDate}}, etc.
+  subject: varchar("subject", { length: 500 }),
+  bodyHtml: text("bodyHtml"),
+  bodyText: text("bodyText"),
+  // When false, the dispatcher logs "skipped — template inactive" and continues.
+  isActive: tinyint("isActive").default(1).notNull(),
+  // Human-readable label shown in admin UI list
+  displayName: varchar("displayName", { length: 255 }),
+  // What this template is for (admin UI tooltip)
+  description: text("description"),
+  createdBy: varchar("createdBy", { length: 100 }).default("system").notNull(),
+  updatedBy: varchar("updatedBy", { length: 100 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  // Unique per (sequenceKey, touchKey) — only one active template per touch
+  sequenceTouchIdx: uniqueIndex("sequence_touch_idx").on(table.sequenceKey, table.touchKey),
+}));
+
+export type SequenceTemplate = typeof sequenceTemplates.$inferSelect;
+export type InsertSequenceTemplate = typeof sequenceTemplates.$inferInsert;
+
+// Append-only history of every template edit. Lets admin UI roll back.
+export const sequenceTemplateHistory = mysqlTable("sequenceTemplateHistory", {
+  id: int("id").autoincrement().primaryKey(),
+  templateId: int("templateId").notNull().references(() => sequenceTemplates.id),
+  // Snapshot of the template state BEFORE this edit
+  prevSubject: varchar("prevSubject", { length: 500 }),
+  prevBodyHtml: text("prevBodyHtml"),
+  prevBodyText: text("prevBodyText"),
+  prevDelayHours: int("prevDelayHours"),
+  prevIsActive: tinyint("prevIsActive"),
+  // Who edited and when
+  editedBy: varchar("editedBy", { length: 100 }).notNull(),
+  editedAt: timestamp("editedAt").defaultNow().notNull(),
+  // Optional note from editor explaining the change
+  changeNote: varchar("changeNote", { length: 500 }),
+}, (table) => ({
+  templateIdx: index("template_history_idx").on(table.templateId, table.editedAt),
+}));
+
+export type SequenceTemplateHistory = typeof sequenceTemplateHistory.$inferSelect;
+export type InsertSequenceTemplateHistory = typeof sequenceTemplateHistory.$inferInsert;
+
+// --- Subsystem A: Intake routing rules ---
+// First-match-wins, priority-ordered. The intake router queries this
+// table once per inbound lead and routes them into the matching sequence.
+// Editable from /admin/intake-rules. If zero rules match, lead goes to
+// 'unsegmented' sequence which alerts staff and does NOT auto-send.
+export const sequenceTriggerRules = mysqlTable("sequenceTriggerRules", {
+  id: int("id").autoincrement().primaryKey(),
+  // Higher priority evaluated first; ties broken by lower id
+  priority: int("priority").default(100).notNull(),
+  // Human-readable label
+  ruleName: varchar("ruleName", { length: 255 }).notNull(),
+  // What field on the lead payload to inspect:
+  //   'tag'             - check if lead.tags contains a value
+  //   'utmSource'       - lead.utmSource exact match
+  //   'utmCampaign'     - lead.utmCampaign exact match (or contains)
+  //   'programInterest' - lead.programInterest exact match (or contains)
+  //   'hasTrialDate'    - boolean: lead.trialClassDate present
+  matchField: mysqlEnum("matchField", [
+    "tag", "utmSource", "utmCampaign", "programInterest", "hasTrialDate"
+  ]).notNull(),
+  // How to compare:
+  //   'equals'      - exact case-insensitive match
+  //   'contains'    - substring case-insensitive match (or tag-in-array)
+  //   'starts_with' - prefix match
+  //   'is_true'     - boolean field check (only valid for hasTrialDate)
+  matchOperator: mysqlEnum("matchOperator", [
+    "equals", "contains", "starts_with", "is_true"
+  ]).default("equals").notNull(),
+  // Value to compare against (ignored for is_true)
+  matchValue: varchar("matchValue", { length: 255 }),
+  // Which sequence to enroll into when this rule matches
+  sequenceKey: varchar("sequenceKey", { length: 100 }).notNull(),
+  // When false, rule is ignored. Use to A/B test rules.
+  isActive: tinyint("isActive").default(1).notNull(),
+  description: text("description"),
+  createdBy: varchar("createdBy", { length: 100 }).default("system").notNull(),
+  updatedBy: varchar("updatedBy", { length: 100 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  priorityIdx: index("rule_priority_idx").on(table.priority, table.isActive),
+}));
+
+export type SequenceTriggerRule = typeof sequenceTriggerRules.$inferSelect;
+export type InsertSequenceTriggerRule = typeof sequenceTriggerRules.$inferInsert;
+
+// --- Subsystem C: Lifecycle state machine ---
+// Append-only event log of every stage transition for every lead.
+// The leads.pipelineStage column is the CURRENT state; this table is HISTORY.
+// Every n8n workflow + tRPC mutation that changes stage MUST call
+// lifecycle.recordTransition() instead of directly UPDATE-ing leads.pipelineStage.
+// That function:
+//   1. Validates the transition is legal
+//   2. Updates leads.pipelineStage
+//   3. Writes the row here
+//   4. Applies side effects (cancel queued touches, etc.) per the new stage
+export const leadLifecycleEvents = mysqlTable("leadLifecycleEvents", {
+  id: int("id").autoincrement().primaryKey(),
+  leadId: int("leadId").notNull().references(() => leads.id),
+  fromStage: varchar("fromStage", { length: 50 }),
+  toStage: varchar("toStage", { length: 50 }).notNull(),
+  // Who/what caused this:
+  //   'system_auto'           - automatic (e.g., trial-date-passed)
+  //   'staff_manual:<email>'  - staff member clicked in admin UI
+  //   'n8n:<workflow_id>'     - n8n workflow
+  //   'tRPC:<procedure>'      - direct API call
+  triggeredBy: varchar("triggeredBy", { length: 100 }).notNull(),
+  // Why: 'enrolled_via_reconciler', 'staff_override_to_lost', etc.
+  reason: varchar("reason", { length: 255 }),
+  // What side effects ran (JSON):
+  //   { cancelledQueueIds: [1,2,3], enqueuedSequences: ['no_show_recovery'] }
+  sideEffects: text("sideEffects"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  leadIdx: index("lifecycle_lead_idx").on(table.leadId, table.createdAt),
+}));
+
+export type LeadLifecycleEvent = typeof leadLifecycleEvents.$inferSelect;
+export type InsertLeadLifecycleEvent = typeof leadLifecycleEvents.$inferInsert;
+
+// --- System-wide audit log for failed operations, security events, deploy markers ---
+// Separate from leadActivities (per-lead) and leadLifecycleEvents (per-lead-stage).
+// This catches everything else: failed dispatcher runs, blocked sends due to
+// opted-out lead, template-not-found errors, deploy sentinels, quota gate trips.
+export const systemAuditLog = mysqlTable("systemAuditLog", {
+  id: int("id").autoincrement().primaryKey(),
+  // Severity for filtering
+  level: mysqlEnum("level", ["info", "warn", "error", "critical"]).default("info").notNull(),
+  // What component
+  source: varchar("source", { length: 100 }).notNull(),
+  // What happened
+  event: varchar("event", { length: 255 }).notNull(),
+  // JSON detail blob
+  details: text("details"),
+  // Optional lead context
+  leadId: int("leadId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  levelTimeIdx: index("audit_level_time_idx").on(table.level, table.createdAt),
+  sourceIdx: index("audit_source_idx").on(table.source, table.createdAt),
+}));
+
+export type SystemAuditLog = typeof systemAuditLog.$inferSelect;
+export type InsertSystemAuditLog = typeof systemAuditLog.$inferInsert;
 
