@@ -1,4 +1,4 @@
-import { COOKIE_NAME } from "@shared/const";
+﻿import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
@@ -17,6 +17,11 @@ import {
   overrideSequenceTouch, triggerSequenceNow,
   getDueSequenceTouches, markTouchProcessing, markTouchSent, markTouchSkipped, markTouchFailed,
   hasTouchBeenSent,
+  // Lifecycle Architecture v1 (2026-05-20)
+  listSequenceTemplates, getTemplate, getTemplateById, createTemplate, updateTemplate, getTemplateHistory,
+  listTriggerRules, createTriggerRule, updateTriggerRule, deleteTriggerRule, routeLeadToSequence,
+  recordLifecycleTransition, getLifecycleHistory, isLegalTransition,
+  logAudit, listAuditLog, preSendGuard,
 } from "./db";
 import { sendToGoogleSheets, sendToSlack, sendEmailNotification, sendCampRegistrationConfirmation } from "./integrations";
 import { fireLeadEvent, firePurchaseEvent } from "./meta-capi";
@@ -346,10 +351,6 @@ export const appRouter = router({
             trialClassTime: input.trialClassTime ?? null,
             trialClassDay: input.trialClassDay ?? null,
             tags: input.tags ? JSON.stringify(input.tags) : null,
-            automationPaused: 0,
-            automationPausedAt: null,
-            automationPausedBy: null,
-            automationPauseReason: null,
             createdAt: new Date(),
             updatedAt: new Date(),
           };
@@ -864,6 +865,200 @@ export const appRouter = router({
       .mutation(async ({ input }) => {
         return syncAdInsights(input.days);
       }),
+  }),
+
+  // =====================================================================
+  // LIFECYCLE ARCHITECTURE v1 — tRPC ROUTERS (2026-05-20)
+  // See: TMA_LIFECYCLE_ARCHITECTURE.md
+  // All admin-UI editing of email content, intake rules, and stage history
+  // goes through these procedures. n8n workflows also call routeLeadToSequence
+  // and recordLifecycleTransition via these endpoints.
+  // =====================================================================
+
+  templates: router({
+    list: publicProcedure.query(async () => listSequenceTemplates()),
+
+    getById: publicProcedure
+      .input(z.object({ id: z.number().int().positive() }))
+      .query(async ({ input }) => getTemplateById(input.id)),
+
+    get: publicProcedure
+      .input(z.object({ sequenceKey: z.string().min(1), touchKey: z.string().min(1) }))
+      .query(async ({ input }) => getTemplate(input.sequenceKey, input.touchKey)),
+
+    create: publicProcedure
+      .input(z.object({
+        sequenceKey: z.string().min(1).max(100),
+        touchKey: z.string().min(1).max(100),
+        orderIndex: z.number().int().min(0).default(0),
+        delayHours: z.number().int().min(0).default(0),
+        channel: z.enum(["email", "sms", "call_reminder", "internal_task"]).default("email"),
+        subject: z.string().max(500).optional(),
+        bodyHtml: z.string().optional(),
+        bodyText: z.string().optional(),
+        displayName: z.string().max(255).optional(),
+        description: z.string().optional(),
+        createdBy: z.string().default("admin_ui"),
+      }))
+      .mutation(async ({ input }) => createTemplate(input)),
+
+    update: publicProcedure
+      .input(z.object({
+        id: z.number().int().positive(),
+        editedBy: z.string().min(1),
+        changeNote: z.string().max(500).optional(),
+        patch: z.object({
+          subject: z.string().max(500).optional(),
+          bodyHtml: z.string().optional(),
+          bodyText: z.string().optional(),
+          delayHours: z.number().int().min(0).optional(),
+          isActive: z.number().int().min(0).max(1).optional(),
+          displayName: z.string().max(255).optional(),
+          description: z.string().optional(),
+        }),
+      }))
+      .mutation(async ({ input }) => updateTemplate(input.id, input.patch, input.editedBy, input.changeNote)),
+
+    history: publicProcedure
+      .input(z.object({ templateId: z.number().int().positive() }))
+      .query(async ({ input }) => getTemplateHistory(input.templateId)),
+  }),
+
+  rules: router({
+    list: publicProcedure
+      .input(z.object({ activeOnly: z.boolean().default(false) }).optional())
+      .query(async ({ input }) => listTriggerRules(input?.activeOnly ?? false)),
+
+    create: publicProcedure
+      .input(z.object({
+        priority: z.number().int().default(100),
+        ruleName: z.string().min(1).max(255),
+        matchField: z.enum(["tag", "utmSource", "utmCampaign", "programInterest", "hasTrialDate"]),
+        matchOperator: z.enum(["equals", "contains", "starts_with", "is_true"]).default("equals"),
+        matchValue: z.string().max(255).optional(),
+        sequenceKey: z.string().min(1).max(100),
+        description: z.string().optional(),
+        createdBy: z.string().default("admin_ui"),
+      }))
+      .mutation(async ({ input }) => createTriggerRule(input)),
+
+    update: publicProcedure
+      .input(z.object({
+        id: z.number().int().positive(),
+        patch: z.object({
+          priority: z.number().int().optional(),
+          ruleName: z.string().min(1).max(255).optional(),
+          matchField: z.enum(["tag", "utmSource", "utmCampaign", "programInterest", "hasTrialDate"]).optional(),
+          matchOperator: z.enum(["equals", "contains", "starts_with", "is_true"]).optional(),
+          matchValue: z.string().max(255).optional(),
+          sequenceKey: z.string().min(1).max(100).optional(),
+          isActive: z.number().int().min(0).max(1).optional(),
+          description: z.string().optional(),
+          updatedBy: z.string().optional(),
+        }),
+      }))
+      .mutation(async ({ input }) => updateTriggerRule(input.id, input.patch)),
+
+    delete: publicProcedure
+      .input(z.object({ id: z.number().int().positive() }))
+      .mutation(async ({ input }) => deleteTriggerRule(input.id)),
+
+    /**
+     * Routes a hypothetical lead through the active rule set.
+     * Used by the admin UI "Test Rule" feature AND by Lead Intake v2's
+     * intake router node (called via HTTP from n8n).
+     */
+    route: publicProcedure
+      .input(z.object({
+        tags: z.array(z.string()).optional(),
+        utmSource: z.string().nullable().optional(),
+        utmCampaign: z.string().nullable().optional(),
+        programInterest: z.string().nullable().optional(),
+        trialClassDate: z.string().nullable().optional(),
+      }))
+      .mutation(async ({ input }) => routeLeadToSequence(input)),
+  }),
+
+  lifecycle: router({
+    /**
+     * Records a stage transition. Used by:
+     *  - Admin UI (staff manual stage change)
+     *  - n8n Lead Intake v2 (initial stage assignment)
+     *  - n8n Enrollment Auto-Reconciler (lead → enrolled)
+     *  - n8n No-Show Recovery (trial_scheduled → no_show after 24h)
+     *
+     * Side effects (auto-applied in db.ts):
+     *  - enrolled / lost / no_show_final → cancel all scheduled queue rows
+     *
+     * Rejects illegal transitions unless allowForce=true.
+     */
+    transition: publicProcedure
+      .input(z.object({
+        leadId: z.number().int().positive(),
+        toStage: z.enum([
+          "new_lead", "contacted", "trial_scheduled", "trial_paid",
+          "trial_attended", "enrolled", "no_show", "no_show_final", "lost"
+        ]),
+        triggeredBy: z.string().min(1).max(100),
+        reason: z.string().max(255).optional(),
+        allowForce: z.boolean().default(false),
+      }))
+      .mutation(async ({ input }) => recordLifecycleTransition(input)),
+
+    history: publicProcedure
+      .input(z.object({ leadId: z.number().int().positive() }))
+      .query(async ({ input }) => getLifecycleHistory(input.leadId)),
+
+    checkLegal: publicProcedure
+      .input(z.object({
+        fromStage: z.string().nullable(),
+        toStage: z.string().min(1),
+      }))
+      .query(async ({ input }) => ({ legal: isLegalTransition(input.fromStage, input.toStage) })),
+  }),
+
+  audit: router({
+    log: publicProcedure
+      .input(z.object({
+        level: z.enum(["info", "warn", "error", "critical"]).default("info"),
+        source: z.string().min(1).max(100),
+        event: z.string().min(1).max(255),
+        details: z.string().optional(),
+        leadId: z.number().int().positive().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        await logAudit(input);
+        return { ok: true };
+      }),
+
+    list: publicProcedure
+      .input(z.object({
+        level: z.enum(["info", "warn", "error", "critical"]).optional(),
+        source: z.string().optional(),
+        leadId: z.number().int().positive().optional(),
+        limit: z.number().int().min(1).max(500).default(100),
+      }).optional())
+      .query(async ({ input }) => listAuditLog(input ?? {})),
+  }),
+
+  dispatcher: router({
+    /**
+     * Pre-send guard. Called by the Sequence Dispatcher BEFORE sending any touch.
+     * Returns { ok: true, template } if safe, or { ok: false, reason } if it should be skipped.
+     *
+     * This is the single chokepoint that prevents:
+     *   - sending to opted-out / enrolled / paused leads
+     *   - sending content from inactive or missing templates
+     *
+     * Adding new global send-blocking rules? Add them here, not in n8n.
+     */
+    preSendCheck: publicProcedure
+      .input(z.object({
+        leadId: z.number().int().positive(),
+        sequenceKey: z.string().min(1),
+        touchKey: z.string().min(1),
+      }))
+      .mutation(async ({ input }) => preSendGuard(input)),
   }),
 });
 export type AppRouter = typeof appRouter;
