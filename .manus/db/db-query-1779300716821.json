@@ -1,0 +1,22 @@
+{
+  "query": "SELECT COUNT(*) as total_leads FROM leads;\nSELECT MIN(id) as min_id, MAX(id) as max_id, COUNT(*) as cnt, email FROM leads \nWHERE LOWER(email) IN ('patemj0@gmal.com','mact42@gmail.com')\nGROUP BY email;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3SwZhQGwFybjoYh.root --database cXp7keMiYsMkePUngpTNmV --execute SELECT COUNT(*) as total_leads FROM leads;\nSELECT MIN(id) as min_id, MAX(id) as max_id, COUNT(*) as cnt, email FROM leads \nWHERE LOWER(email) IN ('patemj0@gmal.com','mact42@gmail.com')\nGROUP BY email;",
+  "rows": [
+    {
+      "total_leads": "96"
+    },
+    {
+      "total_leads": "min_id\tmax_id\tcnt\temail"
+    },
+    {
+      "total_leads": "270074\t270074\t1\tPatemj0@gmal.com"
+    },
+    {
+      "total_leads": "270072\t270072\t1\tMact42@gmail.com"
+    }
+  ],
+  "messages": [],
+  "stdout": "total_leads\n96\nmin_id\tmax_id\tcnt\temail\n270074\t270074\t1\tPatemj0@gmal.com\n270072\t270072\t1\tMact42@gmail.com\n",
+  "stderr": "",
+  "execution_time_ms": 280
+}

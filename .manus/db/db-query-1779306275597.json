@@ -1,0 +1,9 @@
+{
+  "query": "-- Delete leadActivities for duplicate leads (those with higher id than the oldest per email)\nDELETE la FROM leadActivities la\nINNER JOIN leads l1 ON la.leadId = l1.id\nINNER JOIN leads l2 ON LOWER(l1.email) = LOWER(l2.email) AND l1.id > l2.id;\n\n-- Now delete the duplicate leads\nDELETE l1 FROM leads l1\nINNER JOIN leads l2\n  ON LOWER(l1.email) = LOWER(l2.email)\n  AND l1.id > l2.id;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3SwZhQGwFybjoYh.root --database cXp7keMiYsMkePUngpTNmV --execute -- Delete leadActivities for duplicate leads (those with higher id than the oldest per email)\nDELETE la FROM leadActivities la\nINNER JOIN leads l1 ON la.leadId = l1.id\nINNER JOIN leads l2 ON LOWER(l1.email) = LOWER(l2.email) AND l1.id > l2.id;\n\n-- Now delete the duplicate leads\nDELETE l1 FROM leads l1\nINNER JOIN leads l2\n  ON LOWER(l1.email) = LOWER(l2.email)\n  AND l1.id > l2.id;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 295
+}

@@ -1,0 +1,19 @@
+{
+  "query": "SELECT COUNT(*) as total_leads FROM leads;\nSELECT COUNT(*) as total_activities FROM leadActivities;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3SwZhQGwFybjoYh.root --database cXp7keMiYsMkePUngpTNmV --execute SELECT COUNT(*) as total_leads FROM leads;\nSELECT COUNT(*) as total_activities FROM leadActivities;",
+  "rows": [
+    {
+      "total_leads": "96"
+    },
+    {
+      "total_leads": "total_activities"
+    },
+    {
+      "total_leads": "22"
+    }
+  ],
+  "messages": [],
+  "stdout": "total_leads\n96\ntotal_activities\n22\n",
+  "stderr": "",
+  "execution_time_ms": 266
+}

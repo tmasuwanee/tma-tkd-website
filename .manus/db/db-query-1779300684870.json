@@ -1,0 +1,9 @@
+{
+  "query": "DELETE l1 FROM leads l1\nINNER JOIN leads l2\n  ON LOWER(l1.email) = LOWER(l2.email)\n  AND l1.id > l2.id\nWHERE l1.email IN (\n  'patemj0@gmal.com','mact42@gmail.com','srosalyn230@gmail.com','awkatrina@gmail.com',\n  'catona2266@gmail.com','mail4bri@gmail.com','pitssonllc@hotmail.com','hadayimistic@gmail.com',\n  'ttennam@yahoo.com','jtroutman404@gmail.com','creeksidefellowshipchurch@yahoo.com',\n  'anncalloway1016@gmail.com','andrewtelker@yahoo.com','mbb.bea@gmail.com','sporter12375@gmaol.com'\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3SwZhQGwFybjoYh.root --database cXp7keMiYsMkePUngpTNmV --execute DELETE l1 FROM leads l1\nINNER JOIN leads l2\n  ON LOWER(l1.email) = LOWER(l2.email)\n  AND l1.id > l2.id\nWHERE l1.email IN (\n  'patemj0@gmal.com','mact42@gmail.com','srosalyn230@gmail.com','awkatrina@gmail.com',\n  'catona2266@gmail.com','mail4bri@gmail.com','pitssonllc@hotmail.com','hadayimistic@gmail.com',\n  'ttennam@yahoo.com','jtroutman404@gmail.com','creeksidefellowshipchurch@yahoo.com',\n  'anncalloway1016@gmail.com','andrewtelker@yahoo.com','mbb.bea@gmail.com','sporter12375@gmaol.com'\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 297
+}

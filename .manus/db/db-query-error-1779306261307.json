@@ -1,0 +1,8 @@
+{
+  "query": "DELETE l1 FROM leads l1\nINNER JOIN leads l2\n  ON LOWER(l1.email) = LOWER(l2.email)\n  AND l1.id > l2.id;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3SwZhQGwFybjoYh.root --database cXp7keMiYsMkePUngpTNmV --execute DELETE l1 FROM leads l1\nINNER JOIN leads l2\n  ON LOWER(l1.email) = LOWER(l2.email)\n  AND l1.id > l2.id;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1451 (23000) at line 1: Cannot delete or update a parent row: a foreign key constraint fails (`cxp7kemiysmkepungptnmv`.`leadactivities`, CONSTRAINT `leadActivities_leadId_fk` FOREIGN KEY (`leadId`) REFERENCES `leads` (`id`))"
+  ]
+}
