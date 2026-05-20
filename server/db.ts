@@ -1,4 +1,4 @@
-import { eq, desc, or, like, inArray, isNotNull, and, gte, sql } from "drizzle-orm";
+﻿import { eq, desc, or, like, inArray, isNotNull, and, gte, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import mysql from "mysql2";
 import {
@@ -9,6 +9,11 @@ import {
   students, InsertStudent, Student,
   attendance, InsertAttendance, Attendance,
   leadSequenceQueue, InsertLeadSequenceQueue, LeadSequenceQueue,
+  sequenceTemplates, InsertSequenceTemplate, SequenceTemplate,
+  sequenceTemplateHistory, InsertSequenceTemplateHistory,
+  sequenceTriggerRules, InsertSequenceTriggerRule, SequenceTriggerRule,
+  leadLifecycleEvents, InsertLeadLifecycleEvent, LeadLifecycleEvent,
+  systemAuditLog, InsertSystemAuditLog,
 } from "../drizzle/schema";
 import { lte } from "drizzle-orm";
 import { ENV } from './_core/env';
@@ -801,5 +806,386 @@ export async function hasTouchBeenSent(leadId: number, touchKey: string): Promis
     eq(leadSequenceQueue.status, 'sent'),
   )).limit(1);
   return result.length > 0;
+}
+
+// =====================================================================
+// LIFECYCLE ARCHITECTURE v1 — DB HELPERS (2026-05-20)
+// See: TMA_LIFECYCLE_ARCHITECTURE.md
+// =====================================================================
+
+// --- Sequence templates (editable email content) ---
+
+export async function listSequenceTemplates(): Promise<SequenceTemplate[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(sequenceTemplates).orderBy(sequenceTemplates.sequenceKey, sequenceTemplates.orderIndex);
+}
+
+export async function getTemplate(sequenceKey: string, touchKey: string): Promise<SequenceTemplate | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select().from(sequenceTemplates).where(and(
+    eq(sequenceTemplates.sequenceKey, sequenceKey),
+    eq(sequenceTemplates.touchKey, touchKey),
+  )).limit(1);
+  return result[0] ?? null;
+}
+
+export async function getTemplateById(id: number): Promise<SequenceTemplate | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select().from(sequenceTemplates).where(eq(sequenceTemplates.id, id)).limit(1);
+  return result[0] ?? null;
+}
+
+export async function createTemplate(data: InsertSequenceTemplate): Promise<SequenceTemplate> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(sequenceTemplates).values(data);
+  const created = await getTemplate(data.sequenceKey, data.touchKey);
+  if (!created) throw new Error("Template insert failed");
+  return created;
+}
+
+/**
+ * Updates a template and writes the previous state to sequenceTemplateHistory.
+ * The dispatcher snapshots template content into the queue row BEFORE sending,
+ * so in-flight touches are not affected by mid-flight edits.
+ */
+export async function updateTemplate(
+  id: number,
+  patch: Partial<Pick<SequenceTemplate, 'subject' | 'bodyHtml' | 'bodyText' | 'delayHours' | 'isActive' | 'displayName' | 'description'>>,
+  editedBy: string,
+  changeNote?: string,
+): Promise<SequenceTemplate | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const before = await getTemplateById(id);
+  if (!before) return null;
+
+  // Write history row BEFORE update (so we can roll back)
+  await db.insert(sequenceTemplateHistory).values({
+    templateId: id,
+    prevSubject: before.subject,
+    prevBodyHtml: before.bodyHtml,
+    prevBodyText: before.bodyText,
+    prevDelayHours: before.delayHours,
+    prevIsActive: before.isActive,
+    editedBy,
+    changeNote: changeNote ?? null,
+  });
+
+  await db.update(sequenceTemplates).set({
+    ...patch,
+    updatedBy: editedBy,
+  }).where(eq(sequenceTemplates.id, id));
+
+  return await getTemplateById(id);
+}
+
+export async function getTemplateHistory(templateId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(sequenceTemplateHistory)
+    .where(eq(sequenceTemplateHistory.templateId, templateId))
+    .orderBy(desc(sequenceTemplateHistory.editedAt));
+}
+
+// --- Intake routing rules ---
+
+export async function listTriggerRules(activeOnly = false): Promise<SequenceTriggerRule[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const q = db.select().from(sequenceTriggerRules);
+  if (activeOnly) {
+    return q.where(eq(sequenceTriggerRules.isActive, 1)).orderBy(desc(sequenceTriggerRules.priority));
+  }
+  return q.orderBy(desc(sequenceTriggerRules.priority));
+}
+
+export async function createTriggerRule(data: InsertSequenceTriggerRule): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(sequenceTriggerRules).values(data);
+}
+
+export async function updateTriggerRule(id: number, patch: Partial<InsertSequenceTriggerRule>): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(sequenceTriggerRules).set(patch).where(eq(sequenceTriggerRules.id, id));
+}
+
+export async function deleteTriggerRule(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(sequenceTriggerRules).where(eq(sequenceTriggerRules.id, id));
+}
+
+/**
+ * Routes a lead to a sequence based on first-match-wins rule evaluation.
+ * Returns the sequenceKey to enroll the lead into, or null if no rule matched.
+ *
+ * Call signature mirrors the intake payload so this can be invoked
+ * either from a tRPC mutation (Lead Intake v2) or from n8n directly.
+ */
+export async function routeLeadToSequence(payload: {
+  tags?: string[];
+  utmSource?: string | null;
+  utmCampaign?: string | null;
+  programInterest?: string | null;
+  trialClassDate?: string | null;
+}): Promise<{ matchedRuleId: number | null; sequenceKey: string }> {
+  const rules = await listTriggerRules(true);
+  const normalize = (s: string | null | undefined) => (s ?? '').toString().toLowerCase().trim();
+
+  for (const rule of rules) {
+    const op = rule.matchOperator;
+    const val = normalize(rule.matchValue);
+
+    let matched = false;
+    switch (rule.matchField) {
+      case 'tag': {
+        const tagsLower = (payload.tags ?? []).map(t => normalize(t));
+        if (op === 'equals') matched = tagsLower.includes(val);
+        else if (op === 'contains') matched = tagsLower.some(t => t.includes(val));
+        else if (op === 'starts_with') matched = tagsLower.some(t => t.startsWith(val));
+        break;
+      }
+      case 'utmSource': {
+        const v = normalize(payload.utmSource);
+        if (op === 'equals') matched = v === val;
+        else if (op === 'contains') matched = v.includes(val);
+        else if (op === 'starts_with') matched = v.startsWith(val);
+        break;
+      }
+      case 'utmCampaign': {
+        const v = normalize(payload.utmCampaign);
+        if (op === 'equals') matched = v === val;
+        else if (op === 'contains') matched = v.includes(val);
+        else if (op === 'starts_with') matched = v.startsWith(val);
+        break;
+      }
+      case 'programInterest': {
+        const v = normalize(payload.programInterest);
+        if (op === 'equals') matched = v === val;
+        else if (op === 'contains') matched = v.includes(val);
+        else if (op === 'starts_with') matched = v.startsWith(val);
+        break;
+      }
+      case 'hasTrialDate': {
+        matched = op === 'is_true' && !!payload.trialClassDate;
+        break;
+      }
+    }
+
+    if (matched) {
+      return { matchedRuleId: rule.id, sequenceKey: rule.sequenceKey };
+    }
+  }
+
+  // No rule matched → unsegmented fallback. Caller should alert staff.
+  return { matchedRuleId: null, sequenceKey: 'unsegmented' };
+}
+
+// --- Lifecycle state machine ---
+
+// Legal transitions. Used by recordTransition to reject illegal moves.
+// Maps fromStage → set of allowed toStages.
+const LEGAL_TRANSITIONS: Record<string, string[]> = {
+  new_lead: ['contacted', 'trial_scheduled', 'lost'],
+  contacted: ['trial_scheduled', 'lost', 'enrolled'],
+  trial_scheduled: ['trial_paid', 'trial_attended', 'no_show', 'lost', 'enrolled'],
+  trial_paid: ['trial_attended', 'no_show', 'enrolled', 'lost'],
+  trial_attended: ['enrolled', 'no_show_final', 'lost'],
+  no_show: ['trial_scheduled', 'no_show_final', 'enrolled', 'lost'],
+  no_show_final: ['enrolled', 'lost'],
+  enrolled: ['lost'], // a withdrawn student
+  lost: ['new_lead', 'contacted', 'trial_scheduled'], // re-engagement allowed
+};
+
+export function isLegalTransition(from: string | null | undefined, to: string): boolean {
+  if (!from) return true; // initial assignment from null is always legal
+  const allowed = LEGAL_TRANSITIONS[from];
+  return allowed?.includes(to) ?? false;
+}
+
+/**
+ * Records a stage transition with side effects.
+ *
+ * 1. Validates the transition is legal (or allowForce=true)
+ * 2. Updates leads.pipelineStage
+ * 3. Writes an immutable row to leadLifecycleEvents
+ * 4. Applies side effects per the new stage:
+ *    - enrolled / lost (terminal): cancel all scheduled queue rows for this lead
+ *    - no_show: cancel any remaining trial reminders
+ *
+ * Returns the new lifecycle event row.
+ *
+ * EVERY workflow / tRPC procedure that changes lead stage MUST call this.
+ * Do not UPDATE leads.pipelineStage directly. See architecture doc.
+ */
+export async function recordLifecycleTransition(args: {
+  leadId: number;
+  toStage: 'new_lead' | 'contacted' | 'trial_scheduled' | 'trial_paid' | 'trial_attended' | 'enrolled' | 'no_show' | 'no_show_final' | 'lost';
+  triggeredBy: string;
+  reason?: string;
+  allowForce?: boolean;
+}): Promise<LeadLifecycleEvent | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  // Snapshot current stage
+  const leadRows = await db.select().from(leads).where(eq(leads.id, args.leadId)).limit(1);
+  if (!leadRows[0]) {
+    await logAudit({ level: 'error', source: 'lifecycle', event: 'transition_lead_not_found', leadId: args.leadId, details: JSON.stringify(args) });
+    return null;
+  }
+  const fromStage = leadRows[0].pipelineStage as string;
+
+  // Same-stage = noop (idempotent)
+  if (fromStage === args.toStage) {
+    await logAudit({ level: 'info', source: 'lifecycle', event: 'transition_noop_same_stage', leadId: args.leadId, details: JSON.stringify({ stage: args.toStage, triggeredBy: args.triggeredBy }) });
+    return null;
+  }
+
+  // Legality check
+  if (!args.allowForce && !isLegalTransition(fromStage, args.toStage)) {
+    await logAudit({ level: 'warn', source: 'lifecycle', event: 'transition_rejected_illegal', leadId: args.leadId, details: JSON.stringify({ fromStage, toStage: args.toStage, triggeredBy: args.triggeredBy }) });
+    throw new Error(`Illegal lifecycle transition: ${fromStage} → ${args.toStage}. Pass allowForce=true to override.`);
+  }
+
+  // Apply side effects BEFORE updating stage (so a failure here doesn't leave inconsistent state)
+  const sideEffects: { cancelledQueueIds?: number[]; note?: string } = {};
+
+  if (args.toStage === 'enrolled' || args.toStage === 'lost' || args.toStage === 'no_show_final') {
+    // Cancel all scheduled touches for this lead
+    const scheduledRows = await db.select().from(leadSequenceQueue).where(and(
+      eq(leadSequenceQueue.leadId, args.leadId),
+      eq(leadSequenceQueue.status, 'scheduled'),
+    ));
+    const ids = scheduledRows.map(r => r.id);
+    if (ids.length > 0) {
+      await db.update(leadSequenceQueue).set({
+        status: 'cancelled',
+        cancelReason: `lifecycle_transition:${args.toStage}`,
+        cancelledAt: new Date(),
+        updatedBy: args.triggeredBy,
+      }).where(and(
+        inArray(leadSequenceQueue.id, ids),
+        eq(leadSequenceQueue.status, 'scheduled'),
+      ));
+      sideEffects.cancelledQueueIds = ids;
+    }
+  }
+
+  // Update lead.pipelineStage
+  await db.update(leads).set({ pipelineStage: args.toStage }).where(eq(leads.id, args.leadId));
+
+  // Write lifecycle event
+  await db.insert(leadLifecycleEvents).values({
+    leadId: args.leadId,
+    fromStage,
+    toStage: args.toStage,
+    triggeredBy: args.triggeredBy,
+    reason: args.reason ?? null,
+    sideEffects: JSON.stringify(sideEffects),
+  });
+
+  // Fetch the row we just wrote
+  const events = await db.select().from(leadLifecycleEvents)
+    .where(eq(leadLifecycleEvents.leadId, args.leadId))
+    .orderBy(desc(leadLifecycleEvents.createdAt))
+    .limit(1);
+
+  return events[0] ?? null;
+}
+
+export async function getLifecycleHistory(leadId: number): Promise<LeadLifecycleEvent[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(leadLifecycleEvents)
+    .where(eq(leadLifecycleEvents.leadId, leadId))
+    .orderBy(desc(leadLifecycleEvents.createdAt));
+}
+
+// --- System audit log (errors, warnings, deploy markers, quota alerts) ---
+
+export async function logAudit(entry: {
+  level?: 'info' | 'warn' | 'error' | 'critical';
+  source: string;
+  event: string;
+  details?: string;
+  leadId?: number;
+}): Promise<void> {
+  try {
+    const db = await getDb();
+    if (!db) {
+      console.warn("[Audit] DB unavailable, log lost:", entry);
+      return;
+    }
+    await db.insert(systemAuditLog).values({
+      level: entry.level ?? 'info',
+      source: entry.source,
+      event: entry.event,
+      details: entry.details ?? null,
+      leadId: entry.leadId ?? null,
+    });
+  } catch (e) {
+    // Never let audit logging crash the caller
+    console.error("[Audit] Failed to write log:", e, "entry:", entry);
+  }
+}
+
+export async function listAuditLog(args: {
+  level?: 'info' | 'warn' | 'error' | 'critical';
+  source?: string;
+  leadId?: number;
+  limit?: number;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const conditions = [];
+  if (args.level) conditions.push(eq(systemAuditLog.level, args.level));
+  if (args.source) conditions.push(eq(systemAuditLog.source, args.source));
+  if (args.leadId) conditions.push(eq(systemAuditLog.leadId, args.leadId));
+  const q = db.select().from(systemAuditLog);
+  const where = conditions.length > 0 ? and(...conditions) : undefined;
+  return (where ? q.where(where) : q).orderBy(desc(systemAuditLog.createdAt)).limit(args.limit ?? 100);
+}
+
+// --- Pre-send guard for the dispatcher ---
+
+/**
+ * Called by the dispatcher BEFORE sending any touch.
+ * Returns { ok: true } if safe to send, or { ok: false, reason } if it should be skipped.
+ *
+ * Skip reasons:
+ *   - lead_opted_out: stage is 'lost' AND reason mentions opt-out (future: dedicated stage)
+ *   - lead_enrolled: stage is 'enrolled' (terminal — nurture should have been cancelled)
+ *   - automation_paused: lead.automationPaused = true
+ *   - lead_not_found: leadId doesn't exist
+ *   - template_inactive: template exists but isActive = false
+ *   - template_not_found: template doesn't exist for (sequenceKey, touchKey)
+ */
+export async function preSendGuard(args: {
+  leadId: number;
+  sequenceKey: string;
+  touchKey: string;
+}): Promise<{ ok: true; template: SequenceTemplate } | { ok: false; reason: string }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const leadRows = await db.select().from(leads).where(eq(leads.id, args.leadId)).limit(1);
+  const lead = leadRows[0];
+  if (!lead) return { ok: false, reason: 'lead_not_found' };
+  if (lead.automationPaused) return { ok: false, reason: 'automation_paused' };
+  if (lead.pipelineStage === 'enrolled') return { ok: false, reason: 'lead_enrolled' };
+  if (lead.pipelineStage === 'lost') return { ok: false, reason: 'lead_lost' };
+
+  const template = await getTemplate(args.sequenceKey, args.touchKey);
+  if (!template) return { ok: false, reason: 'template_not_found' };
+  if (!template.isActive) return { ok: false, reason: 'template_inactive' };
+
+  return { ok: true, template };
 }
 
