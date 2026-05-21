@@ -1,0 +1,9 @@
+{
+  "query": "ALTER TABLE sequenceTemplates\n  ADD COLUMN `orderIndex` int NOT NULL DEFAULT 0 AFTER `touchKey`;\n\nALTER TABLE sequenceTemplates\n  ADD COLUMN `displayName` varchar(255) AFTER `isActive`;\n\nALTER TABLE sequenceTemplates\n  ADD COLUMN `description` text AFTER `displayName`;\n\nALTER TABLE sequenceTemplates\n  MODIFY COLUMN `channel` enum('email','sms','call_reminder','internal_task') NOT NULL DEFAULT 'email';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3SwZhQGwFybjoYh.root --database cXp7keMiYsMkePUngpTNmV --execute ALTER TABLE sequenceTemplates\n  ADD COLUMN `orderIndex` int NOT NULL DEFAULT 0 AFTER `touchKey`;\n\nALTER TABLE sequenceTemplates\n  ADD COLUMN `displayName` varchar(255) AFTER `isActive`;\n\nALTER TABLE sequenceTemplates\n  ADD COLUMN `description` text AFTER `displayName`;\n\nALTER TABLE sequenceTemplates\n  MODIFY COLUMN `channel` enum('email','sms','call_reminder','internal_task') NOT NULL DEFAULT 'email';",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 948
+}

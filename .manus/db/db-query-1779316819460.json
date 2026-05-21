@@ -1,0 +1,73 @@
+{
+  "query": "SELECT COUNT(*) as rule_count FROM sequenceTriggerRules;\nSELECT COUNT(*) as template_count FROM sequenceTemplates;\nSELECT sequenceKey, touchKey FROM sequenceTemplates ORDER BY sequenceKey, orderIndex;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3SwZhQGwFybjoYh.root --database cXp7keMiYsMkePUngpTNmV --execute SELECT COUNT(*) as rule_count FROM sequenceTriggerRules;\nSELECT COUNT(*) as template_count FROM sequenceTemplates;\nSELECT sequenceKey, touchKey FROM sequenceTemplates ORDER BY sequenceKey, orderIndex;",
+  "rows": [
+    {
+      "rule_count": "18"
+    },
+    {
+      "rule_count": "template_count"
+    },
+    {
+      "rule_count": "17"
+    },
+    {
+      "rule_count": "sequenceKey\ttouchKey"
+    },
+    {
+      "rule_count": "afterschool_nurture\tday_0_program_overview"
+    },
+    {
+      "rule_count": "afterschool_nurture\tday_3_schedule_pricing"
+    },
+    {
+      "rule_count": "afterschool_nurture\tday_7_enrollment_open"
+    },
+    {
+      "rule_count": "bjj_trial_nurture\tday_2_bjj_intro"
+    },
+    {
+      "rule_count": "bjj_trial_nurture\tday_4_bjj_final"
+    },
+    {
+      "rule_count": "booked_trial_confirmation\tbooking_confirmation"
+    },
+    {
+      "rule_count": "fb_generic_nurture\tday_1_thanks_for_interest"
+    },
+    {
+      "rule_count": "fb_generic_nurture\tday_4_pick_a_program"
+    },
+    {
+      "rule_count": "kickboxing_trial_nurture\tday_2_adult_check_in"
+    },
+    {
+      "rule_count": "kickboxing_trial_nurture\tday_4_what_first_class_is_like"
+    },
+    {
+      "rule_count": "summer_camp_nurture\tday_0_camp_overview"
+    },
+    {
+      "rule_count": "summer_camp_nurture\tday_3_spots_filling"
+    },
+    {
+      "rule_count": "summer_camp_nurture\tday_6_last_call"
+    },
+    {
+      "rule_count": "tkd_trial_nurture\tday_2_still_thinking"
+    },
+    {
+      "rule_count": "tkd_trial_nurture\tday_4_one_last_thing"
+    },
+    {
+      "rule_count": "web_form_nurture\tday_2_default_followup"
+    },
+    {
+      "rule_count": "web_form_nurture\tday_4_default_final"
+    }
+  ],
+  "messages": [],
+  "stdout": "rule_count\n18\ntemplate_count\n17\nsequenceKey\ttouchKey\nafterschool_nurture\tday_0_program_overview\nafterschool_nurture\tday_3_schedule_pricing\nafterschool_nurture\tday_7_enrollment_open\nbjj_trial_nurture\tday_2_bjj_intro\nbjj_trial_nurture\tday_4_bjj_final\nbooked_trial_confirmation\tbooking_confirmation\nfb_generic_nurture\tday_1_thanks_for_interest\nfb_generic_nurture\tday_4_pick_a_program\nkickboxing_trial_nurture\tday_2_adult_check_in\nkickboxing_trial_nurture\tday_4_what_first_class_is_like\nsummer_camp_nurture\tday_0_camp_overview\nsummer_camp_nurture\tday_3_spots_filling\nsummer_camp_nurture\tday_6_last_call\ntkd_trial_nurture\tday_2_still_thinking\ntkd_trial_nurture\tday_4_one_last_thing\nweb_form_nurture\tday_2_default_followup\nweb_form_nurture\tday_4_default_final\n",
+  "stderr": "",
+  "execution_time_ms": 293
+}
