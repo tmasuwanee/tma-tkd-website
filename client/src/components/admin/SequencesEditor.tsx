@@ -1,5 +1,5 @@
 /**
- * Sequences Editor (Phase 5)
+ * Sequences Editor (Phase 5 + 5.5)
  *
  * Admin UI for editing TMA email templates without touching code.
  *
@@ -8,17 +8,21 @@
  *   2. Touches list for selected sequence (middle, ~280px)
  *   3. Editor + live preview (right, fills remaining space)
  *
- * Features:
- *   - Edit subject, body HTML, delay (hours), display name, description
- *   - Toggle isActive (deactivated touches are skipped by the dispatcher)
- *   - Live iframe preview that re-renders as you type, with sample merge data
- *   - "Send preview to my inbox" button (uses templates.sendTest backend)
- *   - Unsaved changes indicator + confirm-before-discard
+ * Editor modes:
+ *   - SIMPLE — structured form (header, greeting, paragraphs, callout, CTA, footer note).
+ *              On save, regenerates branded HTML from those fields. Non-technical friendly.
+ *   - ADVANCED — raw HTML textarea + subject input. Power-user mode.
+ *
+ * Each touch can be edited in either mode. Switching to Simple Mode for the first
+ * time presents empty fields with a warning that saving will replace the existing HTML.
+ *
+ * Other features:
+ *   - Live iframe preview re-renders as you type, with sample merge data.
+ *   - Active toggle (deactivated touches are skipped by the dispatcher).
+ *   - "Send preview to my inbox" button.
+ *   - Unsaved changes indicator + confirm-before-discard.
  *
  * Edits go live immediately on save (next dispatcher tick picks up new content).
- *
- * NOTE: Single source of truth for sequence + touch metadata is the DB.
- * The "Sequences" presets below are only for UI labels / icons / grouping.
  */
 import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -31,8 +35,8 @@ import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import {
   Loader2, Mail, Send, Save, Eye, AlertCircle, CheckCircle2,
-  Calendar, Sparkles, GraduationCap, BookOpen, Trophy, Flame,
-  School, Globe, Megaphone, Inbox,
+  Calendar, Sparkles, GraduationCap, Trophy, Flame,
+  School, Globe, Megaphone, Inbox, Sliders, Code,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 
@@ -44,7 +48,7 @@ type SequencePreset = {
   description: string;
   group: "transactional" | "nurture" | "vertical";
   icon: typeof Mail;
-  accent: string; // tailwind class for the icon background
+  accent: string;
 };
 
 const SEQUENCE_PRESETS: SequencePreset[] = [
@@ -77,7 +81,116 @@ type Template = {
   updatedAt: string;
 };
 
-// ─── Merge field sample data for the preview iframe ──────────────────────────
+// ─── Structured form schema ─────────────────────────────────────────────────
+
+type SimpleFields = {
+  headerTitle: string;        // top red header text (e.g. "TMA Summer Camp")
+  greeting: string;           // first line (e.g. "Hi {{firstName}},")
+  paragraphs: string;         // body paragraphs (blank-line separated)
+  calloutLabel: string;       // small uppercase label in yellow callout (optional)
+  calloutBody: string;        // main text in yellow callout (optional)
+  ctaLabel: string;           // red button text (optional)
+  ctaUrl: string;             // red button URL (optional)
+  footerNote: string;         // small gray paragraph above navy footer (optional)
+};
+
+const EMPTY_SIMPLE: SimpleFields = {
+  headerTitle: "", greeting: "", paragraphs: "",
+  calloutLabel: "", calloutBody: "",
+  ctaLabel: "", ctaUrl: "", footerNote: "",
+};
+
+// ─── HTML builder (mirrors server-side template populate script) ────────────
+
+function buildBrandedHtml(f: SimpleFields): string {
+  const SHELL_OPEN = `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f8f9fa;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif"><table cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f8f9fa"><tr><td align="center" style="padding:32px 16px"><table cellpadding="0" cellspacing="0" border="0" width="600" style="max-width:600px;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.06)">`;
+  const SHELL_CLOSE = `</table></td></tr></table></body></html>`;
+  const HEADER = (title: string) => `<tr><td style="background:#c41e3a;padding:24px 32px"><div style="color:#fff;font-size:12px;letter-spacing:1.5px;font-weight:600;text-transform:uppercase;opacity:0.9">Top Martial Arts Suwanee</div><div style="color:#fff;font-size:24px;font-weight:700;margin-top:6px">${title}</div></td></tr>`;
+  const FOOTER = `<tr><td style="background:#1a2d5a;padding:20px 32px;color:#cbd5e1;font-size:13px;line-height:1.6"><div style="color:#fff;font-weight:600;margin-bottom:4px">Master Arfa &amp; Master Jo</div>Top Martial Arts Suwanee<br><a href="tel:+17702773009" style="color:#cbd5e1;text-decoration:none">(770) 277-3009</a> &nbsp;&middot;&nbsp; <a href="https://tmatkd.com" style="color:#cbd5e1;text-decoration:none">tmatkd.com</a></td></tr>`;
+
+  const greetingHtml = f.greeting ? `<p style="margin:0 0 16px">${escapeHtml(f.greeting)}</p>` : "";
+  const paragraphsHtml = f.paragraphs
+    .split(/\n\s*\n/)
+    .filter(p => p.trim())
+    .map(p => `<p style="margin:0 0 16px">${escapeHtml(p.trim())}</p>`)
+    .join("");
+
+  const bodyBlock = (greetingHtml || paragraphsHtml)
+    ? `<tr><td style="padding:32px 32px 8px;color:#1f2937;font-size:16px;line-height:1.6">${greetingHtml}${paragraphsHtml}</td></tr>`
+    : "";
+
+  const calloutBlock = (f.calloutLabel || f.calloutBody)
+    ? `<tr><td style="padding:0 32px 24px"><table cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#fef3c7;border-left:4px solid #f59e0b;border-radius:6px"><tr><td style="padding:20px 24px">${f.calloutLabel ? `<div style="font-size:11px;color:#92400e;font-weight:700;letter-spacing:1px;text-transform:uppercase">${escapeHtml(f.calloutLabel)}</div>` : ""}${f.calloutBody ? `<div style="font-size:18px;color:#1f2937;font-weight:600;margin-top:6px;line-height:1.4">${escapeHtml(f.calloutBody)}</div>` : ""}</td></tr></table></td></tr>`
+    : "";
+
+  const ctaBlock = (f.ctaLabel && f.ctaUrl)
+    ? `<tr><td style="padding:0 32px 32px" align="center"><a href="${escapeAttr(f.ctaUrl)}" style="display:inline-block;background:#c41e3a;color:#fff;font-weight:600;font-size:15px;padding:12px 24px;text-decoration:none;border-radius:8px">${escapeHtml(f.ctaLabel)}</a></td></tr>`
+    : "";
+
+  const footerNoteBlock = f.footerNote
+    ? `<tr><td style="padding:0 32px 32px;color:#64748b;font-size:14px;line-height:1.5"><p style="margin:0">${escapeHtml(f.footerNote)}</p></td></tr>`
+    : "";
+
+  return SHELL_OPEN + HEADER(f.headerTitle || "Top Martial Arts Suwanee") + bodyBlock + calloutBlock + ctaBlock + footerNoteBlock + FOOTER + SHELL_CLOSE;
+}
+
+function escapeHtml(s: string): string {
+  // Allow {{merge}} placeholders to pass through, escape everything else
+  return s.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" } as Record<string, string>)[c]);
+}
+function escapeAttr(s: string): string {
+  return s.replace(/["<>]/g, c => ({ '"': "&quot;", "<": "&lt;", ">": "&gt;" } as Record<string, string>)[c]);
+}
+
+// ─── HTML → SimpleFields parser (best-effort, for opening existing templates) ─
+
+function parseHtmlToSimple(html: string): SimpleFields | null {
+  if (!html || !html.includes("background:#c41e3a")) return null;
+  const f: SimpleFields = { ...EMPTY_SIMPLE };
+
+  // headerTitle: <div style="...font-size:24px..."> TEXT </div> inside the red header
+  const headerMatch = html.match(/<div style="color:#fff;font-size:24px;font-weight:700;margin-top:6px">([\s\S]*?)<\/div>/);
+  if (headerMatch) f.headerTitle = decodeHtml(headerMatch[1].trim());
+
+  // greeting + paragraphs: extract all <p style="margin:0 0 16px">...</p> blocks inside the body section
+  const bodyMatch = html.match(/<td style="padding:32px 32px 8px;color:#1f2937;font-size:16px;line-height:1\.6">([\s\S]*?)<\/td>/);
+  if (bodyMatch) {
+    const inner = bodyMatch[1];
+    const paragraphs = Array.from(inner.matchAll(/<p style="margin:0 0 16px">([\s\S]*?)<\/p>/g)).map(m => decodeHtml(m[1].trim()));
+    if (paragraphs.length > 0) {
+      f.greeting = paragraphs[0];
+      f.paragraphs = paragraphs.slice(1).join("\n\n");
+    }
+  }
+
+  // callout
+  const calloutLabelMatch = html.match(/<div style="font-size:11px;color:#92400e;font-weight:700;letter-spacing:1px;text-transform:uppercase">([\s\S]*?)<\/div>/);
+  if (calloutLabelMatch) f.calloutLabel = decodeHtml(calloutLabelMatch[1].trim());
+  const calloutBodyMatch = html.match(/<div style="font-size:18px;color:#1f2937;font-weight:600;margin-top:6px;line-height:1\.4">([\s\S]*?)<\/div>/);
+  if (calloutBodyMatch) f.calloutBody = decodeHtml(calloutBodyMatch[1].replace(/<br\s*\/?>/g, ", ").trim());
+
+  // CTA — look for the red button anchor
+  const ctaMatch = html.match(/<a href="([^"]+)"[^>]*background:#c41e3a[^>]*>([\s\S]*?)<\/a>/);
+  if (ctaMatch) {
+    f.ctaUrl = decodeAttr(ctaMatch[1]);
+    f.ctaLabel = decodeHtml(ctaMatch[2].trim());
+  }
+
+  // footer note — the gray paragraph after the CTA but before the navy footer
+  const footerNoteMatch = html.match(/<p style="margin:0;color:#64748b">([\s\S]*?)<\/p>/);
+  if (footerNoteMatch) f.footerNote = decodeHtml(footerNoteMatch[1].replace(/<[^>]+>/g, "").trim());
+
+  return f;
+}
+
+function decodeHtml(s: string): string {
+  return s.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&middot;/g, "·").replace(/&nbsp;/g, " ");
+}
+function decodeAttr(s: string): string {
+  return s.replace(/&amp;/g, "&").replace(/&quot;/g, '"');
+}
+
+// ─── Merge field sample data ────────────────────────────────────────────────
 
 const SAMPLE_MERGE = {
   firstName: "Anna",
@@ -101,8 +214,6 @@ function renderPreview(template: string | null): string {
   });
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
 function delayLabel(hours: number): string {
   if (hours === 0) return "Immediate";
   if (hours < 24) return `${hours}h after enrollment`;
@@ -114,15 +225,17 @@ function delayLabel(hours: number): string {
 
 export default function SequencesEditor() {
   const utils = trpc.useUtils();
-  const { data: allTemplates, isLoading, error, refetch } = trpc.templates.list.useQuery();
+  const { data: allTemplates, isLoading, error } = trpc.templates.list.useQuery();
 
   const [selectedSequence, setSelectedSequence] = useState<string | null>(null);
   const [selectedTouchId, setSelectedTouchId] = useState<number | null>(null);
 
-  // Local editor state — synced with selected template on selection
+  // Editor mode + state
+  const [mode, setMode] = useState<"simple" | "advanced">("simple");
   const [editor, setEditor] = useState<{
     subject: string;
-    bodyHtml: string;
+    bodyHtml: string;          // canonical HTML (the saved version)
+    simple: SimpleFields;       // structured fields (for Simple Mode)
     delayHours: number;
     isActive: boolean;
     displayName: string;
@@ -139,11 +252,11 @@ export default function SequencesEditor() {
       if (!map.has(t.sequenceKey)) map.set(t.sequenceKey, []);
       map.get(t.sequenceKey)!.push(t);
     }
-    Array.from(map.values()).forEach((arr: Template[]) => arr.sort((a: Template, b: Template) => a.orderIndex - b.orderIndex));
+    for (const arr of Array.from(map.values())) arr.sort((a, b) => a.orderIndex - b.orderIndex);
     return map;
   }, [allTemplates]);
 
-  // Auto-select first sequence on load
+  // Auto-select first sequence
   useEffect(() => {
     if (!selectedSequence && sequencesMap.size > 0) {
       const firstKey = SEQUENCE_PRESETS.find(p => sequencesMap.has(p.key))?.key ?? Array.from(sequencesMap.keys())[0];
@@ -161,21 +274,24 @@ export default function SequencesEditor() {
     }
   }, [selectedSequence, sequencesMap]);
 
-  // Load editor state when selected touch changes
+  // Selected touch
   const selectedTouch = useMemo(() => {
     if (!selectedTouchId) return null;
     for (const arr of Array.from(sequencesMap.values())) {
-      const found = arr.find((t: Template) => t.id === selectedTouchId);
+      const found = arr.find(t => t.id === selectedTouchId);
       if (found) return found;
     }
     return null;
   }, [selectedTouchId, sequencesMap]);
 
+  // Load editor state when touch changes
   useEffect(() => {
     if (selectedTouch) {
+      const parsed = parseHtmlToSimple(selectedTouch.bodyHtml ?? "") ?? { ...EMPTY_SIMPLE };
       setEditor({
         subject: selectedTouch.subject ?? "",
         bodyHtml: selectedTouch.bodyHtml ?? "",
+        simple: parsed,
         delayHours: selectedTouch.delayHours,
         isActive: selectedTouch.isActive === 1,
         displayName: selectedTouch.displayName ?? "",
@@ -185,11 +301,10 @@ export default function SequencesEditor() {
     }
   }, [selectedTouch]);
 
-  // Save mutation
   const updateTemplate = trpc.templates.update.useMutation({
     onSuccess: async () => {
       await utils.templates.list.invalidate();
-      toast.success("Template saved. Next dispatcher tick will use the new content.");
+      toast.success("Saved. Next dispatcher tick will use the new content.");
       setDirty(false);
     },
     onError: (err) => toast.error(`Save failed: ${err.message}`),
@@ -197,25 +312,29 @@ export default function SequencesEditor() {
 
   const sendTest = trpc.templates.sendTest.useMutation({
     onSuccess: (result) => {
-      if (result.ok) toast.success(`Test email sent. Check your inbox. (message id: ${result.messageId})`);
+      if (result.ok) toast.success(`Test email sent. Check your inbox.`);
       else toast.error(`Test send failed: ${result.reason}`);
     },
     onError: (err) => toast.error(`Test send failed: ${err.message}`),
   });
 
+  // Compute the HTML that would be saved (regenerated in Simple Mode, raw in Advanced Mode)
+  const computedHtml = useMemo(() => {
+    if (!editor) return "";
+    return mode === "simple" ? buildBrandedHtml(editor.simple) : editor.bodyHtml;
+  }, [editor, mode]);
+
   const handleSave = () => {
     if (!selectedTouch || !editor) return;
-    if (!editor.subject.trim()) {
-      toast.error("Subject cannot be empty");
-      return;
-    }
+    if (!editor.subject.trim()) { toast.error("Subject cannot be empty"); return; }
+    const finalHtml = mode === "simple" ? buildBrandedHtml(editor.simple) : editor.bodyHtml;
     updateTemplate.mutate({
       id: selectedTouch.id,
       editedBy: "admin_ui",
-      changeNote: "Edited via /admin/sequences",
+      changeNote: `Edited via /admin/sequences (${mode} mode)`,
       patch: {
         subject: editor.subject,
-        bodyHtml: editor.bodyHtml,
+        bodyHtml: finalHtml,
         delayHours: editor.delayHours,
         isActive: editor.isActive ? 1 : 0,
         displayName: editor.displayName || undefined,
@@ -226,10 +345,7 @@ export default function SequencesEditor() {
 
   const handleSendTest = () => {
     if (!selectedTouch) return;
-    if (dirty) {
-      toast.warning("Save changes first, then send test (test sends the saved version)");
-      return;
-    }
+    if (dirty) { toast.warning("Save first. Test sends the saved version."); return; }
     sendTest.mutate({ templateId: selectedTouch.id });
   };
 
@@ -242,12 +358,14 @@ export default function SequencesEditor() {
     setSelectedTouchId(id);
   };
 
-  if (isLoading) {
-    return <div className="flex items-center justify-center py-24"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /><span className="ml-2 text-gray-500">Loading templates...</span></div>;
-  }
-  if (error) {
-    return <div className="text-center py-16 text-red-500">Failed to load templates: {error.message}</div>;
-  }
+  const updateSimple = (patch: Partial<SimpleFields>) => {
+    if (!editor) return;
+    setEditor({ ...editor, simple: { ...editor.simple, ...patch } });
+    setDirty(true);
+  };
+
+  if (isLoading) return <div className="flex items-center justify-center py-24"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /><span className="ml-2 text-gray-500">Loading templates...</span></div>;
+  if (error) return <div className="text-center py-16 text-red-500">Failed to load templates: {error.message}</div>;
 
   const currentSequencePreset = SEQUENCE_PRESETS.find(p => p.key === selectedSequence);
   const touchesInSequence = selectedSequence ? sequencesMap.get(selectedSequence) ?? [] : [];
@@ -265,14 +383,13 @@ export default function SequencesEditor() {
               <h2 className="text-lg font-bold text-gray-900">Email Sequences</h2>
               <p className="text-sm text-gray-600 mt-1">
                 Edit any email TMA sends out automatically. Changes go live within 5 minutes (next dispatcher run).
-                Use "Send preview" to test in your inbox before saving anything important.
+                Use "Send preview" to verify in your inbox before relying on the change.
               </p>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Three-column workspace */}
       <div className="grid grid-cols-[240px_280px_1fr] gap-4 min-h-[700px]">
         {/* Column 1: Sequences */}
         <Card className="overflow-hidden">
@@ -295,9 +412,7 @@ export default function SequencesEditor() {
                       <button
                         key={seq.key}
                         onClick={() => handleSelectSequence(seq.key)}
-                        className={`w-full text-left px-2.5 py-2 rounded-md flex items-center gap-2.5 transition-colors ${
-                          isActive ? "bg-[#1a2d5a] text-white" : "hover:bg-gray-100 text-gray-700"
-                        }`}
+                        className={`w-full text-left px-2.5 py-2 rounded-md flex items-center gap-2.5 transition-colors ${isActive ? "bg-[#1a2d5a] text-white" : "hover:bg-gray-100 text-gray-700"}`}
                       >
                         <div className={`w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0 ${isActive ? "bg-white/15" : seq.accent}`}>
                           <Icon className="w-3.5 h-3.5" />
@@ -315,12 +430,10 @@ export default function SequencesEditor() {
           </div>
         </Card>
 
-        {/* Column 2: Touches in selected sequence */}
+        {/* Column 2: Touches */}
         <Card className="overflow-hidden">
           <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-              {currentSequencePreset?.label ?? "Touches"}
-            </p>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{currentSequencePreset?.label ?? "Touches"}</p>
             {currentSequencePreset?.description && (
               <p className="text-[11px] text-gray-400 mt-0.5 leading-snug">{currentSequencePreset.description}</p>
             )}
@@ -336,23 +449,15 @@ export default function SequencesEditor() {
                   <button
                     key={touch.id}
                     onClick={() => handleSelectTouch(touch.id)}
-                    className={`w-full text-left px-3 py-2.5 rounded-md transition-colors ${
-                      isActive ? "bg-[#1a2d5a] text-white" : "hover:bg-gray-100 text-gray-700"
-                    }`}
+                    className={`w-full text-left px-3 py-2.5 rounded-md transition-colors ${isActive ? "bg-[#1a2d5a] text-white" : "hover:bg-gray-100 text-gray-700"}`}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex-1 min-w-0">
-                        <div className={`text-sm font-medium ${isActive ? "text-white" : "text-gray-900"}`}>
-                          {touch.displayName || touch.touchKey}
-                        </div>
-                        <div className={`text-[11px] mt-0.5 ${isActive ? "text-white/70" : "text-gray-500"}`}>
-                          {delayLabel(touch.delayHours)}
-                        </div>
+                        <div className={`text-sm font-medium ${isActive ? "text-white" : "text-gray-900"}`}>{touch.displayName || touch.touchKey}</div>
+                        <div className={`text-[11px] mt-0.5 ${isActive ? "text-white/70" : "text-gray-500"}`}>{delayLabel(touch.delayHours)}</div>
                       </div>
                       {isInactive && (
-                        <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${isActive ? "border-white/30 text-white/70" : "border-gray-300 text-gray-500"}`}>
-                          Off
-                        </Badge>
+                        <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${isActive ? "border-white/30 text-white/70" : "border-gray-300 text-gray-500"}`}>Off</Badge>
                       )}
                     </div>
                   </button>
@@ -365,35 +470,43 @@ export default function SequencesEditor() {
         {/* Column 3: Editor + Preview */}
         <div className="space-y-4">
           {!editor || !selectedTouch ? (
-            <Card className="flex items-center justify-center h-full min-h-[600px]">
-              <p className="text-gray-400">Select a touch to edit.</p>
-            </Card>
+            <Card className="flex items-center justify-center h-full min-h-[600px]"><p className="text-gray-400">Select a touch to edit.</p></Card>
           ) : (
             <>
               {/* Editor card */}
               <Card>
-                <div className="bg-gray-50 px-5 py-3 border-b border-gray-200 flex items-center justify-between gap-3">
+                <div className="bg-gray-50 px-5 py-3 border-b border-gray-200 flex items-center justify-between gap-3 flex-wrap">
                   <div>
                     <p className="text-xs text-gray-500">Editing</p>
                     <h3 className="font-semibold text-gray-900 text-sm">
                       {currentSequencePreset?.label} <span className="text-gray-400">›</span> {selectedTouch.displayName || selectedTouch.touchKey}
                     </h3>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {/* Mode toggle */}
+                    <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-md p-0.5">
+                      <button
+                        onClick={() => setMode("simple")}
+                        className={`px-2.5 py-1 text-xs font-medium rounded flex items-center gap-1.5 ${mode === "simple" ? "bg-[#1a2d5a] text-white" : "text-gray-600 hover:bg-gray-100"}`}
+                      >
+                        <Sliders className="w-3 h-3" /> Simple
+                      </button>
+                      <button
+                        onClick={() => setMode("advanced")}
+                        className={`px-2.5 py-1 text-xs font-medium rounded flex items-center gap-1.5 ${mode === "advanced" ? "bg-[#1a2d5a] text-white" : "text-gray-600 hover:bg-gray-100"}`}
+                      >
+                        <Code className="w-3 h-3" /> Advanced
+                      </button>
+                    </div>
                     <div className="flex items-center gap-2 px-3 py-1.5 bg-white rounded-md border border-gray-200">
-                      <Switch
-                        checked={editor.isActive}
-                        onCheckedChange={v => { setEditor({ ...editor, isActive: v }); setDirty(true); }}
-                      />
+                      <Switch checked={editor.isActive} onCheckedChange={v => { setEditor({ ...editor, isActive: v }); setDirty(true); }} />
                       <span className="text-sm text-gray-700">{editor.isActive ? "Active" : "Off"}</span>
                     </div>
                     <Button variant="outline" size="sm" onClick={handleSendTest} disabled={sendTest.isPending} className="gap-1.5">
-                      {sendTest.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                      Send preview
+                      {sendTest.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />} Send preview
                     </Button>
                     <Button size="sm" onClick={handleSave} disabled={!dirty || updateTemplate.isPending} className="bg-[#1a2d5a] hover:bg-[#1a2d5a]/90 gap-1.5">
-                      {updateTemplate.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-                      Save
+                      {updateTemplate.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} Save
                     </Button>
                   </div>
                 </div>
@@ -406,69 +519,121 @@ export default function SequencesEditor() {
                     </div>
                   )}
 
+                  {/* Subject + delay always visible */}
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <Label htmlFor="subject" className="text-xs font-semibold text-gray-600 uppercase tracking-wider">Subject Line</Label>
-                      <Input
-                        id="subject"
-                        value={editor.subject}
-                        onChange={e => { setEditor({ ...editor, subject: e.target.value }); setDirty(true); }}
-                        placeholder="Your subject line..."
-                      />
+                      <Input id="subject" value={editor.subject} onChange={e => { setEditor({ ...editor, subject: e.target.value }); setDirty(true); }} placeholder="Your subject line..." />
                       <p className="text-[11px] text-gray-500">Use <code className="bg-gray-100 px-1 rounded">{`{{firstName}}`}</code>, <code className="bg-gray-100 px-1 rounded">{`{{trialDateLabel}}`}</code>, etc.</p>
                     </div>
-
                     <div className="space-y-1.5">
-                      <Label htmlFor="delay" className="text-xs font-semibold text-gray-600 uppercase tracking-wider">Send Delay (hours after enrollment)</Label>
-                      <Input
-                        id="delay"
-                        type="number"
-                        min="0"
-                        value={editor.delayHours}
-                        onChange={e => { setEditor({ ...editor, delayHours: parseInt(e.target.value) || 0 }); setDirty(true); }}
-                      />
-                      <p className="text-[11px] text-gray-500">{delayLabel(editor.delayHours)}. 0 = sends on next dispatcher run (~5 min).</p>
+                      <Label htmlFor="delay" className="text-xs font-semibold text-gray-600 uppercase tracking-wider">Send Delay (hours)</Label>
+                      <Input id="delay" type="number" min="0" value={editor.delayHours} onChange={e => { setEditor({ ...editor, delayHours: parseInt(e.target.value) || 0 }); setDirty(true); }} />
+                      <p className="text-[11px] text-gray-500">{delayLabel(editor.delayHours)}</p>
                     </div>
                   </div>
 
-                  <div className="space-y-1.5">
-                    <Label htmlFor="displayName" className="text-xs font-semibold text-gray-600 uppercase tracking-wider">Display Name (internal)</Label>
-                    <Input
-                      id="displayName"
-                      value={editor.displayName}
-                      onChange={e => { setEditor({ ...editor, displayName: e.target.value }); setDirty(true); }}
-                      placeholder="e.g. Day 0 — Camp Overview"
-                    />
-                  </div>
+                  {/* SIMPLE MODE — structured form */}
+                  {mode === "simple" && (
+                    <>
+                      <div className="border-t border-gray-100 pt-4">
+                        <div className="flex items-center gap-2 mb-3">
+                          <Sliders className="w-4 h-4 text-[#1a2d5a]" />
+                          <p className="text-sm font-semibold text-gray-800">Email Content</p>
+                          <Badge variant="outline" className="text-[10px]">No HTML needed</Badge>
+                        </div>
 
-                  <div className="space-y-1.5">
-                    <Label htmlFor="bodyHtml" className="text-xs font-semibold text-gray-600 uppercase tracking-wider">Email Body (HTML)</Label>
-                    <Textarea
-                      id="bodyHtml"
-                      value={editor.bodyHtml}
-                      onChange={e => { setEditor({ ...editor, bodyHtml: e.target.value }); setDirty(true); }}
-                      rows={16}
-                      className="font-mono text-xs"
-                      placeholder="<p>Hi {{firstName}}, ...</p>"
-                    />
-                    <p className="text-[11px] text-gray-500">
-                      Raw HTML. For non-technical edits, use the find-and-replace approach: copy a working template's HTML and just change the words inside the <code>&lt;p&gt;</code> tags.
-                    </p>
-                  </div>
+                        <div className="space-y-4">
+                          <div className="space-y-1.5">
+                            <Label className="text-xs font-semibold text-gray-600 uppercase tracking-wider">Header Title</Label>
+                            <Input value={editor.simple.headerTitle} onChange={e => updateSimple({ headerTitle: e.target.value })} placeholder="e.g. TMA Summer Camp" />
+                            <p className="text-[11px] text-gray-500">Shows in the red header bar at the top.</p>
+                          </div>
 
-                  <div className="space-y-1.5">
-                    <Label htmlFor="description" className="text-xs font-semibold text-gray-600 uppercase tracking-wider">Description (internal note)</Label>
-                    <Input
-                      id="description"
-                      value={editor.description}
-                      onChange={e => { setEditor({ ...editor, description: e.target.value }); setDirty(true); }}
-                      placeholder="What this email is for (internal use only, never shown to customers)."
-                    />
+                          <div className="space-y-1.5">
+                            <Label className="text-xs font-semibold text-gray-600 uppercase tracking-wider">Greeting</Label>
+                            <Input value={editor.simple.greeting} onChange={e => updateSimple({ greeting: e.target.value })} placeholder="Hi {{firstName}}," />
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <Label className="text-xs font-semibold text-gray-600 uppercase tracking-wider">Main Paragraphs</Label>
+                            <Textarea value={editor.simple.paragraphs} onChange={e => updateSimple({ paragraphs: e.target.value })} rows={8} placeholder={"Thanks for your interest in TMA Summer Camp!\n\nHere is what your kid will be doing this summer...\n\nThe fastest way to lock in your week is to register online."} />
+                            <p className="text-[11px] text-gray-500">Separate paragraphs with a blank line.</p>
+                          </div>
+
+                          <div className="border border-gray-100 rounded-lg p-4 bg-gray-50/50 space-y-3">
+                            <p className="text-xs font-semibold text-gray-700">Yellow Callout Box <span className="font-normal text-gray-500">(optional)</span></p>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div className="space-y-1">
+                                <Label className="text-[11px] text-gray-600">Callout Label (small uppercase)</Label>
+                                <Input value={editor.simple.calloutLabel} onChange={e => updateSimple({ calloutLabel: e.target.value })} placeholder="Camp opens" />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-[11px] text-gray-600">Callout Body (the headline)</Label>
+                                <Input value={editor.simple.calloutBody} onChange={e => updateSimple({ calloutBody: e.target.value })} placeholder="May 26, 2026" />
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="border border-gray-100 rounded-lg p-4 bg-gray-50/50 space-y-3">
+                            <p className="text-xs font-semibold text-gray-700">Red Action Button <span className="font-normal text-gray-500">(optional)</span></p>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div className="space-y-1">
+                                <Label className="text-[11px] text-gray-600">Button Label</Label>
+                                <Input value={editor.simple.ctaLabel} onChange={e => updateSimple({ ctaLabel: e.target.value })} placeholder="Register for camp" />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-[11px] text-gray-600">Button URL</Label>
+                                <Input value={editor.simple.ctaUrl} onChange={e => updateSimple({ ctaUrl: e.target.value })} placeholder="https://tmatkd.com/camp" />
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <Label className="text-xs font-semibold text-gray-600 uppercase tracking-wider">Footer Note <span className="font-normal normal-case text-gray-500">(optional, small gray text)</span></Label>
+                            <Input value={editor.simple.footerNote} onChange={e => updateSimple({ footerNote: e.target.value })} placeholder="Questions? Call (770) 277-3009." />
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {/* ADVANCED MODE — raw HTML */}
+                  {mode === "advanced" && (
+                    <div className="border-t border-gray-100 pt-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Code className="w-4 h-4 text-[#1a2d5a]" />
+                        <p className="text-sm font-semibold text-gray-800">Raw HTML</p>
+                        <Badge variant="outline" className="text-[10px]">Power user</Badge>
+                      </div>
+                      <Textarea
+                        value={editor.bodyHtml}
+                        onChange={e => { setEditor({ ...editor, bodyHtml: e.target.value }); setDirty(true); }}
+                        rows={20}
+                        className="font-mono text-xs"
+                        placeholder="<p>Hi {{firstName}}, ...</p>"
+                      />
+                      <p className="text-[11px] text-gray-500 mt-1.5">
+                        Direct HTML editing. Switch back to Simple mode anytime, but switching after editing here may lose structure (the Simple parser is best-effort).
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Display name + description (low-priority, footer-ish) */}
+                  <div className="border-t border-gray-100 pt-4 grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-gray-600 uppercase tracking-wider">Display Name (internal)</Label>
+                      <Input value={editor.displayName} onChange={e => { setEditor({ ...editor, displayName: e.target.value }); setDirty(true); }} placeholder="e.g. Day 0 - Camp Overview" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-gray-600 uppercase tracking-wider">Description (internal note)</Label>
+                      <Input value={editor.description} onChange={e => { setEditor({ ...editor, description: e.target.value }); setDirty(true); }} placeholder="What this email is for." />
+                    </div>
                   </div>
                 </CardContent>
               </Card>
 
-              {/* Preview card */}
+              {/* Preview */}
               <Card>
                 <div className="bg-gray-50 px-5 py-3 border-b border-gray-200 flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -477,18 +642,8 @@ export default function SequencesEditor() {
                     <Badge variant="outline" className="text-[10px]">Sample data</Badge>
                   </div>
                   <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-md p-0.5">
-                    <button
-                      onClick={() => setPreviewMode("rendered")}
-                      className={`px-2.5 py-1 text-xs font-medium rounded ${previewMode === "rendered" ? "bg-[#1a2d5a] text-white" : "text-gray-600 hover:bg-gray-100"}`}
-                    >
-                      Rendered
-                    </button>
-                    <button
-                      onClick={() => setPreviewMode("html")}
-                      className={`px-2.5 py-1 text-xs font-medium rounded ${previewMode === "html" ? "bg-[#1a2d5a] text-white" : "text-gray-600 hover:bg-gray-100"}`}
-                    >
-                      Raw HTML
-                    </button>
+                    <button onClick={() => setPreviewMode("rendered")} className={`px-2.5 py-1 text-xs font-medium rounded ${previewMode === "rendered" ? "bg-[#1a2d5a] text-white" : "text-gray-600 hover:bg-gray-100"}`}>Rendered</button>
+                    <button onClick={() => setPreviewMode("html")} className={`px-2.5 py-1 text-xs font-medium rounded ${previewMode === "html" ? "bg-[#1a2d5a] text-white" : "text-gray-600 hover:bg-gray-100"}`}>Raw HTML</button>
                   </div>
                 </div>
                 <CardContent className="p-0">
@@ -497,16 +652,10 @@ export default function SequencesEditor() {
                     <p className="text-sm font-medium text-gray-900 mt-0.5">{renderPreview(editor.subject)}</p>
                   </div>
                   {previewMode === "rendered" ? (
-                    <iframe
-                      srcDoc={renderPreview(editor.bodyHtml)}
-                      sandbox=""
-                      className="w-full border-0"
-                      style={{ height: 600, background: "#f8f9fa" }}
-                      title="Email preview"
-                    />
+                    <iframe srcDoc={renderPreview(computedHtml)} sandbox="" className="w-full border-0" style={{ height: 600, background: "#f8f9fa" }} title="Email preview" />
                   ) : (
                     <pre className="text-[11px] font-mono p-4 overflow-x-auto bg-gray-900 text-gray-100 whitespace-pre-wrap break-all" style={{ maxHeight: 600 }}>
-                      {renderPreview(editor.bodyHtml)}
+                      {renderPreview(computedHtml)}
                     </pre>
                   )}
                 </CardContent>
@@ -518,8 +667,8 @@ export default function SequencesEditor() {
                   <div className="flex items-start gap-3">
                     <CheckCircle2 className="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5" />
                     <div className="text-xs text-gray-600 space-y-1.5">
-                      <p><strong className="text-gray-800">Available merge fields:</strong> <code className="bg-gray-100 px-1 rounded">{`{{firstName}}`}</code> <code className="bg-gray-100 px-1 rounded">{`{{parentName}}`}</code> <code className="bg-gray-100 px-1 rounded">{`{{kidName}}`}</code> <code className="bg-gray-100 px-1 rounded">{`{{trialDate}}`}</code> <code className="bg-gray-100 px-1 rounded">{`{{trialDateLabel}}`}</code> <code className="bg-gray-100 px-1 rounded">{`{{trialTime}}`}</code> <code className="bg-gray-100 px-1 rounded">{`{{trialDay}}`}</code> <code className="bg-gray-100 px-1 rounded">{`{{programInterest}}`}</code></p>
-                      <p><strong className="text-gray-800">Reverting changes:</strong> close the page without saving. To restore an older version, ping Claude to run a rollback from history.</p>
+                      <p><strong className="text-gray-800">Merge fields you can use anywhere:</strong> <code className="bg-gray-100 px-1 rounded">{`{{firstName}}`}</code> <code className="bg-gray-100 px-1 rounded">{`{{parentName}}`}</code> <code className="bg-gray-100 px-1 rounded">{`{{kidName}}`}</code> <code className="bg-gray-100 px-1 rounded">{`{{trialDateLabel}}`}</code> <code className="bg-gray-100 px-1 rounded">{`{{trialTime}}`}</code> <code className="bg-gray-100 px-1 rounded">{`{{programInterest}}`}</code></p>
+                      <p><strong className="text-gray-800">Simple vs Advanced:</strong> Simple Mode rebuilds the email from the named fields each time you save. Advanced Mode preserves whatever raw HTML you write. Switch freely, but heavy custom HTML may not parse perfectly back into Simple Mode fields.</p>
                     </div>
                   </div>
                 </CardContent>
