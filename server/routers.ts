@@ -750,6 +750,8 @@ export const appRouter = router({
         sequenceKey: z.string().min(1).max(100),
         startAt: z.string().datetime().optional(),
         createdBy: z.string().max(100).default("lead_intake_v3"),
+        // When true, delayHours → delaySeconds (48h → 48s) for fast E2E tests.
+        testMode: z.boolean().default(false),
       }))
       .mutation(async ({ input }) => {
         return enqueueSequenceForLead({
@@ -757,6 +759,7 @@ export const appRouter = router({
           sequenceKey: input.sequenceKey,
           startAt: input.startAt ? new Date(input.startAt) : undefined,
           createdBy: input.createdBy,
+          testMode: input.testMode,
         });
       }),
   }),
