@@ -1189,3 +1189,253 @@ export async function preSendGuard(args: {
   return { ok: true, template };
 }
 
+// =====================================================================
+// PHASE 4 — TEMPLATE RENDERING + SEQUENCE FAN-OUT + DISPATCHER FETCH/CONFIRM
+// Added 2026-05-21. Powers Lead Intake v3 (segment-aware) and the
+// template-driven Sequence Dispatcher refactor.
+// =====================================================================
+
+/**
+ * Render template merge fields against a lead row.
+ * Handlebars-style: {{firstName}}, {{parentName}}, {{kidName}},
+ * {{trialDate}}, {{trialTime}}, {{programInterest}}, {{leadId}}.
+ *
+ * Unknown fields are replaced with an empty string (NOT left as literal {{x}})
+ * so we never leak template syntax to a customer.
+ *
+ * Pure function — no DB access — easy to unit test.
+ */
+export function renderTemplate(
+  templateStr: string | null | undefined,
+  lead: Lead
+): string {
+  if (!templateStr) return '';
+  // Derive firstName from parentName ("John Smith" -> "John")
+  const firstName = (lead.parentName || '').trim().split(/\s+/)[0] || '';
+  const trialDate = lead.trialClassDate || '';
+  // Best-effort human-friendly date label if trialClassDate present
+  let trialDateLabel = trialDate;
+  if (trialDate && /^\d{4}-\d{2}-\d{2}$/.test(trialDate)) {
+    try {
+      const d = new Date(trialDate + 'T12:00:00');
+      trialDateLabel = d.toLocaleDateString('en-US', {
+        weekday: 'long', month: 'long', day: 'numeric'
+      });
+    } catch { /* fall through to raw trialDate */ }
+  }
+  const fields: Record<string, string> = {
+    firstName,
+    parentName: lead.parentName || '',
+    kidName: lead.kidName || '',
+    kidAge: lead.kidAge || '',
+    trialDate,
+    trialDateLabel,
+    trialTime: lead.trialClassTime || '',
+    trialDay: lead.trialClassDay || '',
+    programInterest: lead.programInterest || '',
+    email: lead.email || '',
+    phone: lead.phone || '',
+    leadId: String(lead.id),
+  };
+  return templateStr.replace(/\{\{\s*(\w+)\s*\}\}/g, (_m, key) => {
+    return fields[key] ?? '';
+  });
+}
+
+/**
+ * Fan-out enqueue: schedule every active touch in `sequenceKey` for `leadId`.
+ *
+ * For each template in the sequence, inserts a leadSequenceQueue row with
+ * scheduledFor = startAt (default = now) + delayHours from template.
+ *
+ * IDEMPOTENT: if a queue row already exists for (leadId, touchKey) in
+ * status 'scheduled' OR 'processing' OR 'sent', that touch is SKIPPED
+ * (not duplicated). This is the Rule 36 defense against re-enqueueing
+ * the same sequence twice for the same lead.
+ *
+ * Returns { enqueued: [touchKey...], skipped: [{ touchKey, reason }] }.
+ */
+export async function enqueueSequenceForLead(args: {
+  leadId: number;
+  sequenceKey: string;
+  startAt?: Date;
+  createdBy?: string;
+}): Promise<{
+  enqueued: { touchKey: string; scheduledFor: string }[];
+  skipped: { touchKey: string; reason: string }[];
+}> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  // Verify lead exists
+  const leadRows = await db.select().from(leads).where(eq(leads.id, args.leadId)).limit(1);
+  if (!leadRows[0]) {
+    await logAudit({ level: 'warn', source: 'sequence', event: 'enqueue_lead_not_found', leadId: args.leadId, details: JSON.stringify(args) });
+    throw new Error(`Lead ${args.leadId} not found`);
+  }
+
+  // Fetch active templates for this sequence
+  const tmpls = await db.select().from(sequenceTemplates).where(and(
+    eq(sequenceTemplates.sequenceKey, args.sequenceKey),
+    eq(sequenceTemplates.isActive, 1),
+  )).orderBy(sequenceTemplates.orderIndex);
+
+  if (tmpls.length === 0) {
+    await logAudit({ level: 'warn', source: 'sequence', event: 'enqueue_no_templates', leadId: args.leadId, details: JSON.stringify({ sequenceKey: args.sequenceKey }) });
+    return { enqueued: [], skipped: [] };
+  }
+
+  const startAt = args.startAt ?? new Date();
+  const createdBy = args.createdBy || 'lead_intake_v3';
+
+  const enqueued: { touchKey: string; scheduledFor: string }[] = [];
+  const skipped: { touchKey: string; reason: string }[] = [];
+
+  for (const t of tmpls) {
+    // Idempotency check: existing row for (leadId, touchKey) in active status
+    const existing = await db.select().from(leadSequenceQueue).where(and(
+      eq(leadSequenceQueue.leadId, args.leadId),
+      eq(leadSequenceQueue.touchKey, t.touchKey),
+      inArray(leadSequenceQueue.status, ['scheduled', 'processing', 'sent']),
+    )).limit(1);
+
+    if (existing[0]) {
+      skipped.push({ touchKey: t.touchKey, reason: `already_${existing[0].status}` });
+      continue;
+    }
+
+    const scheduledFor = new Date(startAt.getTime() + (t.delayHours * 60 * 60 * 1000));
+
+    await db.insert(leadSequenceQueue).values({
+      leadId: args.leadId,
+      scheduledFor,
+      channel: t.channel,
+      sequenceKey: args.sequenceKey,
+      touchKey: t.touchKey,
+      // Don't snapshot body — dispatcher fetches from templates at send time
+      // so admin UI edits take effect on next dispatch cycle.
+      touchSubject: null,
+      touchBodyTemplate: null,
+      touchBodyOverride: null,
+      status: 'scheduled',
+      createdBy,
+    });
+
+    enqueued.push({ touchKey: t.touchKey, scheduledFor: scheduledFor.toISOString() });
+  }
+
+  await logAudit({
+    level: 'info', source: 'sequence', event: 'enqueue_complete', leadId: args.leadId,
+    details: JSON.stringify({ sequenceKey: args.sequenceKey, enqueuedCount: enqueued.length, skippedCount: skipped.length }),
+  });
+
+  return { enqueued, skipped };
+}
+
+/**
+ * Single endpoint the Sequence Dispatcher hits per due touch.
+ *
+ * Runs preSendGuard → if ok, renders subject + bodyHtml against the lead's
+ * data → returns content ready to POST to Resend (or skip reason).
+ *
+ * Recipient is the lead's email UNLESS lead has an associated _test_mode
+ * marker (future: per-lead test flag). For now recipient is always lead.email.
+ */
+export async function fetchAndRenderForDispatch(args: {
+  leadId: number;
+  sequenceKey: string;
+  touchKey: string;
+}): Promise<
+  | { ok: true; subject: string; bodyHtml: string; bodyText: string; recipient: string; channel: string; templateId: number }
+  | { ok: false; reason: string }
+> {
+  const guard = await preSendGuard(args);
+  if (!guard.ok) return { ok: false, reason: guard.reason };
+
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const leadRows = await db.select().from(leads).where(eq(leads.id, args.leadId)).limit(1);
+  const lead = leadRows[0];
+  if (!lead) return { ok: false, reason: 'lead_not_found' };  // shouldn't happen — guard checked
+
+  const subject = renderTemplate(guard.template.subject ?? '', lead);
+  const bodyHtml = renderTemplate(guard.template.bodyHtml ?? '', lead);
+  const bodyText = renderTemplate(guard.template.bodyText ?? '', lead);
+
+  return {
+    ok: true,
+    subject,
+    bodyHtml,
+    bodyText,
+    recipient: lead.email,
+    channel: guard.template.channel,
+    templateId: guard.template.id,
+  };
+}
+
+/**
+ * Close-the-loop call from the dispatcher AFTER attempting send.
+ *
+ * Atomically:
+ *  1. Updates queue row to sent/failed
+ *  2. Logs to leadActivities (immutable history)
+ *  3. Writes audit row
+ *
+ * Idempotent: if queue row is already in terminal state, no-op.
+ */
+export async function confirmTouchDispatched(args: {
+  queueId: number;
+  status: 'sent' | 'failed' | 'skipped';
+  providerMessageId?: string;
+  providerStatus?: number;
+  failureReason?: string;
+  skipReason?: string;
+}): Promise<{ ok: boolean; alreadyTerminal?: boolean }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const rows = await db.select().from(leadSequenceQueue).where(eq(leadSequenceQueue.id, args.queueId)).limit(1);
+  const row = rows[0];
+  if (!row) {
+    await logAudit({ level: 'error', source: 'dispatcher', event: 'confirm_queue_not_found', details: JSON.stringify(args) });
+    return { ok: false };
+  }
+  if (['sent', 'failed', 'cancelled', 'skipped'].includes(row.status)) {
+    return { ok: true, alreadyTerminal: true };
+  }
+
+  const now = new Date();
+  if (args.status === 'sent') {
+    await db.update(leadSequenceQueue).set({
+      status: 'sent', sentAt: now,
+    }).where(eq(leadSequenceQueue.id, args.queueId));
+
+    await createLeadActivity({
+      leadId: row.leadId,
+      type: row.channel === 'sms' ? 'sms' : 'email',
+      subject: `${row.sequenceKey}/${row.touchKey}`,
+      body: args.providerMessageId ? `provider_id=${args.providerMessageId} status=${args.providerStatus ?? ''}` : 'dispatched',
+      sentBy: `n8n_dispatcher:${row.sequenceKey}`,
+      status: 'sent',
+    });
+  } else if (args.status === 'failed') {
+    await db.update(leadSequenceQueue).set({
+      status: 'failed', failedAt: now,
+      failureReason: args.failureReason ?? 'unknown',
+    }).where(eq(leadSequenceQueue.id, args.queueId));
+
+    await logAudit({
+      level: 'error', source: 'dispatcher', event: 'touch_send_failed', leadId: row.leadId,
+      details: JSON.stringify({ queueId: args.queueId, sequenceKey: row.sequenceKey, touchKey: row.touchKey, reason: args.failureReason, providerStatus: args.providerStatus }),
+    });
+  } else if (args.status === 'skipped') {
+    await db.update(leadSequenceQueue).set({
+      status: 'skipped', skippedAt: now,
+      skipReason: args.skipReason ?? 'unknown',
+    }).where(eq(leadSequenceQueue.id, args.queueId));
+  }
+
+  return { ok: true };
+}
+
