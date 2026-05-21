@@ -139,7 +139,7 @@ export default function SequencesEditor() {
       if (!map.has(t.sequenceKey)) map.set(t.sequenceKey, []);
       map.get(t.sequenceKey)!.push(t);
     }
-    for (const arr of map.values()) arr.sort((a, b) => a.orderIndex - b.orderIndex);
+    Array.from(map.values()).forEach((arr: Template[]) => arr.sort((a: Template, b: Template) => a.orderIndex - b.orderIndex));
     return map;
   }, [allTemplates]);
 
@@ -164,8 +164,8 @@ export default function SequencesEditor() {
   // Load editor state when selected touch changes
   const selectedTouch = useMemo(() => {
     if (!selectedTouchId) return null;
-    for (const arr of sequencesMap.values()) {
-      const found = arr.find(t => t.id === selectedTouchId);
+    for (const arr of Array.from(sequencesMap.values())) {
+      const found = arr.find((t: Template) => t.id === selectedTouchId);
       if (found) return found;
     }
     return null;
