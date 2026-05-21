@@ -1260,6 +1260,13 @@ export async function enqueueSequenceForLead(args: {
   sequenceKey: string;
   startAt?: Date;
   createdBy?: string;
+  /**
+   * When true, delayHours is interpreted as delaySeconds (so a 48h template
+   * touch becomes 48s, a 72h touch becomes 72s, etc). Lets the full E2E
+   * sequence finish in ~2-3 minutes instead of 6 days. Used by the synthetic
+   * test runner and by `_test_mode` payloads on the intake webhook.
+   */
+  testMode?: boolean;
 }): Promise<{
   enqueued: { touchKey: string; scheduledFor: string }[];
   skipped: { touchKey: string; reason: string }[];
@@ -1304,7 +1311,12 @@ export async function enqueueSequenceForLead(args: {
       continue;
     }
 
-    const scheduledFor = new Date(startAt.getTime() + (t.delayHours * 60 * 60 * 1000));
+    // In test mode, delayHours → delaySeconds (collapse 48h → 48s, etc).
+    // In production, delayHours stays as hours.
+    const delayMs = args.testMode
+      ? (t.delayHours * 1000)             // seconds * ms
+      : (t.delayHours * 60 * 60 * 1000);  // hours * 60 * 60 * ms
+    const scheduledFor = new Date(startAt.getTime() + delayMs);
 
     await db.insert(leadSequenceQueue).values({
       leadId: args.leadId,
