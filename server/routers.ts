@@ -24,6 +24,7 @@ import {
   logAudit, listAuditLog, preSendGuard,
   // Phase 4 (2026-05-21): template rendering + sequence fan-out + dispatcher loop
   renderTemplate, enqueueSequenceForLead, fetchAndRenderForDispatch, confirmTouchDispatched,
+  sendTemplateTestEmail,
 } from "./db";
 import { sendToGoogleSheets, sendToSlack, sendEmailNotification, sendCampRegistrationConfirmation } from "./integrations";
 import { fireLeadEvent, firePurchaseEvent } from "./meta-capi";
@@ -750,6 +751,8 @@ export const appRouter = router({
         sequenceKey: z.string().min(1).max(100),
         startAt: z.string().datetime().optional(),
         createdBy: z.string().max(100).default("lead_intake_v3"),
+        // When true, delayHours → delaySeconds (48h → 48s) for fast E2E tests.
+        testMode: z.boolean().default(false),
       }))
       .mutation(async ({ input }) => {
         return enqueueSequenceForLead({
@@ -757,6 +760,7 @@ export const appRouter = router({
           sequenceKey: input.sequenceKey,
           startAt: input.startAt ? new Date(input.startAt) : undefined,
           createdBy: input.createdBy,
+          testMode: input.testMode,
         });
       }),
   }),
@@ -949,6 +953,19 @@ export const appRouter = router({
     history: publicProcedure
       .input(z.object({ templateId: z.number().int().positive() }))
       .query(async ({ input }) => getTemplateHistory(input.templateId)),
+
+    /**
+     * Phase 5: send a preview of the rendered template to a real inbox.
+     * Used by the admin "Send test" button. Renders the template against a
+     * sample lead (or a real leadId if provided), then POSTs to Resend.
+     */
+    sendTest: publicProcedure
+      .input(z.object({
+        templateId: z.number().int().positive(),
+        recipient: z.string().email().optional(),
+        sampleLeadId: z.number().int().positive().optional(),
+      }))
+      .mutation(async ({ input }) => sendTemplateTestEmail(input)),
   }),
 
   rules: router({
