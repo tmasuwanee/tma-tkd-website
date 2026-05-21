@@ -1260,6 +1260,13 @@ export async function enqueueSequenceForLead(args: {
   sequenceKey: string;
   startAt?: Date;
   createdBy?: string;
+  /**
+   * When true, delayHours is interpreted as delaySeconds (so a 48h template
+   * touch becomes 48s, a 72h touch becomes 72s, etc). Lets the full E2E
+   * sequence finish in ~2-3 minutes instead of 6 days. Used by the synthetic
+   * test runner and by `_test_mode` payloads on the intake webhook.
+   */
+  testMode?: boolean;
 }): Promise<{
   enqueued: { touchKey: string; scheduledFor: string }[];
   skipped: { touchKey: string; reason: string }[];
@@ -1304,7 +1311,12 @@ export async function enqueueSequenceForLead(args: {
       continue;
     }
 
-    const scheduledFor = new Date(startAt.getTime() + (t.delayHours * 60 * 60 * 1000));
+    // In test mode, delayHours → delaySeconds (collapse 48h → 48s, etc).
+    // In production, delayHours stays as hours.
+    const delayMs = args.testMode
+      ? (t.delayHours * 1000)             // seconds * ms
+      : (t.delayHours * 60 * 60 * 1000);  // hours * 60 * 60 * ms
+    const scheduledFor = new Date(startAt.getTime() + delayMs);
 
     await db.insert(leadSequenceQueue).values({
       leadId: args.leadId,
@@ -1372,6 +1384,103 @@ export async function fetchAndRenderForDispatch(args: {
     channel: guard.template.channel,
     templateId: guard.template.id,
   };
+}
+
+/**
+ * Send a one-off test email for a given template against a sample lead.
+ * Used by /admin/sequences "Send test" button so staff can preview the
+ * actual rendered email in their inbox before saving changes.
+ *
+ * Renders the template against either:
+ *  - A real lead by leadId (uses their actual data)
+ *  - A synthetic sample lead (default — uses placeholder data)
+ *
+ * Recipient defaults to ADMIN_EMAIL env or `tmasuwanee@gmail.com`.
+ * Resend API key is read from RESEND_API_KEY env.
+ */
+export async function sendTemplateTestEmail(args: {
+  templateId: number;
+  recipient?: string;
+  sampleLeadId?: number;
+}): Promise<{ ok: boolean; messageId?: string; reason?: string }> {
+  const db = await getDb();
+  if (!db) return { ok: false, reason: 'db_unavailable' };
+
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    return { ok: false, reason: 'resend_api_key_missing' };
+  }
+
+  const template = await getTemplateById(args.templateId);
+  if (!template) return { ok: false, reason: 'template_not_found' };
+
+  // Build the lead for rendering: either real lead or synthetic sample
+  let sampleLead: Lead;
+  if (args.sampleLeadId) {
+    const rows = await db.select().from(leads).where(eq(leads.id, args.sampleLeadId)).limit(1);
+    if (!rows[0]) return { ok: false, reason: 'sample_lead_not_found' };
+    sampleLead = rows[0];
+  } else {
+    sampleLead = {
+      id: 0,
+      parentName: 'Anna Sample',
+      kidName: 'Sample Kid',
+      kidAge: '8',
+      programInterest: 'Taekwondo',
+      motivation: null,
+      email: 'sample@example.com',
+      phone: '+17705551234',
+      additionalNotes: null,
+      pipelineStage: 'new_lead',
+      trialPaidAmount: 0,
+      internalNotes: null,
+      trialClassDate: '2026-05-25',
+      trialClassTime: '5:00 PM',
+      trialClassDay: 'Sunday',
+      utmSource: null,
+      utmMedium: null,
+      utmCampaign: null,
+      utmContent: null,
+      tags: null,
+      automationPaused: 0,
+      automationPausedAt: null,
+      automationPausedBy: null,
+      automationPauseReason: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    } as Lead;
+  }
+
+  const subject = renderTemplate(template.subject ?? '(no subject)', sampleLead);
+  const bodyHtml = renderTemplate(template.bodyHtml ?? '<p>(no body)</p>', sampleLead);
+  const recipient = args.recipient || process.env.ADMIN_EMAIL || 'tmasuwanee@gmail.com';
+
+  try {
+    const resp = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: 'TMA Suwanee <hello@tmatkd.com>',
+        to: [recipient],
+        subject: `[PREVIEW] ${subject}`,
+        html: bodyHtml,
+      }),
+    });
+    const data = await resp.json() as { id?: string; message?: string; name?: string };
+    if (!resp.ok) {
+      await logAudit({ level: 'error', source: 'template_test_send', event: 'resend_error', details: JSON.stringify(data) });
+      return { ok: false, reason: data.message || data.name || `http_${resp.status}` };
+    }
+    await logAudit({ level: 'info', source: 'template_test_send', event: 'sent', details: JSON.stringify({ templateId: args.templateId, recipient, messageId: data.id }) });
+    return { ok: true, messageId: data.id };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    await logAudit({ level: 'error', source: 'template_test_send', event: 'fetch_exception', details: msg });
+    return { ok: false, reason: msg };
+  }
 }
 
 /**
