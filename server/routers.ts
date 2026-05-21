@@ -22,8 +22,6 @@ import {
   listTriggerRules, createTriggerRule, updateTriggerRule, deleteTriggerRule, routeLeadToSequence,
   recordLifecycleTransition, getLifecycleHistory, isLegalTransition,
   logAudit, listAuditLog, preSendGuard,
-  // Phase 4 (2026-05-21): template rendering + sequence fan-out + dispatcher loop
-  renderTemplate, enqueueSequenceForLead, fetchAndRenderForDispatch, confirmTouchDispatched,
 } from "./db";
 import { sendToGoogleSheets, sendToSlack, sendEmailNotification, sendCampRegistrationConfirmation } from "./integrations";
 import { fireLeadEvent, firePurchaseEvent } from "./meta-capi";
@@ -738,27 +736,6 @@ export const appRouter = router({
         const sent = await hasTouchBeenSent(input.leadId, input.touchKey);
         return { sent };
       }),
-
-    /**
-     * Phase 4: fan-out enqueue. Lead Intake v3 calls this with a sequenceKey
-     * (resolved by rules.route). Server-side schedules every active touch
-     * in that sequence with proper delays. Idempotent.
-     */
-    enqueueSequence: publicProcedure
-      .input(z.object({
-        leadId: z.number().int().positive(),
-        sequenceKey: z.string().min(1).max(100),
-        startAt: z.string().datetime().optional(),
-        createdBy: z.string().max(100).default("lead_intake_v3"),
-      }))
-      .mutation(async ({ input }) => {
-        return enqueueSequenceForLead({
-          leadId: input.leadId,
-          sequenceKey: input.sequenceKey,
-          startAt: input.startAt ? new Date(input.startAt) : undefined,
-          createdBy: input.createdBy,
-        });
-      }),
   }),
 
   // ─── Students (ZenPlanner CSV import) ────────────────────────────────────
@@ -1086,34 +1063,6 @@ export const appRouter = router({
         touchKey: z.string().min(1),
       }))
       .mutation(async ({ input }) => preSendGuard(input)),
-
-    /**
-     * Phase 4: single endpoint the Sequence Dispatcher hits per due touch.
-     * Runs preSendGuard, fetches the lead, renders the template, returns
-     * everything needed to POST to Resend (subject, html, recipient).
-     */
-    fetchAndRender: publicProcedure
-      .input(z.object({
-        leadId: z.number().int().positive(),
-        sequenceKey: z.string().min(1),
-        touchKey: z.string().min(1),
-      }))
-      .mutation(async ({ input }) => fetchAndRenderForDispatch(input)),
-
-    /**
-     * Phase 4: close-the-loop after the dispatcher attempts a send.
-     * Atomically updates queue row, writes activity log, writes audit.
-     */
-    confirmSent: publicProcedure
-      .input(z.object({
-        queueId: z.number().int().positive(),
-        status: z.enum(["sent", "failed", "skipped"]),
-        providerMessageId: z.string().max(255).optional(),
-        providerStatus: z.number().int().optional(),
-        failureReason: z.string().max(500).optional(),
-        skipReason: z.string().max(255).optional(),
-      }))
-      .mutation(async ({ input }) => confirmTouchDispatched(input)),
   }),
 });
 export type AppRouter = typeof appRouter;
