@@ -170,32 +170,8 @@ export default defineConfig({
     emptyOutDir: true,
     rollupOptions: {
       output: {
-        // Inject git commit SHA into filenames so every deploy produces a unique
-        // bundle name, guaranteeing CDN cache invalidation regardless of content hash.
-        entryFileNames: () => {
-          const sha = (() => {
-            try {
-              return execSync("git rev-parse --short HEAD", { stdio: ["pipe", "pipe", "ignore"] })
-                .toString()
-                .trim();
-            } catch {
-              return String(Date.now());
-            }
-          })();
-          return `assets/[name]-[hash]-${sha}.js`;
-        },
-        chunkFileNames: () => {
-          const sha = (() => {
-            try {
-              return execSync("git rev-parse --short HEAD", { stdio: ["pipe", "pipe", "ignore"] })
-                .toString()
-                .trim();
-            } catch {
-              return String(Date.now());
-            }
-          })();
-          return `assets/[name]-[hash]-${sha}.js`;
-        },
+        entryFileNames: `assets/[name]-[hash].js`,
+        chunkFileNames: `assets/[name]-[hash].js`,
       },
     },
   },
