@@ -36,7 +36,7 @@ import { toast } from "sonner";
 import {
   Loader2, Mail, Send, Save, Eye, AlertCircle, CheckCircle2,
   Calendar, Sparkles, GraduationCap, Trophy, Flame,
-  School, Globe, Megaphone, Inbox, Sliders, Code,
+  School, Globe, Megaphone, Inbox, Sliders, Code, History, RotateCcw,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 
@@ -318,6 +318,29 @@ export default function SequencesEditor() {
     onError: (err) => toast.error(`Test send failed: ${err.message}`),
   });
 
+  // History / rollback
+  const [showHistory, setShowHistory] = useState(false);
+  const historyQuery = trpc.templates.history.useQuery(
+    { templateId: selectedTouch?.id ?? 0 },
+    { enabled: showHistory && !!selectedTouch },
+  );
+  const restoreVersion = (h: { prevSubject: string | null; prevBodyHtml: string | null; prevDelayHours: number | null; prevIsActive: number | null }) => {
+    if (!selectedTouch) return;
+    if (!confirm("Restore this version? Current content will be overwritten (and saved to history, so you can undo).")) return;
+    updateTemplate.mutate({
+      id: selectedTouch.id,
+      editedBy: "admin_ui",
+      changeNote: "Restored a previous version via history",
+      patch: {
+        subject: h.prevSubject ?? undefined,
+        bodyHtml: h.prevBodyHtml ?? undefined,
+        delayHours: h.prevDelayHours ?? undefined,
+        isActive: h.prevIsActive ?? undefined,
+      },
+    });
+    setShowHistory(false);
+  };
+
   // Compute the HTML that would be saved (regenerated in Simple Mode, raw in Advanced Mode)
   const computedHtml = useMemo(() => {
     if (!editor) return "";
@@ -502,6 +525,9 @@ export default function SequencesEditor() {
                       <Switch checked={editor.isActive} onCheckedChange={v => { setEditor({ ...editor, isActive: v }); setDirty(true); }} />
                       <span className="text-sm text-gray-700">{editor.isActive ? "Active" : "Off"}</span>
                     </div>
+                    <Button variant="outline" size="sm" onClick={() => setShowHistory(true)} className="gap-1.5">
+                      <History className="w-3.5 h-3.5" /> History
+                    </Button>
                     <Button variant="outline" size="sm" onClick={handleSendTest} disabled={sendTest.isPending} className="gap-1.5">
                       {sendTest.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />} Send preview
                     </Button>
@@ -510,6 +536,42 @@ export default function SequencesEditor() {
                     </Button>
                   </div>
                 </div>
+
+                {/* History panel (rollback) */}
+                {showHistory && (
+                  <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={() => setShowHistory(false)}>
+                    <Card className="w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+                      <div className="bg-[#1a2d5a] text-white px-5 py-3 flex items-center justify-between flex-shrink-0">
+                        <p className="font-semibold flex items-center gap-2"><History className="w-4 h-4" /> Version History — {selectedTouch.displayName || selectedTouch.touchKey}</p>
+                        <button onClick={() => setShowHistory(false)} className="text-white/70 hover:text-white">✕</button>
+                      </div>
+                      <div className="overflow-y-auto p-4 space-y-2">
+                        {historyQuery.isLoading ? (
+                          <div className="flex items-center justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-gray-400" /></div>
+                        ) : !historyQuery.data || historyQuery.data.length === 0 ? (
+                          <p className="text-sm text-gray-400 text-center py-8">No previous versions yet. History is recorded each time you save an edit.</p>
+                        ) : (
+                          historyQuery.data.map((h: any) => (
+                            <div key={h.id} className="border border-gray-200 rounded-lg p-3 hover:border-gray-300">
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium text-gray-900 truncate">{h.prevSubject || "(no subject)"}</p>
+                                  <p className="text-[11px] text-gray-500 mt-0.5">
+                                    {h.editedBy} · {new Date(h.editedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                                    {h.changeNote ? ` · ${h.changeNote}` : ""}
+                                  </p>
+                                </div>
+                                <Button variant="outline" size="sm" onClick={() => restoreVersion(h)} className="gap-1.5 flex-shrink-0">
+                                  <RotateCcw className="w-3.5 h-3.5" /> Restore
+                                </Button>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </Card>
+                  </div>
+                )}
 
                 <CardContent className="pt-5 space-y-4">
                   {dirty && (

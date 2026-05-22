@@ -19,7 +19,7 @@ import {
 import {
   Loader2, Users, DollarSign, CheckCircle, Clock, XCircle,
   Trash2, RotateCcw, Calendar, Eye, EyeOff, LogOut,
-  LayoutDashboard, Kanban, GraduationCap, BarChart2, Mail,
+  LayoutDashboard, Kanban, GraduationCap, BarChart2, Mail, Route,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
@@ -27,6 +27,7 @@ import LeadsPipeline from "@/components/admin/LeadsPipeline";
 import StudentsRoster from "@/components/admin/StudentsRoster";
 import AdsInsightsDashboard from "@/components/admin/AdsInsightsDashboard";
 import SequencesEditor from "@/components/admin/SequencesEditor";
+import IntakeRulesEditor from "@/components/admin/IntakeRulesEditor";
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
@@ -394,6 +395,7 @@ const TABS = [
   { id: "pipeline",      label: "Leads Pipeline",     icon: Kanban },
   { id: "students",      label: "Students",            icon: GraduationCap },
   { id: "sequences",     label: "Email Sequences",     icon: Mail },
+  { id: "rules",         label: "Routing Rules",       icon: Route },
   { id: "ads",           label: "Ad Performance",      icon: BarChart2 },
 ] as const;
 
@@ -462,6 +464,7 @@ export default function AdminRegistrations() {
         {activeTab === "pipeline"      && <LeadsPipeline />}
         {activeTab === "students"      && <StudentsRoster />}
         {activeTab === "sequences"     && <SequencesEditor />}
+        {activeTab === "rules"         && <IntakeRulesEditor />}
         {activeTab === "ads"           && <AdsInsightsDashboard />}
       </div>
     </div>
