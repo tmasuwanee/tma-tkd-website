@@ -144,8 +144,9 @@ function CampRegistrationsTab() {
   const deletedRegistrations = allRegistrations?.filter(r => r.isDeleted) ?? [];
   const displayedRegistrations = showDeleted ? deletedRegistrations : activeRegistrations;
 
-  const totalRevenue = activeRegistrations.reduce((sum, r) => sum + (r.amountPaid ?? 0), 0);
-  const totalCampers = activeRegistrations.reduce((sum, r) => sum + r.numCampers, 0);
+  const paidRegistrations = activeRegistrations.filter(r => r.stripePaymentStatus === "succeeded");
+  const totalRevenue = paidRegistrations.reduce((sum, r) => sum + (r.amountPaid ?? 0), 0);
+  const totalCampers = paidRegistrations.reduce((sum, r) => sum + r.numCampers, 0);
 
   const allDisplayedIds = displayedRegistrations.map(r => r.id);
   const allSelected = allDisplayedIds.length > 0 && allDisplayedIds.every(id => selectedIds.has(id));
