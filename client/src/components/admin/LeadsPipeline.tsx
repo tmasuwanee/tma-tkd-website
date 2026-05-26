@@ -188,14 +188,60 @@ function LeadCard({ lead, stageIndex, totalStages, onOpen, onMove }: {
 
 // ─── Lead Detail Dialog ───────────────────────────────────────────────────────
 
-function ActivityTimeline({ leadId }: { leadId: number }) {
+type EmailTemplate = {
+  touchKey: string | null;
+  subject: string | null;
+  bodyHtml: string | null;
+};
+
+type EmailPreview = {
+  subject: string;
+  html: string;
+};
+
+const formatTrialDateLabel = (trialClassDate?: string | null) => {
+  if (!trialClassDate) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trialClassDate)) {
+    return new Date(`${trialClassDate}T12:00:00`).toLocaleDateString("en-US", {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+    });
+  }
+  return trialClassDate;
+};
+
+const renderEmailHtml = (html: string, lead?: Lead | null) => {
+  const value = (field: keyof Lead) => String(lead?.[field] ?? "");
+  const firstName = String(lead?.parentName ?? "").trim().split(/\s+/)[0] ?? "";
+  const fields: Record<string, string> = {
+    firstName,
+    parentName: value("parentName"),
+    kidName: value("kidName"),
+    kidAge: value("kidAge"),
+    trialDate: value("trialClassDate"),
+    trialDateLabel: formatTrialDateLabel(lead?.trialClassDate),
+    trialTime: value("trialClassTime"),
+    trialDay: value("trialClassDay"),
+    programInterest: value("programInterest"),
+    email: value("email"),
+    phone: value("phone"),
+    leadId: lead?.id == null ? "" : String(lead.id),
+  };
+
+  return html.replace(/{{\s*([a-zA-Z0-9_]+)\s*}}/g, (_, field: string) => fields[field] ?? "");
+};
+
+function ActivityTimeline({ leadId, lead }: { leadId: number; lead?: Lead | null }) {
   const [noteText, setNoteText] = useState("");
+  const [emailPreview, setEmailPreview] = useState<EmailPreview | null>(null);
   const utils = trpc.useUtils();
 
   const { data: activities = [], isLoading } = trpc.leads.getActivity.useQuery(
     { leadId },
     { enabled: !!leadId }
   );
+  const { data: templates = [] } = trpc.templates.list.useQuery();
 
   const logActivity = trpc.leads.logActivity.useMutation({
     onSuccess: () => {
@@ -267,7 +313,12 @@ function ActivityTimeline({ leadId }: { leadId: number }) {
           <p className="text-sm text-gray-400 italic py-4">No activity yet.</p>
         ) : (
           <div className="space-y-2">
-            {activities.map((act: any) => (
+            {activities.map((act: any) => {
+              const matchingTemplate = act.type === "email"
+                ? (templates as EmailTemplate[]).find(template => template.touchKey === act.subject)
+                : undefined;
+
+              return (
               <div key={act.id} className="flex gap-2.5 bg-gray-50 rounded-lg p-2.5">
                 <div className="mt-0.5 shrink-0">{typeIcon(act.type)}</div>
                 <div className="flex-1 min-w-0">
@@ -279,13 +330,52 @@ function ActivityTimeline({ leadId }: { leadId: number }) {
                   </div>
                   {act.subject && <p className="text-xs text-gray-600 font-medium mt-0.5">{act.subject}</p>}
                   {act.body && <p className="text-xs text-gray-500 mt-0.5 whitespace-pre-wrap">{act.body}</p>}
-                  {act.sentBy && <p className="text-xs text-gray-400 mt-0.5">by {act.sentBy}</p>}
+                  <div className="flex items-center justify-between gap-2 mt-0.5">
+                    {act.sentBy && <p className="text-xs text-gray-400">by {act.sentBy}</p>}
+                    {matchingTemplate?.bodyHtml && (
+                      <button
+                        type="button"
+                        className="text-xs font-medium text-blue-600 hover:underline"
+                        onClick={() => setEmailPreview({
+                          subject: matchingTemplate.subject ?? act.subject ?? "Email preview",
+                          html: renderEmailHtml(matchingTemplate.bodyHtml ?? "", lead),
+                        })}
+                      >
+                        View email
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
+
+      {emailPreview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="flex max-h-[90vh] w-full max-w-3xl flex-col rounded-lg bg-white shadow-xl">
+            <div className="flex items-center justify-between gap-3 border-b px-4 py-3">
+              <p className="truncate text-sm font-semibold text-gray-900">{emailPreview.subject}</p>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0"
+                onClick={() => setEmailPreview(null)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <iframe
+              title="Email preview"
+              srcDoc={emailPreview.html}
+              className="h-[70vh] w-full rounded-b-lg bg-white"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -369,7 +459,7 @@ function LeadDetailDialog({ lead, open, onClose, onRefresh }: {
           </TabsList>
 
           <TabsContent value="activity">
-            <ActivityTimeline leadId={lead.id} />
+            <ActivityTimeline leadId={lead.id} lead={lead} />
           </TabsContent>
 
           <TabsContent value="details">
