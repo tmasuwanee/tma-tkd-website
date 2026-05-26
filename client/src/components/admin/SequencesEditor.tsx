@@ -24,7 +24,7 @@
  *
  * Edits go live immediately on save (next dispatcher tick picks up new content).
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -61,6 +61,84 @@ const SEQUENCE_PRESETS: SequencePreset[] = [
   { key: "fb_generic_nurture", label: "Facebook Generic", description: "Fallback for FB leads not matched to a specific campaign.", group: "nurture", icon: Megaphone, accent: "bg-indigo-100 text-indigo-700" },
   { key: "web_form_nurture", label: "Web Form Fallback", description: "Default for leads from the website with no specific tag.", group: "nurture", icon: Globe, accent: "bg-gray-100 text-gray-700" },
 ];
+
+type MergeField = {
+  tag: string;
+  description: string;
+  group: "Parent & Camper" | "Trial details" | "Contact";
+};
+
+const MERGE_FIELDS: MergeField[] = [
+  { tag: "{{firstName}}", description: "Parent's first name (e.g. Anna)", group: "Parent & Camper" },
+  { tag: "{{parentName}}", description: "Parent's full name", group: "Parent & Camper" },
+  { tag: "{{kidName}}", description: "Camper / child's name", group: "Parent & Camper" },
+  { tag: "{{kidAge}}", description: "Camper's age", group: "Parent & Camper" },
+  { tag: "{{trialDateLabel}}", description: "Trial date, friendly (e.g. Sunday, May 25)", group: "Trial details" },
+  { tag: "{{trialDate}}", description: "Trial date, raw (e.g. 2026-05-25)", group: "Trial details" },
+  { tag: "{{trialTime}}", description: "Trial class time (e.g. 5:00 PM)", group: "Trial details" },
+  { tag: "{{trialDay}}", description: "Trial day of week", group: "Trial details" },
+  { tag: "{{programInterest}}", description: "Program of interest (e.g. Taekwondo)", group: "Trial details" },
+  { tag: "{{email}}", description: "Lead's email address", group: "Contact" },
+  { tag: "{{phone}}", description: "Lead's phone number", group: "Contact" },
+  { tag: "{{leadId}}", description: "Internal lead ID", group: "Contact" },
+];
+
+const MERGE_FIELD_GROUPS: MergeField["group"][] = ["Parent & Camper", "Trial details", "Contact"];
+
+function MergeFieldPicker({ onSelect }: { onSelect: (tag: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [hoveredField, setHoveredField] = useState<MergeField | null>(MERGE_FIELDS[0]);
+
+  const handleSelect = (tag: string) => {
+    onSelect(tag);
+    setOpen(false);
+  };
+
+  return (
+    <div className="relative inline-flex">
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={() => setOpen(v => !v)}
+        className="h-7 px-2 text-[11px] gap-1.5"
+      >
+        <Code className="w-3 h-3" /> Insert field
+      </Button>
+      {open && (
+        <div className="absolute right-0 top-8 z-30 w-72 rounded-lg border border-gray-200 bg-white shadow-lg">
+          <div className="border-b border-gray-100 px-3 py-2">
+            <p className="text-xs font-semibold text-gray-800">Merge fields</p>
+            <p className="text-[11px] text-gray-500">Hover for details, click to insert.</p>
+          </div>
+          <div className="max-h-80 overflow-y-auto p-2">
+            {MERGE_FIELD_GROUPS.map(group => (
+              <div key={group} className="mb-2 last:mb-0">
+                <p className="px-1.5 pb-1 text-[10px] font-bold uppercase tracking-wider text-gray-400">{group}</p>
+                <div className="space-y-0.5">
+                  {MERGE_FIELDS.filter(field => field.group === group).map(field => (
+                    <button
+                      key={field.tag}
+                      type="button"
+                      onMouseEnter={() => setHoveredField(field)}
+                      onClick={() => handleSelect(field.tag)}
+                      className="w-full rounded-md px-2 py-1.5 text-left font-mono text-xs text-[#1a2d5a] hover:bg-[#1a2d5a]/10"
+                    >
+                      {field.tag}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="border-t border-gray-100 bg-gray-50 px-3 py-2 text-[11px] leading-snug text-gray-600">
+            {hoveredField?.description}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 type Template = {
   id: number;
@@ -226,6 +304,13 @@ function delayLabel(hours: number): string {
 export default function SequencesEditor() {
   const utils = trpc.useUtils();
   const { data: allTemplates, isLoading, error } = trpc.templates.list.useQuery();
+  const subjectRef = useRef<HTMLInputElement>(null);
+  const greetingRef = useRef<HTMLInputElement>(null);
+  const paragraphsRef = useRef<HTMLTextAreaElement>(null);
+  const calloutLabelRef = useRef<HTMLInputElement>(null);
+  const calloutBodyRef = useRef<HTMLInputElement>(null);
+  const footerNoteRef = useRef<HTMLInputElement>(null);
+  const bodyHtmlRef = useRef<HTMLTextAreaElement>(null);
 
   const [selectedSequence, setSelectedSequence] = useState<string | null>(null);
   const [selectedTouchId, setSelectedTouchId] = useState<number | null>(null);
@@ -385,6 +470,27 @@ export default function SequencesEditor() {
     if (!editor) return;
     setEditor({ ...editor, simple: { ...editor.simple, ...patch } });
     setDirty(true);
+  };
+
+  const insertMergeField = (
+    ref: { current: HTMLInputElement | HTMLTextAreaElement | null },
+    value: string,
+    tag: string,
+    onValueChange: (nextValue: string) => void,
+  ) => {
+    const field = ref.current;
+    const start = field?.selectionStart ?? value.length;
+    const end = field?.selectionEnd ?? start;
+    const nextValue = `${value.slice(0, start)}${tag}${value.slice(end)}`;
+    const nextCaret = start + tag.length;
+
+    onValueChange(nextValue);
+    setDirty(true);
+
+    window.requestAnimationFrame(() => {
+      field?.focus();
+      field?.setSelectionRange(nextCaret, nextCaret);
+    });
   };
 
   if (isLoading) return <div className="flex items-center justify-center py-24"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /><span className="ml-2 text-gray-500">Loading templates...</span></div>;
@@ -584,8 +690,15 @@ export default function SequencesEditor() {
                   {/* Subject + delay always visible */}
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
-                      <Label htmlFor="subject" className="text-xs font-semibold text-gray-600 uppercase tracking-wider">Subject Line</Label>
-                      <Input id="subject" value={editor.subject} onChange={e => { setEditor({ ...editor, subject: e.target.value }); setDirty(true); }} placeholder="Your subject line..." />
+                      <div className="flex items-center justify-between gap-2">
+                        <Label htmlFor="subject" className="text-xs font-semibold text-gray-600 uppercase tracking-wider">Subject Line</Label>
+                        <MergeFieldPicker
+                          onSelect={tag => insertMergeField(subjectRef, editor.subject, tag, nextValue => {
+                            setEditor({ ...editor, subject: nextValue });
+                          })}
+                        />
+                      </div>
+                      <Input ref={subjectRef} id="subject" value={editor.subject} onChange={e => { setEditor({ ...editor, subject: e.target.value }); setDirty(true); }} placeholder="Your subject line..." />
                       <p className="text-[11px] text-gray-500">Use <code className="bg-gray-100 px-1 rounded">{`{{firstName}}`}</code>, <code className="bg-gray-100 px-1 rounded">{`{{trialDateLabel}}`}</code>, etc.</p>
                     </div>
                     <div className="space-y-1.5">
@@ -613,13 +726,27 @@ export default function SequencesEditor() {
                           </div>
 
                           <div className="space-y-1.5">
-                            <Label className="text-xs font-semibold text-gray-600 uppercase tracking-wider">Greeting</Label>
-                            <Input value={editor.simple.greeting} onChange={e => updateSimple({ greeting: e.target.value })} placeholder="Hi {{firstName}}," />
+                            <div className="flex items-center justify-between gap-2">
+                              <Label className="text-xs font-semibold text-gray-600 uppercase tracking-wider">Greeting</Label>
+                              <MergeFieldPicker
+                                onSelect={tag => insertMergeField(greetingRef, editor.simple.greeting, tag, nextValue => {
+                                  updateSimple({ greeting: nextValue });
+                                })}
+                              />
+                            </div>
+                            <Input ref={greetingRef} value={editor.simple.greeting} onChange={e => updateSimple({ greeting: e.target.value })} placeholder="Hi {{firstName}}," />
                           </div>
 
                           <div className="space-y-1.5">
-                            <Label className="text-xs font-semibold text-gray-600 uppercase tracking-wider">Main Paragraphs</Label>
-                            <Textarea value={editor.simple.paragraphs} onChange={e => updateSimple({ paragraphs: e.target.value })} rows={8} placeholder={"Thanks for your interest in TMA Summer Camp!\n\nHere is what your kid will be doing this summer...\n\nThe fastest way to lock in your week is to register online."} />
+                            <div className="flex items-center justify-between gap-2">
+                              <Label className="text-xs font-semibold text-gray-600 uppercase tracking-wider">Main Paragraphs</Label>
+                              <MergeFieldPicker
+                                onSelect={tag => insertMergeField(paragraphsRef, editor.simple.paragraphs, tag, nextValue => {
+                                  updateSimple({ paragraphs: nextValue });
+                                })}
+                              />
+                            </div>
+                            <Textarea ref={paragraphsRef} value={editor.simple.paragraphs} onChange={e => updateSimple({ paragraphs: e.target.value })} rows={8} placeholder={"Thanks for your interest in TMA Summer Camp!\n\nHere is what your kid will be doing this summer...\n\nThe fastest way to lock in your week is to register online."} />
                             <p className="text-[11px] text-gray-500">Separate paragraphs with a blank line.</p>
                           </div>
 
@@ -627,12 +754,26 @@ export default function SequencesEditor() {
                             <p className="text-xs font-semibold text-gray-700">Yellow Callout Box <span className="font-normal text-gray-500">(optional)</span></p>
                             <div className="grid grid-cols-2 gap-3">
                               <div className="space-y-1">
-                                <Label className="text-[11px] text-gray-600">Callout Label (small uppercase)</Label>
-                                <Input value={editor.simple.calloutLabel} onChange={e => updateSimple({ calloutLabel: e.target.value })} placeholder="Camp opens" />
+                                <div className="flex items-center justify-between gap-2">
+                                  <Label className="text-[11px] text-gray-600">Callout Label (small uppercase)</Label>
+                                  <MergeFieldPicker
+                                    onSelect={tag => insertMergeField(calloutLabelRef, editor.simple.calloutLabel, tag, nextValue => {
+                                      updateSimple({ calloutLabel: nextValue });
+                                    })}
+                                  />
+                                </div>
+                                <Input ref={calloutLabelRef} value={editor.simple.calloutLabel} onChange={e => updateSimple({ calloutLabel: e.target.value })} placeholder="Camp opens" />
                               </div>
                               <div className="space-y-1">
-                                <Label className="text-[11px] text-gray-600">Callout Body (the headline)</Label>
-                                <Input value={editor.simple.calloutBody} onChange={e => updateSimple({ calloutBody: e.target.value })} placeholder="May 26, 2026" />
+                                <div className="flex items-center justify-between gap-2">
+                                  <Label className="text-[11px] text-gray-600">Callout Body (the headline)</Label>
+                                  <MergeFieldPicker
+                                    onSelect={tag => insertMergeField(calloutBodyRef, editor.simple.calloutBody, tag, nextValue => {
+                                      updateSimple({ calloutBody: nextValue });
+                                    })}
+                                  />
+                                </div>
+                                <Input ref={calloutBodyRef} value={editor.simple.calloutBody} onChange={e => updateSimple({ calloutBody: e.target.value })} placeholder="May 26, 2026" />
                               </div>
                             </div>
                           </div>
@@ -652,8 +793,15 @@ export default function SequencesEditor() {
                           </div>
 
                           <div className="space-y-1.5">
-                            <Label className="text-xs font-semibold text-gray-600 uppercase tracking-wider">Footer Note <span className="font-normal normal-case text-gray-500">(optional, small gray text)</span></Label>
-                            <Input value={editor.simple.footerNote} onChange={e => updateSimple({ footerNote: e.target.value })} placeholder="Questions? Call (770) 277-3009." />
+                            <div className="flex items-center justify-between gap-2">
+                              <Label className="text-xs font-semibold text-gray-600 uppercase tracking-wider">Footer Note <span className="font-normal normal-case text-gray-500">(optional, small gray text)</span></Label>
+                              <MergeFieldPicker
+                                onSelect={tag => insertMergeField(footerNoteRef, editor.simple.footerNote, tag, nextValue => {
+                                  updateSimple({ footerNote: nextValue });
+                                })}
+                              />
+                            </div>
+                            <Input ref={footerNoteRef} value={editor.simple.footerNote} onChange={e => updateSimple({ footerNote: e.target.value })} placeholder="Questions? Call (770) 277-3009." />
                           </div>
                         </div>
                       </div>
@@ -667,8 +815,16 @@ export default function SequencesEditor() {
                         <Code className="w-4 h-4 text-[#1a2d5a]" />
                         <p className="text-sm font-semibold text-gray-800">Raw HTML</p>
                         <Badge variant="outline" className="text-[10px]">Power user</Badge>
+                        <div className="ml-auto">
+                          <MergeFieldPicker
+                            onSelect={tag => insertMergeField(bodyHtmlRef, editor.bodyHtml, tag, nextValue => {
+                              setEditor({ ...editor, bodyHtml: nextValue });
+                            })}
+                          />
+                        </div>
                       </div>
                       <Textarea
+                        ref={bodyHtmlRef}
                         value={editor.bodyHtml}
                         onChange={e => { setEditor({ ...editor, bodyHtml: e.target.value }); setDirty(true); }}
                         rows={20}
