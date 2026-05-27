@@ -114,7 +114,7 @@ export async function getUserByOpenId(openId: string) {
 export async function createLead(lead: InsertLead): Promise<number> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  // Normalize email to lowercase on insert so getLeadByEmail can find it
+  // Normalize email to lowercase on insert (sync-fix-20260527) so getLeadByEmail can find it
   // reliably regardless of source casing. Defense-in-depth alongside the
   // case-insensitive LOWER() match in getLeadByEmail.
   const normalized: InsertLead = lead.email
