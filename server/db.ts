@@ -14,6 +14,7 @@ import {
   sequenceTriggerRules, InsertSequenceTriggerRule, SequenceTriggerRule,
   leadLifecycleEvents, InsertLeadLifecycleEvent, LeadLifecycleEvent,
   systemAuditLog, InsertSystemAuditLog,
+  studioAssets, InsertStudioAsset, StudioAsset,
 } from "../drizzle/schema";
 import { lte } from "drizzle-orm";
 import { ENV } from './_core/env';
@@ -1546,5 +1547,58 @@ export async function confirmTouchDispatched(args: {
   }
 
   return { ok: true };
+}
+
+// ─── Studio Assets (2026-06-02) ──────────────────────────────────────────────
+
+export type StudioVertical =
+  | "afterschool" | "tkd" | "kickboxing" | "bjj"
+  | "summer_camp" | "spring_break_camp" | "camps_general" | "all_programs";
+
+export async function createStudioAsset(input: InsertStudioAsset): Promise<StudioAsset> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not configured");
+  const [result] = await db.insert(studioAssets).values(input).$returningId();
+  const id = (result as any).id ?? (result as any).insertId;
+  const [row] = await db.select().from(studioAssets).where(eq(studioAssets.id, id));
+  return row;
+}
+
+export async function listStudioAssets(opts: {
+  vertical?: StudioVertical;
+  kind?: "photo" | "video";
+  limit?: number;
+}): Promise<StudioAsset[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const conds = [];
+  if (opts.vertical) conds.push(eq(studioAssets.vertical, opts.vertical));
+  if (opts.kind) conds.push(eq(studioAssets.kind, opts.kind));
+  const where = conds.length ? and(...conds) : undefined;
+  const q = db.select().from(studioAssets).orderBy(desc(studioAssets.createdAt)).limit(opts.limit ?? 200);
+  return where ? await q.where(where) : await q;
+}
+
+export async function getStudioAssetById(id: number): Promise<StudioAsset | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+  const [row] = await db.select().from(studioAssets).where(eq(studioAssets.id, id));
+  return row;
+}
+
+export async function updateStudioAsset(id: number, patch: Partial<{
+  caption: string | null;
+  minorReleaseOnFile: boolean;
+  vertical: StudioVertical;
+}>): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not configured");
+  await db.update(studioAssets).set(patch as any).where(eq(studioAssets.id, id));
+}
+
+export async function deleteStudioAsset(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not configured");
+  await db.delete(studioAssets).where(eq(studioAssets.id, id));
 }
 
