@@ -1,0 +1,17 @@
+{
+  "query": "SELECT id, parentFirstName, parentLastName, anticipatedWeeks, updatedAt FROM campRegistrations WHERE id = 630002;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3SwZhQGwFybjoYh.root --database cXp7keMiYsMkePUngpTNmV --execute SELECT id, parentFirstName, parentLastName, anticipatedWeeks, updatedAt FROM campRegistrations WHERE id = 630002;",
+  "rows": [
+    {
+      "id": "630002",
+      "parentFirstName": "Thuy",
+      "parentLastName": "Nguyen",
+      "anticipatedWeeks": "[\"Week 1: May 26 – May 29 (Tue–Fri)\",\"Week 2: June 2 – June 6\",\"Week 3: June 9 – June 13\",\"Week 4: June 16 – June 20\",\"Week 5: June 20 – June 24\",\"Week 6: July 20 – July 24\"]",
+      "updatedAt": "2026-06-01 22:22:14"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tparentFirstName\tparentLastName\tanticipatedWeeks\tupdatedAt\n630002\tThuy\tNguyen\t[\"Week 1: May 26 – May 29 (Tue–Fri)\",\"Week 2: June 2 – June 6\",\"Week 3: June 9 – June 13\",\"Week 4: June 16 – June 20\",\"Week 5: June 20 – June 24\",\"Week 6: July 20 – July 24\"]\t2026-06-01 22:22:14\n",
+  "stderr": "",
+  "execution_time_ms": 294
+}

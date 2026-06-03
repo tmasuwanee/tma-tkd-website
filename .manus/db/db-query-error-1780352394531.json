@@ -1,0 +1,8 @@
+{
+  "query": "SELECT id, parent_first_name, parent_last_name, email, phone, camper1_name, camper2_name, camper3_name, selected_weeks, future_weeks, program_type, amount_paid, stripe_payment_status, created_at FROM campRegistrations WHERE (parent_first_name LIKE '%Thuy%' OR parent_last_name LIKE '%Nguyen%' OR email LIKE '%nguyen%') AND is_deleted = 0 ORDER BY created_at DESC LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3SwZhQGwFybjoYh.root --database cXp7keMiYsMkePUngpTNmV --execute SELECT id, parent_first_name, parent_last_name, email, phone, camper1_name, camper2_name, camper3_name, selected_weeks, future_weeks, program_type, amount_paid, stripe_payment_status, created_at FROM campRegistrations WHERE (parent_first_name LIKE '%Thuy%' OR parent_last_name LIKE '%Nguyen%' OR email LIKE '%nguyen%') AND is_deleted = 0 ORDER BY created_at DESC LIMIT 5;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 1: Unknown column 'parent_first_name' in 'where clause'"
+  ]
+}

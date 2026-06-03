@@ -1,0 +1,29 @@
+{
+  "query": "SELECT id, parentFirstName, parentLastName, email, phone, camper1Name, camper2Name, camper3Name, anticipatedWeeks, futureWeeks, firstWeek, programType, amountPaid, stripePaymentStatus, fieldTripWeeks, extendedCareWeeks, createdAt FROM campRegistrations WHERE (parentFirstName LIKE '%Thuy%' OR parentLastName LIKE '%Nguyen%' OR email LIKE '%nguyen%') AND isDeleted = 0 ORDER BY createdAt DESC LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3SwZhQGwFybjoYh.root --database cXp7keMiYsMkePUngpTNmV --execute SELECT id, parentFirstName, parentLastName, email, phone, camper1Name, camper2Name, camper3Name, anticipatedWeeks, futureWeeks, firstWeek, programType, amountPaid, stripePaymentStatus, fieldTripWeeks, extendedCareWeeks, createdAt FROM campRegistrations WHERE (parentFirstName LIKE '%Thuy%' OR parentLastName LIKE '%Nguyen%' OR email LIKE '%nguyen%') AND isDeleted = 0 ORDER BY createdAt DESC LIMIT 5;",
+  "rows": [
+    {
+      "id": "630002",
+      "parentFirstName": "Thuy",
+      "parentLastName": "Nguyen",
+      "email": "phuongthuyt238@icloud.com",
+      "phone": "+15208347420",
+      "camper1Name": "Henry Nguyen",
+      "camper2Name": "NULL",
+      "camper3Name": "NULL",
+      "anticipatedWeeks": "[\"Week 1: May 26 – May 29 (Tue–Fri)\",\"Week 2: June 2 – June 6\",\"Week 3: June 9 – June 13\",\"Week 4: June 16 – June 20\",\"Week 5: June 23 – June 27\",\"Week 6: June 30 – July 3 (Mon–Thu, No Camp July 4th)\"]",
+      "futureWeeks": "[]",
+      "firstWeek": "Week 1: May 26 – May 29 (Tue–Fri)",
+      "programType": "5day",
+      "amountPaid": "155400",
+      "stripePaymentStatus": "succeeded",
+      "fieldTripWeeks": "NULL",
+      "extendedCareWeeks": "NULL",
+      "createdAt": "2026-05-11 22:29:51"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tparentFirstName\tparentLastName\temail\tphone\tcamper1Name\tcamper2Name\tcamper3Name\tanticipatedWeeks\tfutureWeeks\tfirstWeek\tprogramType\tamountPaid\tstripePaymentStatus\tfieldTripWeeks\textendedCareWeeks\tcreatedAt\n630002\tThuy\tNguyen\tphuongthuyt238@icloud.com\t+15208347420\tHenry Nguyen\tNULL\tNULL\t[\"Week 1: May 26 – May 29 (Tue–Fri)\",\"Week 2: June 2 – June 6\",\"Week 3: June 9 – June 13\",\"Week 4: June 16 – June 20\",\"Week 5: June 23 – June 27\",\"Week 6: June 30 – July 3 (Mon–Thu, No Camp July 4th)\"]\t[]\tWeek 1: May 26 – May 29 (Tue–Fri)\t5day\t155400\tsucceeded\tNULL\tNULL\t2026-05-11 22:29:51\n",
+  "stderr": "",
+  "execution_time_ms": 264
+}

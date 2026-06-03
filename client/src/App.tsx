@@ -16,6 +16,7 @@ import SpringBreakCamp from "./pages/SpringBreakCamp";
 import SpringBreakRegistration from "./pages/SpringBreakRegistration";
 import AdminRegistrations from "./pages/AdminRegistrations";
 import AttendanceKiosk from "./pages/AttendanceKiosk";
+import Studio from "./pages/Studio";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import Terms from "./pages/Terms";
 
@@ -35,6 +36,7 @@ function Router() {
       <Route path={"/spring-break-registration"} component={SpringBreakRegistration} />
       <Route path={"/attendance"} component={AttendanceKiosk} />
       <Route path={"/admin/registrations"} component={AdminRegistrations} />
+      <Route path={"/studio"} component={Studio} />
       <Route path={"/privacy-policy"} component={PrivacyPolicy} />
       <Route path={"/terms"} component={Terms} />
       <Route path={"/404"} component={NotFound} />

@@ -25,7 +25,10 @@ import {
   // Phase 4 (2026-05-21): template rendering + sequence fan-out + dispatcher loop
   renderTemplate, enqueueSequenceForLead, fetchAndRenderForDispatch, confirmTouchDispatched,
   sendTemplateTestEmail,
+  // Studio (2026-06-02)
+  createStudioAsset, listStudioAssets, getStudioAssetById, updateStudioAsset, deleteStudioAsset,
 } from "./db";
+import { storagePut, storageGet } from "./storage";
 import { sendToGoogleSheets, sendToSlack, sendEmailNotification, sendCampRegistrationConfirmation } from "./integrations";
 import { fireLeadEvent, firePurchaseEvent } from "./meta-capi";
 import { getAdInsights, syncAdInsights } from "./facebook-ads";
@@ -1131,6 +1134,91 @@ export const appRouter = router({
         skipReason: z.string().max(255).optional(),
       }))
       .mutation(async ({ input }) => confirmTouchDispatched(input)),
+  }),
+
+  // ─── Studio (2026-06-02) ────────────────────────────────────────────────
+  // Phone-upload pipe for Arfa / Ms. Aniessa. Photos and short videos land
+  // here, get tagged by vertical, and feed the martial-arts-ad-research skill.
+  studio: router({
+    list: publicProcedure
+      .input(z.object({
+        vertical: z.enum([
+          "afterschool", "tkd", "kickboxing", "bjj",
+          "summer_camp", "spring_break_camp", "camps_general", "all_programs",
+        ]).optional(),
+        kind: z.enum(["photo", "video"]).optional(),
+        limit: z.number().int().min(1).max(500).optional(),
+      }))
+      .query(async ({ input }) => listStudioAssets(input)),
+
+    upload: publicProcedure
+      .input(z.object({
+        vertical: z.enum([
+          "afterschool", "tkd", "kickboxing", "bjj",
+          "summer_camp", "spring_break_camp", "camps_general", "all_programs",
+        ]),
+        filename: z.string().min(1).max(255),
+        contentType: z.string().min(1).max(100),
+        // base64-encoded file bytes — express.json limit is 50MB
+        dataBase64: z.string().min(1),
+        caption: z.string().max(2000).optional(),
+        minorReleaseOnFile: z.boolean().optional(),
+        uploadedByEmail: z.string().email().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const buf = Buffer.from(input.dataBase64, "base64");
+        if (buf.length === 0) throw new Error("Empty upload");
+        if (buf.length > 60 * 1024 * 1024) throw new Error("File too large (max 60MB)");
+        const kind: "photo" | "video" = input.contentType.startsWith("video/") ? "video" : "photo";
+        const safeName = input.filename.replace(/[^a-zA-Z0-9._-]+/g, "_").slice(0, 120);
+        const stamp = Date.now();
+        const rand = Math.random().toString(36).slice(2, 8);
+        const key = `studio/${input.vertical}/${stamp}-${rand}-${safeName}`;
+        await storagePut(key, buf, input.contentType);
+        return await createStudioAsset({
+          vertical: input.vertical,
+          storageKey: key,
+          originalName: input.filename,
+          contentType: input.contentType,
+          sizeBytes: buf.length,
+          kind,
+          caption: input.caption ?? null,
+          minorReleaseOnFile: input.minorReleaseOnFile ?? false,
+          uploadedByEmail: input.uploadedByEmail ?? null,
+        });
+      }),
+
+    getDownloadUrl: publicProcedure
+      .input(z.object({ id: z.number().int().positive() }))
+      .query(async ({ input }) => {
+        const asset = await getStudioAssetById(input.id);
+        if (!asset) throw new Error("Asset not found");
+        const { url } = await storageGet(asset.storageKey);
+        return { id: asset.id, storageKey: asset.storageKey, url };
+      }),
+
+    update: publicProcedure
+      .input(z.object({
+        id: z.number().int().positive(),
+        caption: z.string().max(2000).nullable().optional(),
+        minorReleaseOnFile: z.boolean().optional(),
+        vertical: z.enum([
+          "afterschool", "tkd", "kickboxing", "bjj",
+          "summer_camp", "spring_break_camp", "camps_general", "all_programs",
+        ]).optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { id, ...patch } = input;
+        await updateStudioAsset(id, patch);
+        return { success: true } as const;
+      }),
+
+    delete: publicProcedure
+      .input(z.object({ id: z.number().int().positive() }))
+      .mutation(async ({ input }) => {
+        await deleteStudioAsset(input.id);
+        return { success: true } as const;
+      }),
   }),
 });
 export type AppRouter = typeof appRouter;

@@ -410,3 +410,39 @@ export const systemAuditLog = mysqlTable("systemAuditLog", {
 export type SystemAuditLog = typeof systemAuditLog.$inferSelect;
 export type InsertSystemAuditLog = typeof systemAuditLog.$inferInsert;
 
+// ─── Studio Assets (2026-06-02) ──────────────────────────────────────────────
+// Phone-shot photos and short videos uploaded by Arfa / Ms. Aniessa from
+// tmatkd.com/studio. Fed into the martial-arts-ad-research skill for ad mockups.
+// Files live in the Manus storage proxy under key `studio/<vertical>/<id>-<slug>`.
+export const studioAssets = mysqlTable("studioAssets", {
+  id: int("id").autoincrement().primaryKey(),
+  vertical: mysqlEnum("vertical", [
+    "afterschool", "tkd", "kickboxing", "bjj",
+    "summer_camp", "spring_break_camp", "camps_general", "all_programs",
+  ]).notNull(),
+  // Storage key in the Manus storage proxy (and what the skill downloads by)
+  storageKey: varchar("storageKey", { length: 512 }).notNull().unique(),
+  // Original filename from the phone (for human eyeballing)
+  originalName: varchar("originalName", { length: 255 }).notNull(),
+  // image/jpeg, image/png, video/mp4, video/quicktime, etc.
+  contentType: varchar("contentType", { length: 100 }).notNull(),
+  // Bytes — surfaced in the gallery so Ms. Aniessa sees if she just uploaded a 300MB clip
+  sizeBytes: int("sizeBytes").notNull(),
+  // photo | video — derived from contentType, but stored for cheap filtering
+  kind: mysqlEnum("kind", ["photo", "video"]).notNull(),
+  // Free-text caption Ms. Aniessa can add ("Tuesday 6pm pickup, Ethan with backpack")
+  caption: text("caption"),
+  // Photo release for minors signed and on file? Skill flags assets without release.
+  minorReleaseOnFile: boolean("minorReleaseOnFile").default(false).notNull(),
+  // Email of the uploader (Arfa or Ms. Aniessa — used in the gallery)
+  uploadedByEmail: varchar("uploadedByEmail", { length: 320 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  verticalIdx: index("studio_vertical_idx").on(table.vertical, table.createdAt),
+  kindIdx: index("studio_kind_idx").on(table.kind),
+}));
+
+export type StudioAsset = typeof studioAssets.$inferSelect;
+export type InsertStudioAsset = typeof studioAssets.$inferInsert;
+
