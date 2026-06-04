@@ -35,8 +35,9 @@ async function startServer() {
   const app = express();
   const server = createServer(app);
   // Configure body parser with larger size limit for file uploads
-  app.use(express.json({ limit: "50mb" }));
-  app.use(express.urlencoded({ limit: "50mb", extended: true }));
+  // (Studio video uploads from phones can hit 60-90MB; JSON base64 inflates ~33%)
+  app.use(express.json({ limit: "150mb" }));
+  app.use(express.urlencoded({ limit: "150mb", extended: true }));
 
   // Redirect www.tmatkd.com to tmatkd.com (301 permanent redirect)
   app.use((req: Request, res: Response, next) => {

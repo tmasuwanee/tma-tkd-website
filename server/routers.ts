@@ -27,6 +27,8 @@ import {
   sendTemplateTestEmail,
   // Studio (2026-06-02)
   createStudioAsset, listStudioAssets, getStudioAssetById, updateStudioAsset, deleteStudioAsset,
+  // Studio multi-tag (2026-06-04)
+  setStudioAssetTags,
 } from "./db";
 import { storagePut, storageGet } from "./storage";
 import { sendToGoogleSheets, sendToSlack, sendEmailNotification, sendCampRegistrationConfirmation } from "./integrations";
@@ -1153,30 +1155,49 @@ export const appRouter = router({
 
     upload: publicProcedure
       .input(z.object({
+        // 2026-06-04: multi-tag. First entry is the "primary" vertical (back-compat).
+        // Single-tag uploads still work (just send a 1-element array).
+        // `vertical` (singular) is still accepted for legacy clients and treated as
+        // a 1-element tags array if `tags` is not provided.
         vertical: z.enum([
           "afterschool", "tkd", "kickboxing", "bjj",
           "summer_camp", "spring_break_camp", "camps_general", "all_programs",
-        ]),
+        ]).optional(),
+        tags: z.array(z.enum([
+          "afterschool", "tkd", "kickboxing", "bjj",
+          "summer_camp", "spring_break_camp", "camps_general", "all_programs",
+        ])).min(1).max(8).optional(),
         filename: z.string().min(1).max(255),
         contentType: z.string().min(1).max(100),
-        // base64-encoded file bytes — express.json limit is 50MB
+        // base64-encoded file bytes — express.json limit is 150MB (covers ~100MB raw + base64 overhead)
         dataBase64: z.string().min(1),
         caption: z.string().max(2000).optional(),
         minorReleaseOnFile: z.boolean().optional(),
-        uploadedByEmail: z.string().email().optional(),
+        // Loosened from z.string().email() to z.string() — iOS sessionStorage can hand us
+        // a value that fails strict email validation (encoding edge cases), and we never
+        // act on this field server-side beyond storing it.
+        uploadedByEmail: z.string().max(320).optional(),
       }))
       .mutation(async ({ input }) => {
         const buf = Buffer.from(input.dataBase64, "base64");
         if (buf.length === 0) throw new Error("Empty upload");
-        if (buf.length > 60 * 1024 * 1024) throw new Error("File too large (max 60MB)");
+        if (buf.length > 100 * 1024 * 1024) throw new Error("File too large (max 100MB)");
+        // Resolve tags: prefer `tags` if provided, else wrap `vertical` as a 1-element array.
+        const tagsArray = (input.tags && input.tags.length > 0)
+          ? input.tags
+          : (input.vertical ? [input.vertical] : null);
+        if (!tagsArray) throw new Error("Must provide either `tags` (array) or `vertical` (single)");
+        const primary = tagsArray[0];
+        console.log(`[studio.upload] tags=${tagsArray.join(",")} name=${input.filename} ct=${input.contentType} size=${buf.length}`);
         const kind: "photo" | "video" = input.contentType.startsWith("video/") ? "video" : "photo";
         const safeName = input.filename.replace(/[^a-zA-Z0-9._-]+/g, "_").slice(0, 120);
         const stamp = Date.now();
         const rand = Math.random().toString(36).slice(2, 8);
-        const key = `studio/${input.vertical}/${stamp}-${rand}-${safeName}`;
+        const key = `studio/${primary}/${stamp}-${rand}-${safeName}`;
         await storagePut(key, buf, input.contentType);
         return await createStudioAsset({
-          vertical: input.vertical,
+          vertical: primary,
+          tags: JSON.stringify(tagsArray),
           storageKey: key,
           originalName: input.filename,
           contentType: input.contentType,
@@ -1186,6 +1207,21 @@ export const appRouter = router({
           minorReleaseOnFile: input.minorReleaseOnFile ?? false,
           uploadedByEmail: input.uploadedByEmail ?? null,
         });
+      }),
+
+    // 2026-06-04: retag a single asset (changes tags + primary vertical atomically).
+    // Used by the gallery edit-tags modal AND by an admin bulk-fix flow.
+    setTags: publicProcedure
+      .input(z.object({
+        id: z.number().int().positive(),
+        tags: z.array(z.enum([
+          "afterschool", "tkd", "kickboxing", "bjj",
+          "summer_camp", "spring_break_camp", "camps_general", "all_programs",
+        ])).min(1).max(8),
+      }))
+      .mutation(async ({ input }) => {
+        await setStudioAssetTags(input.id, input.tags);
+        return { success: true, primaryVertical: input.tags[0] } as const;
       }),
 
     getDownloadUrl: publicProcedure

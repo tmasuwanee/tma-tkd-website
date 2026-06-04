@@ -1572,7 +1572,18 @@ export async function listStudioAssets(opts: {
   const db = await getDb();
   if (!db) return [];
   const conds = [];
-  if (opts.vertical) conds.push(eq(studioAssets.vertical, opts.vertical));
+  if (opts.vertical) {
+    // 2026-06-04: an asset matches a vertical filter if EITHER:
+    //   - its primary vertical equals the filter (back-compat with single-tag rows), OR
+    //   - the filter appears in its tags JSON array
+    // JSON_CONTAINS is MySQL 5.7+. JSON_QUOTE wraps the value so we match exact strings.
+    conds.push(
+      or(
+        eq(studioAssets.vertical, opts.vertical),
+        sql`JSON_CONTAINS(${studioAssets.tags}, JSON_QUOTE(${opts.vertical}))`,
+      )!,
+    );
+  }
   if (opts.kind) conds.push(eq(studioAssets.kind, opts.kind));
   const where = conds.length ? and(...conds) : undefined;
   const q = db.select().from(studioAssets).orderBy(desc(studioAssets.createdAt)).limit(opts.limit ?? 200);
@@ -1590,10 +1601,24 @@ export async function updateStudioAsset(id: number, patch: Partial<{
   caption: string | null;
   minorReleaseOnFile: boolean;
   vertical: StudioVertical;
+  tags: string;  // already-stringified JSON array
 }>): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("Database not configured");
   await db.update(studioAssets).set(patch as any).where(eq(studioAssets.id, id));
+}
+
+// 2026-06-04: dedicated retag endpoint. Sets BOTH the primary vertical (first tag)
+// AND the JSON tags column atomically. Used by the gallery "edit tags" modal AND
+// by an admin bulk-fix flow.
+export async function setStudioAssetTags(id: number, tags: StudioVertical[]): Promise<void> {
+  if (!tags || tags.length === 0) throw new Error("At least one tag is required");
+  const db = await getDb();
+  if (!db) throw new Error("Database not configured");
+  await db.update(studioAssets).set({
+    vertical: tags[0],
+    tags: JSON.stringify(tags),
+  } as any).where(eq(studioAssets.id, id));
 }
 
 export async function deleteStudioAsset(id: number): Promise<void> {
