@@ -430,6 +430,10 @@ export const studioAssets = mysqlTable("studioAssets", {
   sizeBytes: int("sizeBytes").notNull(),
   // photo | video — derived from contentType, but stored for cheap filtering
   kind: mysqlEnum("kind", ["photo", "video"]).notNull(),
+  // 2026-06-04: multi-tag support. JSON array of vertical strings,
+  // e.g. '["afterschool","camps_general"]'. `vertical` above stays as the
+  // "primary tag" (first element) for back-compat display. Queries check both.
+  tags: text("tags"),
   // Free-text caption Ms. Aniessa can add ("Tuesday 6pm pickup, Ethan with backpack")
   caption: text("caption"),
   // Photo release for minors signed and on file? Skill flags assets without release.

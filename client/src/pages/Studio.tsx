@@ -13,7 +13,10 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Loader2, Upload, Trash2, Image as ImageIcon, Video, Eye, EyeOff, LogOut, Camera } from "lucide-react";
+import { Loader2, Upload, Trash2, Image as ImageIcon, Video, Eye, EyeOff, LogOut, Camera, Tag, X, Check } from "lucide-react";
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 
@@ -112,13 +115,20 @@ function formatBytes(b: number): string {
 }
 
 function StudioApp({ email, onLogout }: { email: string; onLogout: () => void }) {
-  const [vertical, setVertical] = useState<Vertical>("afterschool");
+  // 2026-06-04: tags is now an array. Defaults to single afterschool tag.
+  // The first tag in the array becomes the "primary vertical" server-side.
+  const [tags, setTags] = useState<Vertical[]>(["afterschool"]);
   const [caption, setCaption] = useState("");
   const [minorRelease, setMinorRelease] = useState(false);
   const [filterVertical, setFilterVertical] = useState<Vertical | "all">("all");
   const [pendingDelete, setPendingDelete] = useState<number | null>(null);
+  const [editingAsset, setEditingAsset] = useState<any | null>(null);
   const [uploadQueue, setUploadQueue] = useState<{ name: string; progress: "queued" | "uploading" | "done" | "error"; error?: string }[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  function toggleTag(v: Vertical) {
+    setTags(prev => prev.includes(v) ? prev.filter(t => t !== v) : [...prev, v]);
+  }
 
   const listQuery = trpc.studio.list.useQuery(
     { vertical: filterVertical === "all" ? undefined : filterVertical, limit: 200 },
@@ -137,6 +147,10 @@ function StudioApp({ email, onLogout }: { email: string; onLogout: () => void })
     const arr = Array.from(files);
     setUploadQueue(arr.map(f => ({ name: f.name, progress: "queued" })));
 
+    if (tags.length === 0) {
+      toast.error("Pick at least one tag before uploading.");
+      return;
+    }
     for (let i = 0; i < arr.length; i++) {
       const file = arr[i];
       setUploadQueue(q => q.map((row, idx) => idx === i ? { ...row, progress: "uploading" } : row));
@@ -163,7 +177,7 @@ function StudioApp({ email, onLogout }: { email: string; onLogout: () => void })
           throw new Error(`Couldn't read file in browser (${formatBytes(file.size)}). Try a smaller file or upload one at a time.`);
         }
         await upload.mutateAsync({
-          vertical,
+          tags,
           filename: file.name,
           contentType: inferredType,
           dataBase64,
@@ -229,15 +243,28 @@ function StudioApp({ email, onLogout }: { email: string; onLogout: () => void })
           </CardHeader>
           <CardContent className="space-y-3">
             <div>
-              <Label className="text-xs">Vertical</Label>
-              <Select value={vertical} onValueChange={v => setVertical(v as Vertical)}>
-                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {VERTICALS.map(v => (
-                    <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label className="text-xs">Tags <span className="text-gray-400">(pick all that apply)</span></Label>
+              <div className="flex flex-wrap gap-1.5 mt-1.5">
+                {VERTICALS.map(v => {
+                  const active = tags.includes(v.value);
+                  return (
+                    <button key={v.value} type="button" onClick={() => toggleTag(v.value)}
+                      className={`text-xs px-2.5 py-1.5 rounded-full border transition-colors ${
+                        active
+                          ? "bg-[#1a2d5a] text-white border-[#1a2d5a]"
+                          : "bg-white text-gray-700 border-gray-300 hover:border-[#1a2d5a]"
+                      }`}>
+                      {active && <Check className="w-3 h-3 inline -ml-0.5 mr-0.5" />}
+                      {v.label}
+                    </button>
+                  );
+                })}
+              </div>
+              {tags.length > 1 && (
+                <p className="text-[10px] text-gray-400 mt-1.5">
+                  Primary bucket: <strong>{VERTICALS.find(x => x.value === tags[0])?.label}</strong> (first selected)
+                </p>
+              )}
             </div>
 
             <div>
@@ -321,13 +348,18 @@ function StudioApp({ email, onLogout }: { email: string; onLogout: () => void })
             ) : (
               <div className="grid grid-cols-2 gap-2">
                 {items.map(asset => (
-                  <AssetTile key={asset.id} asset={asset} onDelete={() => setPendingDelete(asset.id)} />
+                  <AssetTile key={asset.id} asset={asset}
+                    onDelete={() => setPendingDelete(asset.id)}
+                    onEdit={() => setEditingAsset(asset)} />
                 ))}
               </div>
             )}
           </CardContent>
         </Card>
       </div>
+
+      <EditTagsModal asset={editingAsset} onClose={() => setEditingAsset(null)}
+        onSaved={() => utils.studio.list.invalidate()} />
 
       <AlertDialog open={pendingDelete != null} onOpenChange={() => setPendingDelete(null)}>
         <AlertDialogContent>
@@ -349,11 +381,23 @@ function StudioApp({ email, onLogout }: { email: string; onLogout: () => void })
   );
 }
 
-function AssetTile({ asset, onDelete }: { asset: any; onDelete: () => void }) {
+function parseTags(asset: any): Vertical[] {
+  // 2026-06-04: tags column is JSON text. Fall back to single-vertical for legacy rows.
+  if (asset.tags) {
+    try {
+      const parsed = JSON.parse(asset.tags);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed as Vertical[];
+    } catch { /* fall through */ }
+  }
+  return asset.vertical ? [asset.vertical] : [];
+}
+
+function AssetTile({ asset, onDelete, onEdit }: { asset: any; onDelete: () => void; onEdit: () => void }) {
   const urlQuery = trpc.studio.getDownloadUrl.useQuery({ id: asset.id }, {
     staleTime: 60 * 1000, refetchOnWindowFocus: false,
   });
   const url = urlQuery.data?.url;
+  const assetTags = parseTags(asset);
 
   return (
     <div className="relative bg-gray-100 rounded overflow-hidden aspect-square group">
@@ -369,19 +413,33 @@ function AssetTile({ asset, onDelete }: { asset: any; onDelete: () => void }) {
         </div>
       )}
 
-      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-2">
+      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent p-2">
         <div className="text-white text-[10px] truncate">{asset.originalName}</div>
-        <div className="flex items-center gap-1 mt-0.5">
-          <Badge variant="outline" className="text-[9px] py-0 px-1 bg-white/20 text-white border-white/30">
-            {asset.vertical}
-          </Badge>
+        <div className="flex items-center flex-wrap gap-1 mt-0.5">
+          {assetTags.map(t => (
+            <Badge key={t} variant="outline" className="text-[9px] py-0 px-1 bg-white/20 text-white border-white/30">
+              {t}
+            </Badge>
+          ))}
           <span className="text-[9px] text-white/70">{formatBytes(asset.sizeBytes)}</span>
         </div>
       </div>
 
-      <button onClick={onDelete}
-        className="absolute top-1 right-1 p-1 bg-black/50 rounded text-white opacity-0 group-hover:opacity-100 transition-opacity">
-        <Trash2 className="w-3 h-3" />
+      <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <button onClick={onEdit} title="Edit tags"
+          className="p-1 bg-black/50 rounded text-white">
+          <Tag className="w-3 h-3" />
+        </button>
+        <button onClick={onDelete} title="Delete"
+          className="p-1 bg-black/50 rounded text-white">
+          <Trash2 className="w-3 h-3" />
+        </button>
+      </div>
+
+      {/* Always-visible tap zone for mobile (no hover) */}
+      <button onClick={onEdit}
+        className="md:hidden absolute top-1 right-1 p-1.5 bg-black/60 rounded text-white">
+        <Tag className="w-3.5 h-3.5" />
       </button>
 
       {!asset.minorReleaseOnFile && (
@@ -390,6 +448,82 @@ function AssetTile({ asset, onDelete }: { asset: any; onDelete: () => void }) {
         </div>
       )}
     </div>
+  );
+}
+
+function EditTagsModal({ asset, onClose, onSaved }: {
+  asset: any | null;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [selected, setSelected] = useState<Vertical[]>([]);
+  const setTagsMutation = trpc.studio.setTags.useMutation();
+
+  // Re-seed when a new asset opens
+  useEffect(() => {
+    if (asset) setSelected(parseTags(asset));
+  }, [asset?.id]);
+
+  if (!asset) return null;
+
+  function toggle(v: Vertical) {
+    setSelected(prev => prev.includes(v) ? prev.filter(t => t !== v) : [...prev, v]);
+  }
+
+  async function save() {
+    if (selected.length === 0) {
+      toast.error("Pick at least one tag.");
+      return;
+    }
+    try {
+      await setTagsMutation.mutateAsync({ id: asset.id, tags: selected });
+      toast.success("Tags updated");
+      onSaved();
+      onClose();
+    } catch (err: any) {
+      toast.error(err?.message ?? "Failed to save tags");
+    }
+  }
+
+  return (
+    <Dialog open={!!asset} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-base">Edit tags</DialogTitle>
+          <DialogDescription className="text-xs">
+            {asset.originalName}. First tag becomes the primary bucket.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex flex-wrap gap-1.5 py-2">
+          {VERTICALS.map(v => {
+            const active = selected.includes(v.value);
+            return (
+              <button key={v.value} type="button" onClick={() => toggle(v.value)}
+                className={`text-xs px-2.5 py-1.5 rounded-full border transition-colors ${
+                  active
+                    ? "bg-[#1a2d5a] text-white border-[#1a2d5a]"
+                    : "bg-white text-gray-700 border-gray-300 hover:border-[#1a2d5a]"
+                }`}>
+                {active && <Check className="w-3 h-3 inline -ml-0.5 mr-0.5" />}
+                {v.label}
+              </button>
+            );
+          })}
+        </div>
+        {selected.length > 1 && (
+          <p className="text-[11px] text-gray-500">
+            Primary bucket: <strong>{VERTICALS.find(x => x.value === selected[0])?.label}</strong>
+          </p>
+        )}
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} className="text-xs">Cancel</Button>
+          <Button onClick={save} disabled={setTagsMutation.isPending}
+            className="bg-[#1a2d5a] hover:bg-[#142347] text-xs">
+            {setTagsMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : "Save"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
