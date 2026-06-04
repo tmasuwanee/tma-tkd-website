@@ -1159,16 +1159,20 @@ export const appRouter = router({
         ]),
         filename: z.string().min(1).max(255),
         contentType: z.string().min(1).max(100),
-        // base64-encoded file bytes — express.json limit is 50MB
+        // base64-encoded file bytes — express.json limit is 150MB (covers ~100MB raw + base64 overhead)
         dataBase64: z.string().min(1),
         caption: z.string().max(2000).optional(),
         minorReleaseOnFile: z.boolean().optional(),
-        uploadedByEmail: z.string().email().optional(),
+        // Loosened from z.string().email() to z.string() — iOS sessionStorage can hand us
+        // a value that fails strict email validation (encoding edge cases), and we never
+        // act on this field server-side beyond storing it.
+        uploadedByEmail: z.string().max(320).optional(),
       }))
       .mutation(async ({ input }) => {
         const buf = Buffer.from(input.dataBase64, "base64");
         if (buf.length === 0) throw new Error("Empty upload");
-        if (buf.length > 60 * 1024 * 1024) throw new Error("File too large (max 60MB)");
+        if (buf.length > 100 * 1024 * 1024) throw new Error("File too large (max 100MB)");
+        console.log(`[studio.upload] vertical=${input.vertical} name=${input.filename} ct=${input.contentType} size=${buf.length}`);
         const kind: "photo" | "video" = input.contentType.startsWith("video/") ? "video" : "photo";
         const safeName = input.filename.replace(/[^a-zA-Z0-9._-]+/g, "_").slice(0, 120);
         const stamp = Date.now();

@@ -141,14 +141,31 @@ function StudioApp({ email, onLogout }: { email: string; onLogout: () => void })
       const file = arr[i];
       setUploadQueue(q => q.map((row, idx) => idx === i ? { ...row, progress: "uploading" } : row));
       try {
-        if (file.size > 50 * 1024 * 1024) {
-          throw new Error(`Too big (${formatBytes(file.size)}, max 50MB). Compress on phone first.`);
+        if (file.size > 100 * 1024 * 1024) {
+          throw new Error(`Too big (${formatBytes(file.size)}, max 100MB). Trim or compress on phone first.`);
         }
-        const dataBase64 = await fileToBase64(file);
+        // Some iOS HEIC files report contentType="" — fall back to inferring from extension.
+        const inferredType = (() => {
+          if (file.type) return file.type;
+          const lower = file.name.toLowerCase();
+          if (lower.endsWith(".heic") || lower.endsWith(".heif")) return "image/heic";
+          if (lower.endsWith(".mov")) return "video/quicktime";
+          if (lower.endsWith(".mp4")) return "video/mp4";
+          if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
+          if (lower.endsWith(".png")) return "image/png";
+          return "application/octet-stream";
+        })();
+        let dataBase64: string;
+        try {
+          dataBase64 = await fileToBase64(file);
+        } catch (readErr: any) {
+          // iOS Safari FileReader can fail silently for very large files. Surface this clearly.
+          throw new Error(`Couldn't read file in browser (${formatBytes(file.size)}). Try a smaller file or upload one at a time.`);
+        }
         await upload.mutateAsync({
           vertical,
           filename: file.name,
-          contentType: file.type || "application/octet-stream",
+          contentType: inferredType,
           dataBase64,
           caption: caption || undefined,
           minorReleaseOnFile: minorRelease,
@@ -156,7 +173,11 @@ function StudioApp({ email, onLogout }: { email: string; onLogout: () => void })
         });
         setUploadQueue(q => q.map((row, idx) => idx === i ? { ...row, progress: "done" } : row));
       } catch (err: any) {
-        const msg = err?.message ?? "Upload failed";
+        // Surface the real underlying error from tRPC (zod / server) instead of a generic message.
+        const msg = err?.data?.zodError
+          ? `Validation: ${JSON.stringify(err.data.zodError.fieldErrors)}`
+          : err?.message ?? "Upload failed";
+        console.error("[studio upload]", file.name, err);
         setUploadQueue(q => q.map((row, idx) => idx === i ? { ...row, progress: "error", error: msg } : row));
         toast.error(`${file.name}: ${msg}`);
       }
@@ -246,7 +267,8 @@ function StudioApp({ email, onLogout }: { email: string; onLogout: () => void })
                 </label>
               </Button>
               <p className="text-xs text-gray-500 mt-2 text-center">
-                Phone camera roll works. Max 50MB per file.
+                Phone camera roll works. Max 100MB per file.
+                <br />For long clips: 1080p (not 4K), under ~60 seconds.
               </p>
             </div>
 
