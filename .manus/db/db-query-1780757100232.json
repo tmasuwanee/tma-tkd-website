@@ -1,0 +1,46 @@
+{
+  "query": "SELECT programInterest, COUNT(*) as cnt FROM leads GROUP BY programInterest ORDER BY cnt DESC;\nSHOW TABLES LIKE '%resend%';\nSHOW TABLES LIKE '%email%';\nSHOW TABLES LIKE '%open%';\nSHOW TABLES LIKE '%click%';\nSHOW TABLES LIKE '%webhook%';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3SwZhQGwFybjoYh.root --database cXp7keMiYsMkePUngpTNmV --execute SELECT programInterest, COUNT(*) as cnt FROM leads GROUP BY programInterest ORDER BY cnt DESC;\nSHOW TABLES LIKE '%resend%';\nSHOW TABLES LIKE '%email%';\nSHOW TABLES LIKE '%open%';\nSHOW TABLES LIKE '%click%';\nSHOW TABLES LIKE '%webhook%';",
+  "rows": [
+    {
+      "programInterest": "Summer Camp 2026",
+      "cnt": "90"
+    },
+    {
+      "programInterest": "Taekwondo",
+      "cnt": "8"
+    },
+    {
+      "programInterest": "summer_camp",
+      "cnt": "7"
+    },
+    {
+      "programInterest": "taekwondo",
+      "cnt": "7"
+    },
+    {
+      "programInterest": "kickboxing",
+      "cnt": "6"
+    },
+    {
+      "programInterest": "summer",
+      "cnt": "2"
+    },
+    {
+      "programInterest": "summer camp",
+      "cnt": "1"
+    },
+    {
+      "programInterest": "bjj",
+      "cnt": "1"
+    },
+    {
+      "programInterest": "something weird",
+      "cnt": "1"
+    }
+  ],
+  "messages": [],
+  "stdout": "programInterest\tcnt\nSummer Camp 2026\t90\nTaekwondo\t8\nsummer_camp\t7\ntaekwondo\t7\nkickboxing\t6\nsummer\t2\nsummer camp\t1\nbjj\t1\nsomething weird\t1\n",
+  "stderr": "",
+  "execution_time_ms": 1006
+}

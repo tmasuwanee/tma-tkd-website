@@ -23,4 +23,7 @@ export const ENV = {
   facebookCapiToken: process.env.FACEBOOK_CAPI_TOKEN ?? "",
   facebookMarketingApiToken: process.env.FACEBOOK_MARKETING_API_TOKEN ?? "",
   facebookAdAccountId: process.env.FACEBOOK_AD_ACCOUNT_ID ?? "",
+  // 2026-06-06: Gmail reply poller shared secret. Required for /api/trpc/inbound.emailReply.
+  // The poller (scripts/gmail_reply_poller.ts) sends this in the input payload.
+  gmailPollerSharedSecret: process.env.GMAIL_POLLER_SHARED_SECRET ?? "",
 };
