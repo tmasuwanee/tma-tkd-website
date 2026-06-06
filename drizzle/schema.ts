@@ -63,14 +63,24 @@ export const leadActivities = mysqlTable("leadActivities", {
   id: int("id").autoincrement().primaryKey(),
   leadId: int("leadId").notNull().references(() => leads.id),
   type: mysqlEnum("type", ["email", "sms", "call", "note"]).notNull(),
+  // 2026-06-06: outbound (we sent it) vs inbound (lead replied). Defaults to
+  // outbound so existing rows stay correct. Inbound entries come from the Gmail
+  // polling worker (replies) and from any incoming SMS/voice we wire up later.
+  direction: mysqlEnum("direction", ["outbound", "inbound"]).default("outbound").notNull(),
   subject: varchar("subject", { length: 255 }),
   body: text("body"),
-  // Who sent it: n8n_intake | n8n_noshow | n8n_fbsync | staff
+  // Who sent it: n8n_intake | n8n_noshow | n8n_fbsync | staff | gmail_reply_poller
   sentBy: varchar("sentBy", { length: 100 }),
-  // sent | failed | opened
+  // sent | failed | opened | replied | voicemail | answered | not_interested
   status: varchar("status", { length: 50 }).default("sent"),
+  // 2026-06-06: external provider message id (Gmail messageId, Resend id, Twilio sid).
+  // Used by the Gmail poller to dedup so we don't double-insert the same reply.
+  externalId: varchar("externalId", { length: 255 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-});
+}, (table) => ({
+  externalIdIdx: uniqueIndex("activity_external_id_uniq").on(table.externalId),
+  leadIdIdx: index("activity_lead_idx").on(table.leadId, table.createdAt),
+}));
 
 export type LeadActivity = typeof leadActivities.$inferSelect;
 export type InsertLeadActivity = typeof leadActivities.$inferInsert;
@@ -449,4 +459,50 @@ export const studioAssets = mysqlTable("studioAssets", {
 
 export type StudioAsset = typeof studioAssets.$inferSelect;
 export type InsertStudioAsset = typeof studioAssets.$inferInsert;
+
+// ─── Daily Call Queue (2026-06-06) ────────────────────────────────────────────
+// One row per (lead, queueDate) pair. The 8am cron picks the top N leads per
+// day and writes them here. The /admin Today's Calls tab reads from here.
+//
+// `vertical` is denormalized from leads.programInterest at queue time so the
+// tile renders without needing a join, and so retroactive program changes
+// don't rewrite history.
+//
+// `status` tracks the call outcome. `outcomeNotes` is free-text from the
+// caller. `calledAt` + `calledBy` record who actually dialed and when.
+export const dailyCallQueue = mysqlTable("dailyCallQueue", {
+  id: int("id").autoincrement().primaryKey(),
+  leadId: int("leadId").notNull().references(() => leads.id),
+  // YYYY-MM-DD string so dedup uses a stable key independent of TZ
+  queueDate: varchar("queueDate", { length: 10 }).notNull(),
+  // Higher score = call sooner
+  score: int("score").notNull(),
+  // Human-readable: 'opened day_3 yesterday' / 'no_show + replied' / 'returning parent'
+  reason: text("reason"),
+  // Denormalized snapshot of which program at queue time
+  vertical: varchar("vertical", { length: 100 }),
+  status: mysqlEnum("status", [
+    "pending",        // not yet attempted
+    "answered",       // talked to the parent
+    "voicemail",      // left vm
+    "no_answer",      // rang out
+    "booked",         // trial booked / enrolled during the call
+    "not_interested", // hard no
+    "callback_later", // soft no, try again
+    "skipped",        // staff explicitly skipped
+  ]).default("pending").notNull(),
+  outcomeNotes: text("outcomeNotes"),
+  calledAt: timestamp("calledAt"),
+  calledBy: varchar("calledBy", { length: 320 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  // One row per lead per day. If the cron picks the same lead twice in one
+  // day (it shouldn't), the unique constraint stops the duplicate.
+  leadDateUniq: uniqueIndex("call_queue_lead_date_uniq").on(table.leadId, table.queueDate),
+  dateStatusIdx: index("call_queue_date_status_idx").on(table.queueDate, table.status),
+}));
+
+export type DailyCallQueueRow = typeof dailyCallQueue.$inferSelect;
+export type InsertDailyCallQueueRow = typeof dailyCallQueue.$inferInsert;
 

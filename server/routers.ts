@@ -29,6 +29,8 @@ import {
   createStudioAsset, listStudioAssets, getStudioAssetById, updateStudioAsset, deleteStudioAsset,
   // Studio multi-tag (2026-06-04)
   setStudioAssetTags,
+  // Call queue + inbound replies (2026-06-06)
+  generateDailyCallQueue, listTodaysCalls, markCallOutcome, recordInboundEmailReply,
 } from "./db";
 import { storagePut, storageGet } from "./storage";
 import { sendToGoogleSheets, sendToSlack, sendEmailNotification, sendCampRegistrationConfirmation } from "./integrations";
@@ -1254,6 +1256,84 @@ export const appRouter = router({
       .mutation(async ({ input }) => {
         await deleteStudioAsset(input.id);
         return { success: true } as const;
+      }),
+  }),
+
+  // ─── Calls (2026-06-06) ───────────────────────────────────────────────────
+  // Powers the /admin "Today's Calls" tab. Until the 8am cron is set up in
+  // n8n, generate() is also exposed so Arfa can manually pull the day's queue
+  // from the UI.
+  calls: router({
+    listToday: publicProcedure
+      .input(z.object({
+        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      }))
+      .query(async ({ input }) => listTodaysCalls(input.date)),
+
+    generateToday: publicProcedure
+      .input(z.object({
+        limit: z.number().int().min(1).max(20).default(5),
+        activeVertical: z.string().max(100).optional(),
+      }))
+      .mutation(async ({ input }) => generateDailyCallQueue(input)),
+
+    markOutcome: publicProcedure
+      .input(z.object({
+        id: z.number().int().positive(),
+        status: z.enum([
+          "pending", "answered", "voicemail", "no_answer",
+          "booked", "not_interested", "callback_later", "skipped",
+        ]),
+        outcomeNotes: z.string().max(2000).optional(),
+        calledBy: z.string().max(320),
+      }))
+      .mutation(async ({ input }) => {
+        await markCallOutcome({
+          id: input.id,
+          status: input.status,
+          outcomeNotes: input.outcomeNotes,
+          calledBy: input.calledBy,
+        });
+        return { success: true } as const;
+      }),
+
+    // Get the last N activities for a single lead, so the call card can show
+    // "last touched: opened day_3 yesterday at 4pm" without an extra round-trip.
+    leadActivity: publicProcedure
+      .input(z.object({
+        leadId: z.number().int().positive(),
+        limit: z.number().int().min(1).max(50).default(10),
+      }))
+      .query(async ({ input }) => getLeadActivities(input.leadId, input.limit)),
+  }),
+
+  // ─── Inbound (2026-06-06) ─────────────────────────────────────────────────
+  // Receives parsed email replies from the Gmail polling worker. Worker auths
+  // by sending the GMAIL_POLLER_SHARED_SECRET via the secret field; this is a
+  // shared-secret check (no JWT) because the worker is server-to-server.
+  inbound: router({
+    emailReply: publicProcedure
+      .input(z.object({
+        secret: z.string().min(1),
+        fromEmail: z.string().email(),
+        subject: z.string().max(500),
+        body: z.string().max(100000),
+        gmailMessageId: z.string().min(1).max(255),
+        receivedAtIso: z.string(),
+      }))
+      .mutation(async ({ input }) => {
+        const expected = process.env.GMAIL_POLLER_SHARED_SECRET;
+        if (!expected || input.secret !== expected) {
+          throw new Error("Unauthorized");
+        }
+        const result = await recordInboundEmailReply({
+          fromEmail: input.fromEmail,
+          subject: input.subject,
+          body: input.body,
+          gmailMessageId: input.gmailMessageId,
+          receivedAt: new Date(input.receivedAtIso),
+        });
+        return result;
       }),
   }),
 });

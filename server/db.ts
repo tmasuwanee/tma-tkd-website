@@ -15,6 +15,7 @@ import {
   leadLifecycleEvents, InsertLeadLifecycleEvent, LeadLifecycleEvent,
   systemAuditLog, InsertSystemAuditLog,
   studioAssets, InsertStudioAsset, StudioAsset,
+  dailyCallQueue, InsertDailyCallQueueRow, DailyCallQueueRow,
 } from "../drizzle/schema";
 import { lte } from "drizzle-orm";
 import { ENV } from './_core/env';
@@ -268,12 +269,13 @@ export async function createLeadActivity(activity: InsertLeadActivity): Promise<
   return created[0]!;
 }
 
-export async function getLeadActivities(leadId: number): Promise<LeadActivity[]> {
+export async function getLeadActivities(leadId: number, limit?: number): Promise<LeadActivity[]> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  return db.select().from(leadActivities)
+  const q = db.select().from(leadActivities)
     .where(eq(leadActivities.leadId, leadId))
     .orderBy(desc(leadActivities.createdAt));
+  return limit ? await q.limit(limit) : await q;
 }
 
 // ─── Students ────────────────────────────────────────────────────────────────
@@ -1606,6 +1608,222 @@ export async function updateStudioAsset(id: number, patch: Partial<{
   const db = await getDb();
   if (!db) throw new Error("Database not configured");
   await db.update(studioAssets).set(patch as any).where(eq(studioAssets.id, id));
+}
+
+// ─── Daily Call Queue + inbound activity (2026-06-06) ─────────────────────────
+
+export type CallOutcome =
+  | "pending" | "answered" | "voicemail" | "no_answer"
+  | "booked" | "not_interested" | "callback_later" | "skipped";
+
+function todayDateString(): string {
+  // YYYY-MM-DD in local time (America/New_York for TMA, but cron runs server-local)
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+/**
+ * Pick the top N leads to call today, by score, and write to dailyCallQueue.
+ *
+ * Scoring (initial heuristic — refine after we have email open/click data):
+ *  +50  trial_no_show_final in last 7 days        (last shot)
+ *  +40  trial_scheduled in next 3 days            (confirm)
+ *  +35  no_show in last 3 days                    (rebook)
+ *  +30  contacted but no reply >= 5 days          (follow-up)
+ *  +25  new_lead < 24h old                        (speed-to-lead)
+ *  +20  programInterest matches active campaign   (summer_camp for now)
+ *  +10  has phone number
+ *  -100 enrolled / lost / opted out               (excluded entirely)
+ *
+ * Returns the inserted rows. Idempotent for (leadId, queueDate) — repeated
+ * calls in the same day are no-ops thanks to the unique index.
+ */
+export async function generateDailyCallQueue(opts: {
+  limit?: number;
+  activeVertical?: string;  // e.g. "Summer Camp" — boosts matching leads
+} = {}): Promise<DailyCallQueueRow[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const limit = opts.limit ?? 5;
+  const date = todayDateString();
+
+  // Pull every non-terminal lead. Volumes are small (hundreds) so we score in JS
+  // rather than wrestling MySQL into ranking expressions.
+  const candidates = await db.select().from(leads).where(
+    sql`pipelineStage NOT IN ('enrolled','lost','no_show_final')
+        AND (automationPaused IS NULL OR automationPaused = 0)`
+  );
+
+  const now = Date.now();
+  const scored = candidates.map(l => {
+    let s = 0;
+    const stage = l.pipelineStage;
+    const ageMs = now - (l.createdAt ? new Date(l.createdAt).getTime() : now);
+    const ageDays = ageMs / (1000 * 60 * 60 * 24);
+    const reasons: string[] = [];
+
+    if (stage === "trial_scheduled") {
+      s += 40;
+      reasons.push("trial coming up — confirm");
+    }
+    if (stage === "no_show") {
+      s += 35;
+      reasons.push("no-showed trial — rebook");
+    }
+    if (stage === "contacted" && ageDays >= 5) {
+      s += 30;
+      reasons.push(`contacted ${Math.floor(ageDays)}d ago, no progress`);
+    }
+    if (stage === "new_lead" && ageDays < 1) {
+      s += 25;
+      reasons.push("new lead — speed-to-lead");
+    }
+    if (opts.activeVertical && l.programInterest &&
+        l.programInterest.toLowerCase().includes(opts.activeVertical.toLowerCase())) {
+      s += 20;
+      reasons.push(`active campaign: ${opts.activeVertical}`);
+    }
+    if (l.phone && l.phone.replace(/\D/g, "").length >= 10) {
+      s += 10;
+    }
+
+    return { lead: l, score: s, reason: reasons.join(" + ") || "general follow-up" };
+  })
+  .filter(x => x.score > 0 && x.lead.phone)
+  .sort((a, b) => b.score - a.score)
+  .slice(0, limit);
+
+  const inserted: DailyCallQueueRow[] = [];
+  for (const item of scored) {
+    try {
+      await db.insert(dailyCallQueue).values({
+        leadId: item.lead.id,
+        queueDate: date,
+        score: item.score,
+        reason: item.reason,
+        vertical: item.lead.programInterest ?? null,
+        status: "pending",
+      } as any);
+      const [row] = await db.select().from(dailyCallQueue).where(
+        and(eq(dailyCallQueue.leadId, item.lead.id), eq(dailyCallQueue.queueDate, date))!
+      );
+      if (row) inserted.push(row);
+    } catch (e) {
+      // duplicate key — that lead already on today's list, fine
+    }
+  }
+  return inserted;
+}
+
+export async function listTodaysCalls(date?: string): Promise<Array<DailyCallQueueRow & { lead: Lead | null }>> {
+  const db = await getDb();
+  if (!db) return [];
+  const d = date ?? todayDateString();
+  const rows = await db.select().from(dailyCallQueue)
+    .where(eq(dailyCallQueue.queueDate, d))
+    .orderBy(desc(dailyCallQueue.score));
+  // Join leads in JS — small N
+  const result = [];
+  for (const r of rows) {
+    const [lead] = await db.select().from(leads).where(eq(leads.id, r.leadId));
+    result.push({ ...r, lead: lead ?? null });
+  }
+  return result;
+}
+
+export async function markCallOutcome(args: {
+  id: number;
+  status: CallOutcome;
+  outcomeNotes?: string | null;
+  calledBy: string;
+}): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not configured");
+  const [row] = await db.select().from(dailyCallQueue).where(eq(dailyCallQueue.id, args.id));
+  if (!row) throw new Error("Call row not found");
+
+  await db.update(dailyCallQueue).set({
+    status: args.status,
+    outcomeNotes: args.outcomeNotes ?? null,
+    calledAt: new Date(),
+    calledBy: args.calledBy,
+  } as any).where(eq(dailyCallQueue.id, args.id));
+
+  // Mirror into leadActivities so the lead's timeline shows the call.
+  await db.insert(leadActivities).values({
+    leadId: row.leadId,
+    type: "call",
+    direction: "outbound",
+    subject: `Call: ${args.status}`,
+    body: args.outcomeNotes ?? null,
+    sentBy: args.calledBy,
+    status: args.status,
+  } as any);
+
+  // Side-effect: if the outcome is "booked", pull the lead to trial_scheduled.
+  // If "not_interested", drop to lost.
+  if (args.status === "booked") {
+    await db.update(leads).set({ pipelineStage: "trial_scheduled" } as any)
+      .where(eq(leads.id, row.leadId));
+  } else if (args.status === "not_interested") {
+    await db.update(leads).set({ pipelineStage: "lost" } as any)
+      .where(eq(leads.id, row.leadId));
+  }
+}
+
+/**
+ * Used by the Gmail reply poller. Looks up the lead by email, writes an
+ * inbound activity row with the Gmail messageId as externalId so reprocessing
+ * the same message is a no-op (unique index).
+ *
+ * Returns { matched: number, activityId?: number } where `matched` is the lead id
+ * found by email (0 if none).
+ */
+export async function recordInboundEmailReply(args: {
+  fromEmail: string;
+  subject: string;
+  body: string;
+  gmailMessageId: string;
+  receivedAt: Date;
+}): Promise<{ matched: number; activityId?: number }> {
+  const db = await getDb();
+  if (!db) return { matched: 0 };
+
+  const lookupEmail = args.fromEmail.toLowerCase().trim();
+  const [lead] = await db.select().from(leads).where(
+    sql`LOWER(${leads.email}) = ${lookupEmail}`
+  );
+  if (!lead) return { matched: 0 };
+
+  // Insert. Unique index on externalId stops duplicate writes for the same Gmail message.
+  try {
+    await db.insert(leadActivities).values({
+      leadId: lead.id,
+      type: "email",
+      direction: "inbound",
+      subject: args.subject?.slice(0, 255) ?? null,
+      body: args.body?.slice(0, 65000) ?? null,
+      sentBy: "gmail_reply_poller",
+      status: "replied",
+      externalId: args.gmailMessageId,
+    } as any);
+  } catch (e: any) {
+    // duplicate key = already processed this message
+    if (e?.code === "ER_DUP_ENTRY") return { matched: lead.id };
+    throw e;
+  }
+
+  // If lead is still in early stages, the fact that they replied is a strong
+  // signal — promote them to "contacted" if they were "new_lead".
+  if (lead.pipelineStage === "new_lead") {
+    await db.update(leads).set({ pipelineStage: "contacted" } as any)
+      .where(eq(leads.id, lead.id));
+  }
+
+  return { matched: lead.id };
 }
 
 // 2026-06-04: dedicated retag endpoint. Sets BOTH the primary vertical (first tag)
