@@ -1616,6 +1616,29 @@ export type CallOutcome =
   | "pending" | "answered" | "voicemail" | "no_answer"
   | "booked" | "not_interested" | "callback_later" | "skipped";
 
+/**
+ * Normalize programInterest into a canonical vertical bucket.
+ *
+ * Production data is dirty (Manus 2026-06-06 audit):
+ *   "Summer Camp 2026" 90, "summer_camp" 7, "summer camp" 1, "summer" 2,
+ *   "Taekwondo" 8, "taekwondo" 7,
+ *   "kickboxing" 6, "bjj" 1, "something weird" 1.
+ *
+ * This collapses them into 5 known buckets. Anything unrecognized returns
+ * "other" so it won't accidentally match a campaign filter. Use this for
+ * scoring + display; do NOT mutate the underlying column (history matters).
+ */
+export function normalizeVertical(raw?: string | null): string {
+  if (!raw) return "other";
+  const s = raw.toLowerCase().trim();
+  if (s.includes("camp") || s === "summer") return "summer_camp";
+  if (s.includes("afterschool") || s.includes("after-school") || s.includes("after school")) return "afterschool";
+  if (s.includes("taekwondo") || s === "tkd") return "tkd";
+  if (s.includes("kickbox")) return "kickboxing";
+  if (s.includes("bjj") || s.includes("brazilian")) return "bjj";
+  return "other";
+}
+
 function todayDateString(): string {
   // YYYY-MM-DD in local time (America/New_York for TMA, but cron runs server-local)
   const d = new Date();
@@ -1681,10 +1704,13 @@ export async function generateDailyCallQueue(opts: {
       s += 25;
       reasons.push("new lead — speed-to-lead");
     }
-    if (opts.activeVertical && l.programInterest &&
-        l.programInterest.toLowerCase().includes(opts.activeVertical.toLowerCase())) {
+    // Match on the NORMALIZED vertical so "Summer Camp 2026" and "summer_camp"
+    // both match an activeVertical of "summer_camp" or "Summer Camp".
+    const leadVertical = normalizeVertical(l.programInterest);
+    const wantVertical = normalizeVertical(opts.activeVertical);
+    if (opts.activeVertical && leadVertical === wantVertical && leadVertical !== "other") {
       s += 20;
-      reasons.push(`active campaign: ${opts.activeVertical}`);
+      reasons.push(`active campaign: ${leadVertical}`);
     }
     if (l.phone && l.phone.replace(/\D/g, "").length >= 10) {
       s += 10;
@@ -1704,7 +1730,9 @@ export async function generateDailyCallQueue(opts: {
         queueDate: date,
         score: item.score,
         reason: item.reason,
-        vertical: item.lead.programInterest ?? null,
+        // Store the NORMALIZED bucket. Raw value is still on leads.programInterest
+        // if anyone needs the original string.
+        vertical: normalizeVertical(item.lead.programInterest),
         status: "pending",
       } as any);
       const [row] = await db.select().from(dailyCallQueue).where(
