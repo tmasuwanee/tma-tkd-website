@@ -1,0 +1,9 @@
+{
+  "query": "INSERT INTO leads (parentName, kidName, kidAge, email, phone, programInterest, pipelineStage, utmSource, utmCampaign, tags, createdAt, updatedAt)\nVALUES ('', 'William Nguyen', 'unknown', 'thumannguyen06_08@gmail.com', '4045803604', 'Summer Camp 2026', 'new_lead', 'zenplanner_import', 'summer_camp_2026_early_bird', '[\"zenplanner_2026\",\"do_not_contact\"]', NOW(), NOW());",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3SwZhQGwFybjoYh.root --database cXp7keMiYsMkePUngpTNmV --execute INSERT INTO leads (parentName, kidName, kidAge, email, phone, programInterest, pipelineStage, utmSource, utmCampaign, tags, createdAt, updatedAt)\nVALUES ('', 'William Nguyen', 'unknown', 'thumannguyen06_08@gmail.com', '4045803604', 'Summer Camp 2026', 'new_lead', 'zenplanner_import', 'summer_camp_2026_early_bird', '[\"zenplanner_2026\",\"do_not_contact\"]', NOW(), NOW());",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 342
+}

@@ -20,6 +20,7 @@ import Studio from "./pages/Studio";
 import AdminTodaysCalls from "./pages/AdminTodaysCalls";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import Terms from "./pages/Terms";
+import SmsTerms from "./pages/SmsTerms";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -41,6 +42,7 @@ function Router() {
       <Route path={"/admin/calls"} component={AdminTodaysCalls} />
       <Route path={"/privacy-policy"} component={PrivacyPolicy} />
       <Route path={"/terms"} component={Terms} />
+      <Route path={"/sms-terms"} component={SmsTerms} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}
       <Route component={NotFound} />

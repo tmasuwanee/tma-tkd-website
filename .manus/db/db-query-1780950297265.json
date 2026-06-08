@@ -1,0 +1,50 @@
+{
+  "query": "SHOW COLUMNS FROM campRegistrations LIKE '%name%';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3SwZhQGwFybjoYh.root --database cXp7keMiYsMkePUngpTNmV --execute SHOW COLUMNS FROM campRegistrations LIKE '%name%';",
+  "rows": [
+    {
+      "Field": "camper1Name",
+      "Type": "varchar(255)",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "camper2Name",
+      "Type": "varchar(255)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "camper3Name",
+      "Type": "varchar(255)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "parentFirstName",
+      "Type": "varchar(255)",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "parentLastName",
+      "Type": "varchar(255)",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    }
+  ],
+  "messages": [],
+  "stdout": "Field\tType\tNull\tKey\tDefault\tExtra\ncamper1Name\tvarchar(255)\tNO\t\tNULL\t\ncamper2Name\tvarchar(255)\tYES\t\tNULL\t\ncamper3Name\tvarchar(255)\tYES\t\tNULL\t\nparentFirstName\tvarchar(255)\tNO\t\tNULL\t\nparentLastName\tvarchar(255)\tNO\t\tNULL\t\n",
+  "stderr": "",
+  "execution_time_ms": 262
+}

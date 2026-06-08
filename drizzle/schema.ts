@@ -52,6 +52,14 @@ export const leads = mysqlTable("leads", {
   automationPausedAt: timestamp("automationPausedAt"),
   automationPausedBy: varchar("automationPausedBy", { length: 100 }),
   automationPauseReason: varchar("automationPauseReason", { length: 255 }),
+  // 2026-06-08: CTIA-compliant SMS consent (Twilio toll-free verification req'd).
+  // smsConsent must be true at form submission. smsConsentAt is the timestamp
+  // they checked the box. smsConsentIp lets us prove the consent if Twilio asks.
+  // smsConsentText is a snapshot of the exact opt-in language they agreed to.
+  smsConsent: tinyint("smsConsent").default(0).notNull(),
+  smsConsentAt: timestamp("smsConsentAt"),
+  smsConsentIp: varchar("smsConsentIp", { length: 64 }),
+  smsConsentText: text("smsConsentText"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -156,6 +164,11 @@ export const campRegistrations = mysqlTable("campRegistrations", {
   stripePaymentStatus: varchar("stripePaymentStatus", { length: 50 }).default("pending"),
   amountPaid: int("amountPaid").default(0).notNull(),
   agreedToTerms: int("agreedToTerms").default(0).notNull(),
+  // 2026-06-08: CTIA-compliant SMS consent (Twilio toll-free verification req'd).
+  smsConsent: tinyint("smsConsent").default(0).notNull(),
+  smsConsentAt: timestamp("smsConsentAt"),
+  smsConsentIp: varchar("smsConsentIp", { length: 64 }),
+  smsConsentText: text("smsConsentText"),
   // Soft delete
   isDeleted: int("isDeleted").default(0).notNull(),
   deletedAt: timestamp("deletedAt"),

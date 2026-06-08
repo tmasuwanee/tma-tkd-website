@@ -1,0 +1,52 @@
+{
+  "query": "SELECT email, MIN(name) as name, MIN(kidName) as kidName, reason FROM (\n  SELECT l.email, l.parentName as name, l.kidName, 'Already received nurture emails' as reason\n  FROM leads l\n  INNER JOIN leadSequenceQueue lsq ON lsq.leadId = l.id\n  WHERE lsq.sequenceKey = 'summer_camp_nurture'\n    AND lsq.status = 'sent'\n    AND l.email IS NOT NULL AND l.email != ''\n) combined\nGROUP BY email, reason\nORDER BY name\nLIMIT 20 OFFSET 6;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3SwZhQGwFybjoYh.root --database cXp7keMiYsMkePUngpTNmV --execute SELECT email, MIN(name) as name, MIN(kidName) as kidName, reason FROM (\n  SELECT l.email, l.parentName as name, l.kidName, 'Already received nurture emails' as reason\n  FROM leads l\n  INNER JOIN leadSequenceQueue lsq ON lsq.leadId = l.id\n  WHERE lsq.sequenceKey = 'summer_camp_nurture'\n    AND lsq.status = 'sent'\n    AND l.email IS NOT NULL AND l.email != ''\n) combined\nGROUP BY email, reason\nORDER BY name\nLIMIT 20 OFFSET 6;",
+  "rows": [
+    {
+      "email": "edsljslangategsuedu@yahoo.com",
+      "name": "Laura Jackson Smith",
+      "kidName": "TBD",
+      "reason": "Already received nurture emails"
+    },
+    {
+      "email": "casaslomal973@gmail.com",
+      "name": "Lur Toldo",
+      "kidName": "TBD",
+      "reason": "Already received nurture emails"
+    },
+    {
+      "email": "sihyun1206@gmail.com",
+      "name": "Sarah Kim",
+      "kidName": "TBD",
+      "reason": "Already received nurture emails"
+    },
+    {
+      "email": "spencerandsenetra@gmail.com",
+      "name": "Senetra Mitchell",
+      "kidName": "TBD",
+      "reason": "Already received nurture emails"
+    },
+    {
+      "email": "arfa.consults+tm_1779339235@gmail.com",
+      "name": "TestMode Check",
+      "kidName": "",
+      "reason": "Already received nurture emails"
+    },
+    {
+      "email": "yajanymendoza1311@gmail.com",
+      "name": "Yajany Mendoza",
+      "kidName": "TBD",
+      "reason": "Already received nurture emails"
+    },
+    {
+      "email": "hujinfeng085@gmail.com",
+      "name": "胡胡",
+      "kidName": "TBD",
+      "reason": "Already received nurture emails"
+    }
+  ],
+  "messages": [],
+  "stdout": "email\tname\tkidName\treason\nedsljslangategsuedu@yahoo.com\tLaura Jackson Smith\tTBD\tAlready received nurture emails\ncasaslomal973@gmail.com\tLur Toldo\tTBD\tAlready received nurture emails\nsihyun1206@gmail.com\tSarah Kim\tTBD\tAlready received nurture emails\nspencerandsenetra@gmail.com\tSenetra Mitchell\tTBD\tAlready received nurture emails\narfa.consults+tm_1779339235@gmail.com\tTestMode Check\t\tAlready received nurture emails\nyajanymendoza1311@gmail.com\tYajany Mendoza\tTBD\tAlready received nurture emails\nhujinfeng085@gmail.com\t胡胡\tTBD\tAlready received nurture emails\n",
+  "stderr": "",
+  "execution_time_ms": 284
+}

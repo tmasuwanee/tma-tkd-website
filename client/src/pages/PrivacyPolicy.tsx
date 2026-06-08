@@ -40,8 +40,42 @@ export default function PrivacyPolicy() {
 
           <section>
             <h2 className="text-xl font-semibold mb-2">4. SMS / Text Message Communications</h2>
-            <p>By providing your phone number and opting in, you consent to receive text messages from Top Martial Arts Suwanee. Message frequency varies. Message and data rates may apply. You may opt out at any time by replying <strong>STOP</strong> to any message. For help, reply <strong>HELP</strong> or call us at (770) 277-3009.</p>
-            <p className="mt-2">We do not share your phone number or opt-in data with third parties for their own marketing purposes.</p>
+
+            <h3 className="text-base font-semibold mt-3 mb-1">4.1 Program description</h3>
+            <p>Top Martial Arts Suwanee operates an SMS messaging program to communicate with parents, guardians, and prospective students. We use SMS to send inquiry replies, trial class confirmations, class reminders, schedule updates, camp registration confirmations, and program announcements.</p>
+
+            <h3 className="text-base font-semibold mt-3 mb-1">4.2 How you opt in</h3>
+            <p>You opt in to SMS communications by submitting a form on tmatkd.com (the Free Class inquiry form, Summer Camp registration form, or Spring Break Camp registration form) AND checking the SMS consent checkbox located next to your phone number on that form. The checkbox is not pre-checked; you must check it intentionally. Your consent is captured with a timestamp and the IP address of the device used to submit the form.</p>
+            <p className="mt-2">By checking the consent box, you agree to receive recurring SMS text messages from Top Martial Arts Suwanee at the phone number you provided.</p>
+
+            <h3 className="text-base font-semibold mt-3 mb-1">4.3 Types of messages</h3>
+            <ul className="list-disc pl-5 space-y-1 mt-2">
+              <li>Replies to inquiries you submit via our website forms</li>
+              <li>Trial class confirmations and reminders</li>
+              <li>Camp and class registration confirmations</li>
+              <li>Schedule changes, closures, and weather-related notices</li>
+              <li>Program updates and important operational announcements</li>
+            </ul>
+
+            <h3 className="text-base font-semibold mt-3 mb-1">4.4 Frequency</h3>
+            <p>Message frequency varies based on your activity. Most parents receive up to 10 messages per month. We do not send promotional broadcasts to the SMS list.</p>
+
+            <h3 className="text-base font-semibold mt-3 mb-1">4.5 Costs</h3>
+            <p>Message and data rates may apply, depending on your wireless plan. Top Martial Arts Suwanee does not charge you for SMS messages.</p>
+
+            <h3 className="text-base font-semibold mt-3 mb-1">4.6 How to opt out</h3>
+            <p>You may opt out at any time by replying <strong>STOP</strong> to any message we send. Once we receive your opt-out, we will send a single confirmation message and no further SMS messages will be sent to that number. You can opt back in by texting <strong>START</strong> to the same number or by submitting a new form on tmatkd.com.</p>
+
+            <h3 className="text-base font-semibold mt-3 mb-1">4.7 How to get help</h3>
+            <p>Reply <strong>HELP</strong> to any message for support, or contact us directly at (770) 277-3009 or tmasuwanee@gmail.com.</p>
+
+            <h3 className="text-base font-semibold mt-3 mb-1">4.8 Supported carriers</h3>
+            <p>Our SMS program is supported on major US carriers including AT&amp;T, Verizon, T-Mobile, Sprint, US Cellular, Boost, Cricket, MetroPCS, and others. Carriers are not liable for delayed or undelivered messages.</p>
+
+            <h3 className="text-base font-semibold mt-3 mb-1">4.9 Privacy</h3>
+            <p>We do not share, sell, or rent your phone number or SMS opt-in data to third parties for their own marketing purposes. Phone numbers are shared only with our SMS delivery provider (Twilio) and only for the purpose of sending the messages described above.</p>
+
+            <p className="mt-3">Full SMS terms are available at <a href="/sms-terms" className="underline">tmatkd.com/sms-terms</a>.</p>
           </section>
 
           <section>

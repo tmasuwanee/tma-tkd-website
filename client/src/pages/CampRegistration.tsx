@@ -14,14 +14,17 @@ import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, ChevronRight, ChevronLeft, Users, User, Calendar, CreditCard } from "lucide-react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
+import { SMS_CONSENT_TEXT } from "@shared/smsConsent";
 
 const stripePromise = loadStripe(import.meta.env.VITE_TMA_STRIPE_PUBLISHABLE_KEY);
 
 // Valid coupon codes
-const COUPON_CODES: Record<string, { label: string; prices?: { "3day": number; "5day": number } }> = {
+const LASTCALL_ACTIVE = new Date() >= new Date("2026-07-21T00:00:00-04:00");
+const COUPON_CODES: Record<string, { label: string; prices?: { "3day": number; "5day": number; daily?: number }; hidden?: boolean }> = {
   EARLYBIRD2026: { label: "Registration Discount" },
   TMAEARLYBIRD: { label: "Registration Discount" },
   AS2026: { label: "$20/wk Discount", prices: { "3day": 179_00, "5day": 219_00 } },
+  AS2026FINAL: { label: "Last-Call Discount", prices: { "3day": 149_00, "5day": 189_00, daily: 55_00 }, hidden: !LASTCALL_ACTIVE },
 };
 
 // Pricing constants
@@ -36,9 +39,12 @@ const PRICING = {
 };
 
 function getProgramPrice(programType: "3day" | "5day" | "daily", couponApplied = false, couponCode = "") {
-  if (couponApplied && programType !== "daily") {
+  if (couponApplied) {
     const coupon = COUPON_CODES[couponCode.toUpperCase()];
-    if (coupon?.prices) return coupon.prices[programType as "3day" | "5day"];
+    if (coupon?.prices) {
+      if (programType === "daily" && coupon.prices.daily != null) return coupon.prices.daily;
+      if (programType !== "daily") return coupon.prices[programType as "3day" | "5day"];
+    }
   }
   return PRICING.regular[programType];
 }
@@ -83,6 +89,9 @@ interface FormData {
   agreedToTerms: boolean;
   couponCode: string;
   couponApplied: boolean;
+  // 2026-06-08: CTIA-compliant SMS consent (Twilio toll-free verification).
+  // Captured on Step 2 next to the phone field; gated on Next.
+  smsConsent: boolean;
 }
 
 function formatCurrency(cents: number) {
@@ -239,8 +248,9 @@ function Step1({ data, onChange, onNext }: { data: FormData; onChange: (d: FormD
 // Step 2: Parent Information
 function Step2({ data, onChange, onNext, onBack }: { data: FormData; onChange: (d: FormData) => void; onNext: () => void; onBack: () => void }) {
   const update = (field: keyof FormData, value: string) => onChange({ ...data, [field]: value });
+  const updateBool = (field: keyof FormData, value: boolean) => onChange({ ...data, [field]: value });
 
-  const canProceed = data.parentFirstName && data.parentLastName && data.email && data.phone && data.address && data.city && data.state && data.zip;
+  const canProceed = data.parentFirstName && data.parentLastName && data.email && data.phone && data.address && data.city && data.state && data.zip && data.smsConsent;
 
   return (
     <div className="space-y-6">
@@ -266,6 +276,25 @@ function Step2({ data, onChange, onNext, onBack }: { data: FormData; onChange: (
           <div>
             <Label>Phone <span className="text-red-500">*</span></Label>
             <Input type="tel" value={data.phone} onChange={e => update("phone", e.target.value)} placeholder="(770) 555-1234" className="mt-1" />
+          </div>
+          {/* 2026-06-08: Twilio CTIA-compliant SMS consent. Required before Next. */}
+          <div className="sm:col-span-2 flex items-start gap-3 p-3 bg-gray-50 border border-gray-200 rounded">
+            <Checkbox
+              id="smsConsentCamp"
+              checked={data.smsConsent}
+              onCheckedChange={v => updateBool("smsConsent", v === true)}
+              className="mt-0.5"
+            />
+            <Label htmlFor="smsConsentCamp" className="text-xs text-gray-700 leading-relaxed cursor-pointer font-normal">
+              <span className="text-red-500">*</span> I agree to receive recurring SMS text messages from Top
+              Martial Arts Suwanee (TMA) at the phone number above, including registration confirmations,
+              camp updates, schedule changes, and reminders. Frequency: up to 10 messages per month.
+              Message and data rates may apply. Reply <strong>STOP</strong> to unsubscribe or <strong>HELP</strong> for
+              help. Consent is not a condition of purchase. See{" "}
+              <a href="/sms-terms" target="_blank" className="underline text-[#1a2d5a]">SMS Terms</a>{" "}
+              and{" "}
+              <a href="/privacy-policy" target="_blank" className="underline text-[#1a2d5a]">Privacy Policy</a>.
+            </Label>
           </div>
           <div className="sm:col-span-2">
             <Label>Street Address <span className="text-red-500">*</span></Label>
@@ -691,6 +720,8 @@ function Step4({ data, onBack }: { data: FormData; onBack: () => void }) {
       amountCents: total,
       couponCode: data.couponCode || undefined,
       agreedToTerms: data.agreedToTerms,
+      smsConsent: true,
+      smsConsentText: SMS_CONSENT_TEXT,
     });
   }, []);
 
@@ -797,6 +828,7 @@ export default function CampRegistration() {
     agreedToTerms: false,
     couponCode: "",
     couponApplied: false,
+    smsConsent: false,
   });
 
   return (

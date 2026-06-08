@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CheckCircle2, ChevronRight, ChevronLeft, Users, User, Calendar, CreditCard } from "lucide-react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
+import { SMS_CONSENT_TEXT } from "@shared/smsConsent";
 
 const stripePromise = loadStripe(import.meta.env.VITE_TMA_STRIPE_PUBLISHABLE_KEY);
 
@@ -51,6 +52,8 @@ interface FormData {
   programType: "3day" | "5day" | "daily";
   addFieldTrip: boolean;
   addExtendedCare: boolean;
+  // 2026-06-08: CTIA-compliant SMS consent (Twilio toll-free verification).
+  smsConsent: boolean;
 }
 
 function formatCurrency(cents: number) {
@@ -197,8 +200,9 @@ function Step1({ data, onChange, onNext }: { data: FormData; onChange: (d: FormD
 // Step 2: Parent Information
 function Step2({ data, onChange, onNext, onBack }: { data: FormData; onChange: (d: FormData) => void; onNext: () => void; onBack: () => void }) {
   const update = (field: keyof FormData, value: string) => onChange({ ...data, [field]: value });
+  const updateBool = (field: keyof FormData, value: boolean) => onChange({ ...data, [field]: value });
 
-  const canProceed = data.parentFirstName && data.parentLastName && data.email && data.phone && data.address && data.city && data.state && data.zip;
+  const canProceed = data.parentFirstName && data.parentLastName && data.email && data.phone && data.address && data.city && data.state && data.zip && data.smsConsent;
 
   return (
     <div className="space-y-6">
@@ -224,6 +228,25 @@ function Step2({ data, onChange, onNext, onBack }: { data: FormData; onChange: (
           <div>
             <Label>Phone <span className="text-red-500">*</span></Label>
             <Input type="tel" value={data.phone} onChange={e => update("phone", e.target.value)} placeholder="(770) 555-1234" className="mt-1" />
+          </div>
+          {/* 2026-06-08: Twilio CTIA-compliant SMS consent. Required before Next. */}
+          <div className="sm:col-span-2 flex items-start gap-3 p-3 bg-gray-50 border border-gray-200 rounded">
+            <Checkbox
+              id="smsConsentSpring"
+              checked={data.smsConsent}
+              onCheckedChange={v => updateBool("smsConsent", v === true)}
+              className="mt-0.5"
+            />
+            <Label htmlFor="smsConsentSpring" className="text-xs text-gray-700 leading-relaxed cursor-pointer font-normal">
+              <span className="text-red-500">*</span> I agree to receive recurring SMS text messages from Top
+              Martial Arts Suwanee (TMA) at the phone number above, including registration confirmations,
+              camp updates, schedule changes, and reminders. Frequency: up to 10 messages per month.
+              Message and data rates may apply. Reply <strong>STOP</strong> to unsubscribe or <strong>HELP</strong> for
+              help. Consent is not a condition of purchase. See{" "}
+              <a href="/sms-terms" target="_blank" className="underline text-[#1a2d5a]">SMS Terms</a>{" "}
+              and{" "}
+              <a href="/privacy-policy" target="_blank" className="underline text-[#1a2d5a]">Privacy Policy</a>.
+            </Label>
           </div>
           <div className="sm:col-span-2">
             <Label>Street Address <span className="text-red-500">*</span></Label>
@@ -489,6 +512,8 @@ function Step4({ data, onBack }: { data: FormData; onBack: () => void }) {
       futureWeeks: [],
       amountCents: total,
       agreedToTerms: true,
+      smsConsent: true,
+      smsConsentText: SMS_CONSENT_TEXT,
     });
   }, []);
 
@@ -591,6 +616,7 @@ export default function SpringBreakRegistration() {
     programType: "5day",
     addFieldTrip: false,
     addExtendedCare: false,
+    smsConsent: false,
   });
 
   return (

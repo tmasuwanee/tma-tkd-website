@@ -138,24 +138,43 @@ export const appRouter = router({
         amountCents: z.number().min(1),
         couponCode: z.string().optional(),
         agreedToTerms: z.boolean(),
+        // 2026-06-08: Twilio CTIA-compliant SMS consent. Required true to submit.
+        smsConsent: z.literal(true),
+        smsConsentText: z.string().min(1),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        const ip = (ctx?.req as any)?.ip
+          || (ctx?.req as any)?.headers?.["cf-connecting-ip"]
+          || (ctx?.req as any)?.headers?.["x-forwarded-for"]
+          || null;
         // Server-side pricing constants (must match client)
-        const VALID_COUPONS: Record<string, "earlybird"> = {
+        const VALID_COUPONS = {
           EARLYBIRD2026: "earlybird",
           TMAEARLYBIRD: "earlybird",
-        };
+          AS2026: "summer2026",       // $20/wk off
+          AS2026FINAL: "lastcall",    // deeper discount, last-call only (active Jul 21+)
+        } as const;
         const EARLY_BIRD_DEADLINE = new Date("2026-04-30T23:59:59");
         const isEarlyBird = new Date() <= EARLY_BIRD_DEADLINE;
-        const couponType = input.couponCode ? VALID_COUPONS[input.couponCode.toUpperCase()] : undefined;
-        const useDiscount = isEarlyBird || couponType === "earlybird";
+        const couponType = input.couponCode
+          ? VALID_COUPONS[input.couponCode.toUpperCase() as keyof typeof VALID_COUPONS]
+          : undefined;
+        const lastcallActive = new Date() >= new Date("2026-07-21T00:00:00-04:00");
         const PROGRAM_PRICES = {
-          regular: { "3day": 199_00, "5day": 239_00, "daily": 70_00 },
-          earlyBird: { "3day": 179_00, "5day": 209_00, "daily": 70_00 },
+          regular:    { "3day": 199_00, "5day": 239_00, "daily": 70_00 },
+          earlyBird:  { "3day": 179_00, "5day": 209_00, "daily": 70_00 },
+          summer2026: { "3day": 179_00, "5day": 219_00, "daily": 70_00 },
+          lastcall:   { "3day": 149_00, "5day": 189_00, "daily": 55_00 },
         };
+        const useTier =
+          couponType === "lastcall" && lastcallActive ? "lastcall" :
+          couponType === "summer2026" ? "summer2026" :
+          couponType === "earlybird" ? "earlyBird" :
+          isEarlyBird ? "earlyBird" :
+          "regular";
         const FIELD_TRIP = 25_00;
         const EXTENDED_CARE = 25_00;
-        const programPrice = useDiscount ? PROGRAM_PRICES.earlyBird[input.programType] : PROGRAM_PRICES.regular[input.programType];
+        const programPrice = PROGRAM_PRICES[useTier][input.programType];
         const numWeeks = input.programType === "daily" ? 1 : Math.max(input.selectedWeeks.length, 1);
         let serverAmount = programPrice * input.numCampers * numWeeks;
         if (input.addFieldTrip) serverAmount += FIELD_TRIP * input.numCampers * numWeeks;
@@ -206,6 +225,10 @@ export const appRouter = router({
           stripePaymentStatus: "pending",
           amountPaid: input.amountCents,
           agreedToTerms: input.agreedToTerms ? 1 : 0,
+          smsConsent: 1,
+          smsConsentAt: new Date(),
+          smsConsentIp: ip ? String(ip).slice(0, 64) : null,
+          smsConsentText: input.smsConsentText,
         });
 
         return {
@@ -313,8 +336,16 @@ export const appRouter = router({
         trialClassDay: z.string().optional(),    // e.g. "Monday"
         // Tags
         tags: z.array(z.string()).optional(),
+        // 2026-06-08: Twilio CTIA-compliant SMS consent. Required true to submit.
+        smsConsent: z.literal(true),
+        smsConsentText: z.string().min(1),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        // Snapshot the IP for consent audit trail (Twilio may request)
+        const ip = (ctx?.req as any)?.ip
+          || (ctx?.req as any)?.headers?.["cf-connecting-ip"]
+          || (ctx?.req as any)?.headers?.["x-forwarded-for"]
+          || null;
         try {
           // Phase 1b (Lead Conductor): auto-progress stage to trial_scheduled when a booking is present.
           // Otherwise leave default 'new_lead'.
@@ -338,6 +369,10 @@ export const appRouter = router({
             trialClassTime: input.trialClassTime,
             trialClassDay: input.trialClassDay,
             tags: input.tags ? JSON.stringify(input.tags) : null,
+            smsConsent: 1,
+            smsConsentAt: new Date(),
+            smsConsentIp: ip ? String(ip).slice(0, 64) : null,
+            smsConsentText: input.smsConsentText,
           });
 
           const leadForIntegrations = {
@@ -365,6 +400,10 @@ export const appRouter = router({
             automationPausedAt: null,
             automationPausedBy: null,
             automationPauseReason: null,
+            smsConsent: 1,
+            smsConsentAt: new Date(),
+            smsConsentIp: ip ? String(ip).slice(0, 64) : null,
+            smsConsentText: input.smsConsentText,
             createdAt: new Date(),
             updatedAt: new Date(),
           };

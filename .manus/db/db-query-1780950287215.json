@@ -1,0 +1,18 @@
+{
+  "query": "SHOW COLUMNS FROM campRegistrations LIKE '%mail%';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3SwZhQGwFybjoYh.root --database cXp7keMiYsMkePUngpTNmV --execute SHOW COLUMNS FROM campRegistrations LIKE '%mail%';",
+  "rows": [
+    {
+      "Field": "email",
+      "Type": "varchar(320)",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    }
+  ],
+  "messages": [],
+  "stdout": "Field\tType\tNull\tKey\tDefault\tExtra\nemail\tvarchar(320)\tNO\t\tNULL\t\n",
+  "stderr": "",
+  "execution_time_ms": 378
+}
