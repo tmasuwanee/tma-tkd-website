@@ -138,8 +138,15 @@ export const appRouter = router({
         amountCents: z.number().min(1),
         couponCode: z.string().optional(),
         agreedToTerms: z.boolean(),
+        // 2026-06-08: Twilio CTIA-compliant SMS consent. Required true to submit.
+        smsConsent: z.literal(true),
+        smsConsentText: z.string().min(1),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        const ip = (ctx?.req as any)?.ip
+          || (ctx?.req as any)?.headers?.["cf-connecting-ip"]
+          || (ctx?.req as any)?.headers?.["x-forwarded-for"]
+          || null;
         // Server-side pricing constants (must match client)
         const VALID_COUPONS: Record<string, "earlybird"> = {
           EARLYBIRD2026: "earlybird",
@@ -206,6 +213,10 @@ export const appRouter = router({
           stripePaymentStatus: "pending",
           amountPaid: input.amountCents,
           agreedToTerms: input.agreedToTerms ? 1 : 0,
+          smsConsent: 1,
+          smsConsentAt: new Date(),
+          smsConsentIp: ip ? String(ip).slice(0, 64) : null,
+          smsConsentText: input.smsConsentText,
         });
 
         return {
@@ -313,8 +324,16 @@ export const appRouter = router({
         trialClassDay: z.string().optional(),    // e.g. "Monday"
         // Tags
         tags: z.array(z.string()).optional(),
+        // 2026-06-08: Twilio CTIA-compliant SMS consent. Required true to submit.
+        smsConsent: z.literal(true),
+        smsConsentText: z.string().min(1),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        // Snapshot the IP for consent audit trail (Twilio may request)
+        const ip = (ctx?.req as any)?.ip
+          || (ctx?.req as any)?.headers?.["cf-connecting-ip"]
+          || (ctx?.req as any)?.headers?.["x-forwarded-for"]
+          || null;
         try {
           // Phase 1b (Lead Conductor): auto-progress stage to trial_scheduled when a booking is present.
           // Otherwise leave default 'new_lead'.
@@ -338,6 +357,10 @@ export const appRouter = router({
             trialClassTime: input.trialClassTime,
             trialClassDay: input.trialClassDay,
             tags: input.tags ? JSON.stringify(input.tags) : null,
+            smsConsent: 1,
+            smsConsentAt: new Date(),
+            smsConsentIp: ip ? String(ip).slice(0, 64) : null,
+            smsConsentText: input.smsConsentText,
           });
 
           const leadForIntegrations = {
@@ -365,6 +388,10 @@ export const appRouter = router({
             automationPausedAt: null,
             automationPausedBy: null,
             automationPauseReason: null,
+            smsConsent: 1,
+            smsConsentAt: new Date(),
+            smsConsentIp: ip ? String(ip).slice(0, 64) : null,
+            smsConsentText: input.smsConsentText,
             createdAt: new Date(),
             updatedAt: new Date(),
           };

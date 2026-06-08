@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -11,6 +12,7 @@ import { toast } from "sonner";
 import { useLocation } from "wouter";
 import TrialClassPicker from "@/components/TrialClassPicker";
 import type { ClassSlot } from "../../../shared/classSchedule";
+import { SMS_CONSENT_TEXT } from "../../../shared/smsConsent";
 
 /**
  * Dedicated Free Class / Schedule a Tour page.
@@ -58,6 +60,9 @@ export default function FreeClass() {
   const [trialSlot, setTrialSlot] = useState<ClassSlot | null>(null);
   const [trialDate, setTrialDate] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // 2026-06-08: CTIA-compliant SMS consent (Twilio toll-free verification).
+  // Required to true before submit. Captured into lead row server-side for audit.
+  const [smsConsent, setSmsConsent] = useState(false);
 
   // Update programInterest if query param changes (e.g. back/forward navigation)
   useEffect(() => {
@@ -82,6 +87,10 @@ export default function FreeClass() {
       toast.error("Please fill in all required fields");
       return;
     }
+    if (!smsConsent) {
+      toast.error("Please check the SMS consent box to continue");
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -98,6 +107,8 @@ export default function FreeClass() {
         trialClassTime: trialSlot?.startTime || undefined,
         trialClassDay: trialSlot?.day || undefined,
         ...utmParams,
+        smsConsent: true,
+        smsConsentText: SMS_CONSENT_TEXT,
       });
 
       setSubmitted(true);
@@ -354,9 +365,30 @@ export default function FreeClass() {
                       />
                     </div>
 
+                    {/* 2026-06-08: Twilio CTIA-compliant SMS consent. Required before submit. */}
+                    <div className="flex items-start gap-3 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                      <Checkbox
+                        id="smsConsent"
+                        checked={smsConsent}
+                        onCheckedChange={v => setSmsConsent(v === true)}
+                        className="mt-0.5"
+                      />
+                      <Label htmlFor="smsConsent" className="text-xs text-gray-700 leading-relaxed cursor-pointer font-normal">
+                        I agree to receive recurring SMS text messages from Top Martial Arts
+                        Suwanee (TMA) at the phone number above, including inquiry replies,
+                        trial confirmations, class reminders, and program updates.
+                        Frequency: up to 10 messages per month. Message and data rates may
+                        apply. Reply <strong>STOP</strong> to unsubscribe or <strong>HELP</strong> for
+                        help. Consent is not a condition of purchase. See{" "}
+                        <a href="/sms-terms" target="_blank" className="underline text-primary">SMS Terms</a>{" "}
+                        and{" "}
+                        <a href="/privacy-policy" target="_blank" className="underline text-primary">Privacy Policy</a>.
+                      </Label>
+                    </div>
+
                     <Button
                       type="submit"
-                      disabled={isSubmitting}
+                      disabled={isSubmitting || !smsConsent}
                       size="lg"
                       className="w-full bg-accent text-accent-foreground hover:bg-accent/90 text-lg font-semibold"
                     >
