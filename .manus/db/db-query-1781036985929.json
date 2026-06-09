@@ -134,5 +134,5 @@
   "messages": [],
   "stdout": "Field\tType\tNull\tKey\tDefault\tExtra\nid\tint\tNO\tPRI\tNULL\tauto_increment\nsequenceKey\tvarchar(100)\tNO\tMUL\tNULL\t\ntouchKey\tvarchar(100)\tNO\t\tNULL\t\norderIndex\tint\tNO\t\t0\t\nchannel\tenum('email','sms','call_reminder','internal_task')\tNO\t\temail\t\nsubject\tvarchar(500)\tYES\t\tNULL\t\nbodyHtml\ttext\tYES\t\tNULL\t\nbodyText\ttext\tYES\t\tNULL\t\ndelayHours\tint\tNO\t\t0\t\nisActive\ttinyint\tNO\t\t1\t\ndisplayName\tvarchar(255)\tYES\t\tNULL\t\ndescription\ttext\tYES\t\tNULL\t\ncreatedBy\tvarchar(100)\tNO\t\tsystem\t\nupdatedBy\tvarchar(100)\tYES\t\tNULL\t\ncreatedAt\ttimestamp\tNO\t\tCURRENT_TIMESTAMP\t\nupdatedAt\ttimestamp\tNO\t\tCURRENT_TIMESTAMP\tDEFAULT_GENERATED on update CURRENT_TIMESTAMP\n",
   "stderr": "",
-  "execution_time_ms": 256
+  "execution_time_ms": 277
 }

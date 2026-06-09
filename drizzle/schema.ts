@@ -1,4 +1,4 @@
-﻿import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, uniqueIndex, tinyint, index, boolean } from "drizzle-orm/mysql-core";
+﻿import { int, mysqlEnum, mysqlTable, text, mediumtext, timestamp, varchar, uniqueIndex, tinyint, index, boolean } from "drizzle-orm/mysql-core";
 
 export const users = mysqlTable("users", {
   id: int("id").autoincrement().primaryKey(),
@@ -84,6 +84,10 @@ export const leadActivities = mysqlTable("leadActivities", {
   // 2026-06-06: external provider message id (Gmail messageId, Resend id, Twilio sid).
   // Used by the Gmail poller to dedup so we don't double-insert the same reply.
   externalId: varchar("externalId", { length: 255 }),
+  // 2026-06-09: audit-grade snapshot of the rendered HTML sent to this lead.
+  // Stored at send time so the admin timeline shows exactly what was delivered,
+  // not a re-render against current template state (compliance / dispute resolution).
+  renderedHtml: mediumtext("renderedHtml"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 }, (table) => ({
   externalIdIdx: uniqueIndex("activity_external_id_uniq").on(table.externalId),

@@ -49,6 +49,10 @@ async function startServer() {
     next();
   });
 
+  // 2026-06-09 EMERGENCY: /camp was used in day_0 blast emails but the real route
+  // is /camp-registration. 301 so all clicked links in already-sent emails work.
+  app.get('/camp', (_req: Request, res: Response) => res.redirect(301, '/camp-registration'));
+
   registerStorageProxy(app);
   registerOAuthRoutes(app);
   registerApiRoutes(app);

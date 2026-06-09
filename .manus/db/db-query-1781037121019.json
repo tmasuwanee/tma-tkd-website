@@ -1,0 +1,16 @@
+{
+  "query": "SELECT id, parentName, kidName, email FROM leads WHERE kidName IS NOT NULL AND kidName != '' AND email IS NOT NULL AND email NOT LIKE '%test%' AND email NOT LIKE '%example%' LIMIT 1;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3SwZhQGwFybjoYh.root --database cXp7keMiYsMkePUngpTNmV --execute SELECT id, parentName, kidName, email FROM leads WHERE kidName IS NOT NULL AND kidName != '' AND email IS NOT NULL AND email NOT LIKE '%test%' AND email NOT LIKE '%example%' LIMIT 1;",
+  "rows": [
+    {
+      "id": "1",
+      "parentName": "Arfa",
+      "kidName": "Test Child",
+      "email": "arfamoisia1@gmail.com"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tparentName\tkidName\temail\n1\tArfa\tTest Child\tarfamoisia1@gmail.com\n",
+  "stderr": "",
+  "execution_time_ms": 274
+}

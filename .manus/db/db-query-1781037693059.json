@@ -1,0 +1,18 @@
+{
+  "query": "UPDATE sequenceTemplates\nSET delayHours = 96\nWHERE sequenceKey = 'summer_camp_nurture'\n  AND touchKey = 'day_3_spots_filling';\n\nUPDATE sequenceTemplates\nSET delayHours = 168\nWHERE sequenceKey = 'summer_camp_nurture'\n  AND touchKey = 'day_6_last_call';\n\nSELECT touchKey, delayHours FROM sequenceTemplates\nWHERE sequenceKey = 'summer_camp_nurture'\n  AND touchKey IN ('day_3_spots_filling', 'day_6_last_call');",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3SwZhQGwFybjoYh.root --database cXp7keMiYsMkePUngpTNmV --execute UPDATE sequenceTemplates\nSET delayHours = 96\nWHERE sequenceKey = 'summer_camp_nurture'\n  AND touchKey = 'day_3_spots_filling';\n\nUPDATE sequenceTemplates\nSET delayHours = 168\nWHERE sequenceKey = 'summer_camp_nurture'\n  AND touchKey = 'day_6_last_call';\n\nSELECT touchKey, delayHours FROM sequenceTemplates\nWHERE sequenceKey = 'summer_camp_nurture'\n  AND touchKey IN ('day_3_spots_filling', 'day_6_last_call');",
+  "rows": [
+    {
+      "touchKey": "day_3_spots_filling",
+      "delayHours": "96"
+    },
+    {
+      "touchKey": "day_6_last_call",
+      "delayHours": "168"
+    }
+  ],
+  "messages": [],
+  "stdout": "touchKey\tdelayHours\nday_3_spots_filling\t96\nday_6_last_call\t168\n",
+  "stderr": "",
+  "execution_time_ms": 311
+}

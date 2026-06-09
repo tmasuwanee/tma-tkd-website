@@ -1181,9 +1181,49 @@ export async function preSendGuard(args: {
   const leadRows = await db.select().from(leads).where(eq(leads.id, args.leadId)).limit(1);
   const lead = leadRows[0];
   if (!lead) return { ok: false, reason: 'lead_not_found' };
-  if (lead.automationPaused) return { ok: false, reason: 'automation_paused' };
+  // Auto-stop 4: unsubscribed (automationPaused flag set by Resend webhook or STOP reply)
+  if (lead.automationPaused) return { ok: false, reason: 'auto_stop_unsubscribed' };
   if (lead.pipelineStage === 'enrolled') return { ok: false, reason: 'lead_enrolled' };
   if (lead.pipelineStage === 'lost') return { ok: false, reason: 'lead_lost' };
+
+  // Auto-stop 1: lead replied to any prior touch (inbound email/sms/call activity)
+  const replyRows = await db
+    .select({ id: leadActivities.id })
+    .from(leadActivities)
+    .where(
+      and(
+        eq(leadActivities.leadId, args.leadId),
+        eq(leadActivities.direction, 'inbound'),
+        inArray(leadActivities.type, ['email', 'sms', 'call'])
+      )
+    )
+    .limit(1);
+  if (replyRows.length > 0) return { ok: false, reason: 'auto_stop_replied' };
+
+  // Auto-stop 2: lead enrolled in camp (succeeded Stripe payment)
+  if (lead.email) {
+    const [enrolledResult] = await db.execute(
+      sql`SELECT 1 FROM campRegistrations WHERE LOWER(email) = LOWER(${lead.email}) AND stripePaymentStatus = 'succeeded' LIMIT 1`
+    ) as unknown as [Array<unknown>];
+    if (enrolledResult && enrolledResult.length > 0) {
+      return { ok: false, reason: 'auto_stop_enrolled' };
+    }
+  }
+
+  // Auto-stop 3: prior touch in this sequence hard-bounced
+  const bounceRows = await db
+    .select({ id: leadSequenceQueue.id })
+    .from(leadSequenceQueue)
+    .where(
+      and(
+        eq(leadSequenceQueue.leadId, args.leadId),
+        eq(leadSequenceQueue.sequenceKey, args.sequenceKey),
+        eq(leadSequenceQueue.status, 'failed'),
+        like(leadSequenceQueue.failureReason, '%bounce%')
+      )
+    )
+    .limit(1);
+  if (bounceRows.length > 0) return { ok: false, reason: 'auto_stop_bounced' };
 
   const template = await getTemplate(args.sequenceKey, args.touchKey);
   if (!template) return { ok: false, reason: 'template_not_found' };

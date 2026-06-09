@@ -1,0 +1,9 @@
+{
+  "query": "\n-- Fix \"something weird\" row to \"other\" (column is NOT NULL)\nUPDATE leads SET programInterest = 'other' WHERE LOWER(TRIM(programInterest)) = 'something weird';\n\n-- Tag non-camp leads for tomorrow's custom email\nUPDATE leads SET tags = JSON_ARRAY_APPEND(COALESCE(tags, '[]'), '$', 'non_camp_tma_lead')\nWHERE email IS NOT NULL\n  AND email != ''\n  AND (tags IS NULL OR tags NOT LIKE '%do_not_contact%')\n  AND LOWER(TRIM(programInterest)) IN ('taekwondo', 'kickboxing', 'bjj')\n  AND NOT EXISTS (\n    SELECT 1 FROM campRegistrations cr\n    WHERE LOWER(cr.email) = LOWER(leads.email)\n    AND cr.stripePaymentStatus = 'succeeded'\n  );\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3SwZhQGwFybjoYh.root --database cXp7keMiYsMkePUngpTNmV --execute \n-- Fix \"something weird\" row to \"other\" (column is NOT NULL)\nUPDATE leads SET programInterest = 'other' WHERE LOWER(TRIM(programInterest)) = 'something weird';\n\n-- Tag non-camp leads for tomorrow's custom email\nUPDATE leads SET tags = JSON_ARRAY_APPEND(COALESCE(tags, '[]'), '$', 'non_camp_tma_lead')\nWHERE email IS NOT NULL\n  AND email != ''\n  AND (tags IS NULL OR tags NOT LIKE '%do_not_contact%')\n  AND LOWER(TRIM(programInterest)) IN ('taekwondo', 'kickboxing', 'bjj')\n  AND NOT EXISTS (\n    SELECT 1 FROM campRegistrations cr\n    WHERE LOWER(cr.email) = LOWER(leads.email)\n    AND cr.stripePaymentStatus = 'succeeded'\n  );\n",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 291
+}

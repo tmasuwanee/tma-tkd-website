@@ -1,9 +1,0 @@
-{
-  "query": "ALTER TABLE `leads` ADD `smsConsent` tinyint DEFAULT 0 NOT NULL;\nALTER TABLE `leads` ADD `smsConsentAt` timestamp NULL;\nALTER TABLE `leads` ADD `smsConsentIp` varchar(64) NULL;\nALTER TABLE `leads` ADD `smsConsentText` text NULL;\nALTER TABLE `campRegistrations` ADD `smsConsent` tinyint DEFAULT 0 NOT NULL;\nALTER TABLE `campRegistrations` ADD `smsConsentAt` timestamp NULL;\nALTER TABLE `campRegistrations` ADD `smsConsentIp` varchar(64) NULL;\nALTER TABLE `campRegistrations` ADD `smsConsentText` text NULL;",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3SwZhQGwFybjoYh.root --database cXp7keMiYsMkePUngpTNmV --execute ALTER TABLE `leads` ADD `smsConsent` tinyint DEFAULT 0 NOT NULL;\nALTER TABLE `leads` ADD `smsConsentAt` timestamp NULL;\nALTER TABLE `leads` ADD `smsConsentIp` varchar(64) NULL;\nALTER TABLE `leads` ADD `smsConsentText` text NULL;\nALTER TABLE `campRegistrations` ADD `smsConsent` tinyint DEFAULT 0 NOT NULL;\nALTER TABLE `campRegistrations` ADD `smsConsentAt` timestamp NULL;\nALTER TABLE `campRegistrations` ADD `smsConsentIp` varchar(64) NULL;\nALTER TABLE `campRegistrations` ADD `smsConsentText` text NULL;",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 2562
-}

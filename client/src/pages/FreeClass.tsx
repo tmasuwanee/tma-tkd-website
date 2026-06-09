@@ -12,7 +12,7 @@ import { toast } from "sonner";
 import { useLocation } from "wouter";
 import TrialClassPicker from "@/components/TrialClassPicker";
 import type { ClassSlot } from "../../../shared/classSchedule";
-import { SMS_CONSENT_TEXT } from "@shared/smsConsent";
+import { SMS_CONSENT_TEXT } from "../../../shared/smsConsent";
 
 /**
  * Dedicated Free Class / Schedule a Tour page.

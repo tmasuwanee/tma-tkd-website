@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CheckCircle2, ChevronRight, ChevronLeft, Users, User, Calendar, CreditCard } from "lucide-react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
-import { SMS_CONSENT_TEXT } from "@shared/smsConsent";
+import { SMS_CONSENT_TEXT } from "../../../shared/smsConsent";
 
 const stripePromise = loadStripe(import.meta.env.VITE_TMA_STRIPE_PUBLISHABLE_KEY);
 

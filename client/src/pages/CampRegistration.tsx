@@ -14,17 +14,15 @@ import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, ChevronRight, ChevronLeft, Users, User, Calendar, CreditCard } from "lucide-react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
-import { SMS_CONSENT_TEXT } from "@shared/smsConsent";
+import { SMS_CONSENT_TEXT } from "../../../shared/smsConsent";
 
 const stripePromise = loadStripe(import.meta.env.VITE_TMA_STRIPE_PUBLISHABLE_KEY);
 
 // Valid coupon codes
-const LASTCALL_ACTIVE = new Date() >= new Date("2026-07-21T00:00:00-04:00");
-const COUPON_CODES: Record<string, { label: string; prices?: { "3day": number; "5day": number; daily?: number }; hidden?: boolean }> = {
+const COUPON_CODES: Record<string, { label: string; prices?: { "3day": number; "5day": number } }> = {
   EARLYBIRD2026: { label: "Registration Discount" },
   TMAEARLYBIRD: { label: "Registration Discount" },
   AS2026: { label: "$20/wk Discount", prices: { "3day": 179_00, "5day": 219_00 } },
-  AS2026FINAL: { label: "Last-Call Discount", prices: { "3day": 149_00, "5day": 189_00, daily: 55_00 }, hidden: !LASTCALL_ACTIVE },
 };
 
 // Pricing constants
@@ -39,12 +37,9 @@ const PRICING = {
 };
 
 function getProgramPrice(programType: "3day" | "5day" | "daily", couponApplied = false, couponCode = "") {
-  if (couponApplied) {
+  if (couponApplied && programType !== "daily") {
     const coupon = COUPON_CODES[couponCode.toUpperCase()];
-    if (coupon?.prices) {
-      if (programType === "daily" && coupon.prices.daily != null) return coupon.prices.daily;
-      if (programType !== "daily") return coupon.prices[programType as "3day" | "5day"];
-    }
+    if (coupon?.prices) return coupon.prices[programType as "3day" | "5day"];
   }
   return PRICING.regular[programType];
 }

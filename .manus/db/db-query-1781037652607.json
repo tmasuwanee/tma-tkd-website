@@ -1,0 +1,9 @@
+{
+  "query": "UPDATE leadSequenceQueue\nSET scheduledFor = DATE_ADD(scheduledFor, INTERVAL 1 DAY)\nWHERE sequenceKey = 'summer_camp_nurture'\n  AND touchKey = 'day_3_spots_filling'\n  AND status IN ('scheduled','processing');\n\nUPDATE leadSequenceQueue\nSET scheduledFor = DATE_ADD(scheduledFor, INTERVAL 1 DAY)\nWHERE sequenceKey = 'summer_camp_nurture'\n  AND touchKey = 'day_6_last_call'\n  AND status IN ('scheduled','processing');\n\nSELECT touchKey, COUNT(*) as affected, MIN(scheduledFor) as earliest, MAX(scheduledFor) as latest\nFROM leadSequenceQueue\nWHERE sequenceKey = 'summer_camp_nurture'\n  AND touchKey IN ('day_3_spots_filling', 'day_6_last_call')\n  AND status IN ('scheduled','processing')\nGROUP BY touchKey;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3SwZhQGwFybjoYh.root --database cXp7keMiYsMkePUngpTNmV --execute UPDATE leadSequenceQueue\nSET scheduledFor = DATE_ADD(scheduledFor, INTERVAL 1 DAY)\nWHERE sequenceKey = 'summer_camp_nurture'\n  AND touchKey = 'day_3_spots_filling'\n  AND status IN ('scheduled','processing');\n\nUPDATE leadSequenceQueue\nSET scheduledFor = DATE_ADD(scheduledFor, INTERVAL 1 DAY)\nWHERE sequenceKey = 'summer_camp_nurture'\n  AND touchKey = 'day_6_last_call'\n  AND status IN ('scheduled','processing');\n\nSELECT touchKey, COUNT(*) as affected, MIN(scheduledFor) as earliest, MAX(scheduledFor) as latest\nFROM leadSequenceQueue\nWHERE sequenceKey = 'summer_camp_nurture'\n  AND touchKey IN ('day_3_spots_filling', 'day_6_last_call')\n  AND status IN ('scheduled','processing')\nGROUP BY touchKey;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 282
+}

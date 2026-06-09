@@ -13,7 +13,7 @@ import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import TrialClassPicker from "@/components/TrialClassPicker";
 import type { ClassSlot } from "../../../shared/classSchedule";
-import { SMS_CONSENT_TEXT } from "@shared/smsConsent";
+import { SMS_CONSENT_TEXT } from "../../../shared/smsConsent";
 
 /**
  * Design Philosophy: Dynamic Energy & Motion
