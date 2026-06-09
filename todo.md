@@ -169,3 +169,13 @@
 - [x] Fix TypeScript: isLeads type in AdsInsightsDashboard, program→programs in AttendanceKiosk
 - [x] leadActivities table created in DB
 - [x] tags column added to leads table in DB
+
+## Emergency Fixes (2026-06-09)
+- [x] Add /camp → /camp-registration 301 redirect in Express (blast emails used wrong URL)
+- [x] Fix all 8 summer_camp_nurture templates: replace tmatkd.com/camp with tmatkd.com/camp-registration in bodyText + bodyHtml
+- [x] Archive prior versions of all 8 templates to sequenceTemplateHistory before fix
+- [x] Apply renderedHtml MEDIUMTEXT migration to leadActivities table (ALTER TABLE)
+- [x] Update confirmTouchDispatched to accept and snapshot renderedHtml in leadActivities
+- [x] Update confirmSent tRPC procedure to accept renderedHtml field (z.string().max(2000000))
+- [x] Add STOP/UNSUBSCRIBE keyword detection to recordInboundEmailReply (auto-flip automationPaused=1)
+- [ ] Upgrade Resend to Pro plan ($20/month, 50k/month) — currently on free tier (100/day)

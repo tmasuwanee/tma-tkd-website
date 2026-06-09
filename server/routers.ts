@@ -1163,6 +1163,8 @@ export const appRouter = router({
         providerStatus: z.number().int().optional(),
         failureReason: z.string().max(500).optional(),
         skipReason: z.string().max(255).optional(),
+        // 2026-06-09: rendered HTML snapshot from the dispatcher (audit/compliance).
+        renderedHtml: z.string().max(2000000).optional(),
       }))
       .mutation(async ({ input }) => confirmTouchDispatched(input)),
   }),

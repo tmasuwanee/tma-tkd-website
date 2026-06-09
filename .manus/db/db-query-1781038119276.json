@@ -1,0 +1,16 @@
+{
+  "query": "\nSELECT COLUMN_NAME, DATA_TYPE, COLUMN_TYPE, IS_NULLABLE\nFROM INFORMATION_SCHEMA.COLUMNS \nWHERE TABLE_NAME = 'leadActivities' AND COLUMN_NAME = 'renderedHtml';\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3SwZhQGwFybjoYh.root --database cXp7keMiYsMkePUngpTNmV --execute \nSELECT COLUMN_NAME, DATA_TYPE, COLUMN_TYPE, IS_NULLABLE\nFROM INFORMATION_SCHEMA.COLUMNS \nWHERE TABLE_NAME = 'leadActivities' AND COLUMN_NAME = 'renderedHtml';\n",
+  "rows": [
+    {
+      "COLUMN_NAME": "renderedHtml",
+      "DATA_TYPE": "mediumtext",
+      "COLUMN_TYPE": "mediumtext",
+      "IS_NULLABLE": "YES"
+    }
+  ],
+  "messages": [],
+  "stdout": "COLUMN_NAME\tDATA_TYPE\tCOLUMN_TYPE\tIS_NULLABLE\nrenderedHtml\tmediumtext\tmediumtext\tYES\n",
+  "stderr": "",
+  "execution_time_ms": 261
+}

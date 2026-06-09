@@ -1,0 +1,80 @@
+{
+  "query": "\nSELECT h.id, h.templateId, t.touchKey, h.changeNote, h.editedAt\nFROM sequenceTemplateHistory h\nJOIN sequenceTemplates t ON t.id = h.templateId\nWHERE t.sequenceKey = 'summer_camp_nurture'\nORDER BY h.id DESC\nLIMIT 10;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3SwZhQGwFybjoYh.root --database cXp7keMiYsMkePUngpTNmV --execute \nSELECT h.id, h.templateId, t.touchKey, h.changeNote, h.editedAt\nFROM sequenceTemplateHistory h\nJOIN sequenceTemplates t ON t.id = h.templateId\nWHERE t.sequenceKey = 'summer_camp_nurture'\nORDER BY h.id DESC\nLIMIT 10;\n",
+  "rows": [
+    {
+      "id": "120008",
+      "templateId": "60005",
+      "touchKey": "day_48",
+      "changeNote": "Pre-fix archive: /camp URL → /camp-registration (2026-06-09 emergency)",
+      "editedAt": "2026-06-09 20:48:09"
+    },
+    {
+      "id": "120007",
+      "templateId": "60004",
+      "touchKey": "day_42",
+      "changeNote": "Pre-fix archive: /camp URL → /camp-registration (2026-06-09 emergency)",
+      "editedAt": "2026-06-09 20:48:09"
+    },
+    {
+      "id": "120006",
+      "templateId": "60003",
+      "touchKey": "day_31",
+      "changeNote": "Pre-fix archive: /camp URL → /camp-registration (2026-06-09 emergency)",
+      "editedAt": "2026-06-09 20:48:09"
+    },
+    {
+      "id": "120005",
+      "templateId": "60002",
+      "touchKey": "day_20",
+      "changeNote": "Pre-fix archive: /camp URL → /camp-registration (2026-06-09 emergency)",
+      "editedAt": "2026-06-09 20:48:09"
+    },
+    {
+      "id": "120004",
+      "templateId": "60001",
+      "touchKey": "day_13",
+      "changeNote": "Pre-fix archive: /camp URL → /camp-registration (2026-06-09 emergency)",
+      "editedAt": "2026-06-09 20:48:09"
+    },
+    {
+      "id": "120003",
+      "templateId": "4",
+      "touchKey": "day_6_last_call",
+      "changeNote": "Pre-fix archive: /camp URL → /camp-registration (2026-06-09 emergency)",
+      "editedAt": "2026-06-09 20:48:09"
+    },
+    {
+      "id": "120002",
+      "templateId": "3",
+      "touchKey": "day_3_spots_filling",
+      "changeNote": "Pre-fix archive: /camp URL → /camp-registration (2026-06-09 emergency)",
+      "editedAt": "2026-06-09 20:48:09"
+    },
+    {
+      "id": "120001",
+      "templateId": "2",
+      "touchKey": "day_0_camp_overview",
+      "changeNote": "Pre-fix archive: /camp URL → /camp-registration (2026-06-09 emergency)",
+      "editedAt": "2026-06-09 20:48:09"
+    },
+    {
+      "id": "90001",
+      "templateId": "2",
+      "touchKey": "day_0_camp_overview",
+      "changeNote": "v2 archived before v3 AS2026 update",
+      "editedAt": "2026-06-08 21:16:06"
+    },
+    {
+      "id": "60001",
+      "templateId": "2",
+      "touchKey": "day_0_camp_overview",
+      "changeNote": "Replaced with early-bird blast template 2026-06-06",
+      "editedAt": "2026-06-06 19:05:42"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\ttemplateId\ttouchKey\tchangeNote\teditedAt\n120008\t60005\tday_48\tPre-fix archive: /camp URL → /camp-registration (2026-06-09 emergency)\t2026-06-09 20:48:09\n120007\t60004\tday_42\tPre-fix archive: /camp URL → /camp-registration (2026-06-09 emergency)\t2026-06-09 20:48:09\n120006\t60003\tday_31\tPre-fix archive: /camp URL → /camp-registration (2026-06-09 emergency)\t2026-06-09 20:48:09\n120005\t60002\tday_20\tPre-fix archive: /camp URL → /camp-registration (2026-06-09 emergency)\t2026-06-09 20:48:09\n120004\t60001\tday_13\tPre-fix archive: /camp URL → /camp-registration (2026-06-09 emergency)\t2026-06-09 20:48:09\n120003\t4\tday_6_last_call\tPre-fix archive: /camp URL → /camp-registration (2026-06-09 emergency)\t2026-06-09 20:48:09\n120002\t3\tday_3_spots_filling\tPre-fix archive: /camp URL → /camp-registration (2026-06-09 emergency)\t2026-06-09 20:48:09\n120001\t2\tday_0_camp_overview\tPre-fix archive: /camp URL → /camp-registration (2026-06-09 emergency)\t2026-06-09 20:48:09\n90001\t2\tday_0_camp_overview\tv2 archived before v3 AS2026 update\t2026-06-08 21:16:06\n60001\t2\tday_0_camp_overview\tReplaced with early-bird blast template 2026-06-06\t2026-06-06 19:05:42\n",
+  "stderr": "",
+  "execution_time_ms": 267
+}

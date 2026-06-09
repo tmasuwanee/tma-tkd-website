@@ -1,0 +1,22 @@
+{
+  "query": "\n-- Count by status for summer_camp_nurture sequence\nSELECT status, COUNT(*) as cnt\nFROM leadSequenceQueue\nWHERE sequenceKey = 'summer_camp_nurture'\nGROUP BY status\nORDER BY cnt DESC;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3SwZhQGwFybjoYh.root --database cXp7keMiYsMkePUngpTNmV --execute \n-- Count by status for summer_camp_nurture sequence\nSELECT status, COUNT(*) as cnt\nFROM leadSequenceQueue\nWHERE sequenceKey = 'summer_camp_nurture'\nGROUP BY status\nORDER BY cnt DESC;\n",
+  "rows": [
+    {
+      "status": "sent",
+      "cnt": "168"
+    },
+    {
+      "status": "cancelled",
+      "cnt": "13"
+    },
+    {
+      "status": "skipped",
+      "cnt": "12"
+    }
+  ],
+  "messages": [],
+  "stdout": "status\tcnt\nsent\t168\ncancelled\t13\nskipped\t12\n",
+  "stderr": "",
+  "execution_time_ms": 283
+}

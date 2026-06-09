@@ -1543,6 +1543,10 @@ export async function confirmTouchDispatched(args: {
   providerStatus?: number;
   failureReason?: string;
   skipReason?: string;
+  // 2026-06-09: audit-grade snapshot of rendered HTML. Passed by the dispatcher
+  // after fetchAndRender returns bodyHtml. Stored in leadActivities.renderedHtml
+  // so the admin timeline shows exactly what was delivered (compliance / dispute).
+  renderedHtml?: string;
 }): Promise<{ ok: boolean; alreadyTerminal?: boolean }> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -1570,7 +1574,9 @@ export async function confirmTouchDispatched(args: {
       body: args.providerMessageId ? `provider_id=${args.providerMessageId} status=${args.providerStatus ?? ''}` : 'dispatched',
       sentBy: `n8n_dispatcher:${row.sequenceKey}`,
       status: 'sent',
-    });
+      // Snapshot rendered HTML at send time for audit/compliance.
+      renderedHtml: args.renderedHtml ?? null,
+    } as any);
   } else if (args.status === 'failed') {
     await db.update(leadSequenceQueue).set({
       status: 'failed', failedAt: now,
@@ -1866,6 +1872,13 @@ export async function recordInboundEmailReply(args: {
   );
   if (!lead) return { matched: 0 };
 
+  // ── STOP / UNSUBSCRIBE keyword detection ──────────────────────────────────
+  // If the body (trimmed, first line) matches an opt-out keyword, auto-flip
+  // automationPaused=1 and write a distinct activity status so the admin
+  // timeline shows "unsubscribed via reply" rather than a generic reply.
+  const firstLine = (args.body ?? '').trim().split(/\r?\n/)[0].trim();
+  const isStopRequest = /^(STOP|UNSUBSCRIBE|REMOVE ME|REMOVE|END|CANCEL|QUIT)$/i.test(firstLine);
+
   // Insert. Unique index on externalId stops duplicate writes for the same Gmail message.
   try {
     await db.insert(leadActivities).values({
@@ -1875,13 +1888,34 @@ export async function recordInboundEmailReply(args: {
       subject: args.subject?.slice(0, 255) ?? null,
       body: args.body?.slice(0, 65000) ?? null,
       sentBy: "gmail_reply_poller",
-      status: "replied",
+      status: isStopRequest ? "unsubscribed_by_reply" : "replied",
       externalId: args.gmailMessageId,
     } as any);
   } catch (e: any) {
     // duplicate key = already processed this message
     if (e?.code === "ER_DUP_ENTRY") return { matched: lead.id };
     throw e;
+  }
+
+  if (isStopRequest) {
+    // Flip automation off immediately — preSendGuard checks this flag before
+    // every touch so no further sequence emails will be sent to this lead.
+    await db.update(leads).set({
+      automationPaused: 1,
+      automationPausedAt: new Date(),
+      automationPausedBy: 'gmail_reply_poller',
+      automationPauseReason: `STOP keyword reply: "${firstLine.slice(0, 80)}"`,
+    } as any).where(eq(leads.id, lead.id));
+
+    await logAudit({
+      level: 'info',
+      source: 'inbound_email',
+      event: 'stop_keyword_unsubscribed',
+      leadId: lead.id,
+      details: JSON.stringify({ gmailMessageId: args.gmailMessageId, firstLine }),
+    });
+
+    return { matched: lead.id };
   }
 
   // If lead is still in early stages, the fact that they replied is a strong
