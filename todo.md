@@ -179,3 +179,10 @@
 - [x] Update confirmSent tRPC procedure to accept renderedHtml field (z.string().max(2000000))
 - [x] Add STOP/UNSUBSCRIBE keyword detection to recordInboundEmailReply (auto-flip automationPaused=1)
 - [ ] Upgrade Resend to Pro plan ($20/month, 50k/month) — currently on free tier (100/day)
+
+## Post-Blast Hygiene (2026-06-09)
+- [x] One-shot bounce sync: pull tonight's 40 Resend bounces via API, mark leadSequenceQueue.status='failed' + failureReason='hard_bounce', write inbound activity row per bounce
+- [x] Wire Resend webhook endpoint (/api/resend-webhook) for ongoing bounce/complaint/delivery events
+- [x] Update n8n confirmSent node to pass renderedHtml from fetchAndRender response (patch doc written to references/n8n-confirmSent-renderedHtml-patch.md)
+- [x] Build scheduled morning report tRPC procedure (bounce rate, complaint rate, automationPaused count, new enrollments since 5pm)
+- [ ] Register heartbeat job to fire morning report at 11:30 AM ET daily (requires deploy first)
