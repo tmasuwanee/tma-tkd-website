@@ -11,6 +11,8 @@ import { registerStorageProxy } from "./storageProxy";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
+import { handleResendWebhook } from "../resend-webhook";
+import { handleMorningReport } from "../morning-report";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -49,9 +51,41 @@ async function startServer() {
     next();
   });
 
+  // 2026-06-09 EMERGENCY: /camp was used in day_0 blast emails but the real route
+  // is /camp-registration. 301 so all clicked links in already-sent emails work.
+  app.get('/camp', (_req: Request, res: Response) => res.redirect(301, '/camp-registration'));
+
   registerStorageProxy(app);
   registerOAuthRoutes(app);
   registerApiRoutes(app);
+
+  // ─── Resend webhook: bounce, complaint, delivery events ─────────────────────
+  // Resend POSTs signed events here in real time.
+  // Setup: resend.com → Webhooks → URL = https://tmatkd.com/api/resend-webhook
+  // Events: email.bounced, email.complained, email.delivered, email.delivery_delayed
+  // Then set RESEND_WEBHOOK_SECRET in project Secrets.
+  //
+  // Raw-body capture middleware: Svix signature verification requires the exact
+  // bytes Resend sent, not re-serialized JSON. We capture rawBody here before
+  // express.json() parses it, then pass it through on req.rawBody.
+  app.post(
+    "/api/resend-webhook",
+    express.raw({ type: "application/json" }),
+    (req: Request, _res: Response, next) => {
+      if (Buffer.isBuffer(req.body)) {
+        (req as any).rawBody = req.body.toString("utf8");
+        req.body = JSON.parse((req as any).rawBody);
+      }
+      next();
+    },
+    handleResendWebhook
+  );
+
+  // ─── Scheduled: morning blast health report ────────────────────────────────
+  // Fires daily at 11:30 AM ET via Heartbeat cron (project-level, §4a).
+  // Sends bounce rate, complaint rate, paused count, and enrollment count
+  // to the project owner via notifyOwner().
+  app.post("/api/scheduled/morning-report", handleMorningReport);
 
   // ─── Scheduled: daily Facebook ad insights sync ──────────────────────────
   // Triggered by a Heartbeat cron (project-level, §4a).

@@ -1,0 +1,8 @@
+{
+  "query": "SELECT id, parentFirstName, parentLastName, email, phone, camper1Name, camper2Name, camper3Name, selectedWeeks, futureWeeks, programType, amountPaid, stripePaymentStatus, createdAt FROM campRegistrations WHERE (parentFirstName LIKE '%Thuy%' OR parentLastName LIKE '%Nguyen%' OR email LIKE '%nguyen%') AND isDeleted = 0 ORDER BY createdAt DESC LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3SwZhQGwFybjoYh.root --database cXp7keMiYsMkePUngpTNmV --execute SELECT id, parentFirstName, parentLastName, email, phone, camper1Name, camper2Name, camper3Name, selectedWeeks, futureWeeks, programType, amountPaid, stripePaymentStatus, createdAt FROM campRegistrations WHERE (parentFirstName LIKE '%Thuy%' OR parentLastName LIKE '%Nguyen%' OR email LIKE '%nguyen%') AND isDeleted = 0 ORDER BY createdAt DESC LIMIT 5;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 1: Unknown column 'selectedweeks' in 'field list'"
+  ]
+}

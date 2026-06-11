@@ -1,0 +1,13 @@
+{
+  "query": "\n-- Cancel the test row (Direct Test / directtest100@test.com)\nUPDATE leadSequenceQueue \nSET status = 'cancelled', cancelReason = 'test_row_excluded', cancelledAt = NOW()\nWHERE createdBy = 'blast_jun09_2026' AND leadId = 270002;\n\n-- Cancel the typo email row (gmaol.com)\nUPDATE leadSequenceQueue \nSET status = 'cancelled', cancelReason = 'invalid_email_typo_gmaol', cancelledAt = NOW()\nWHERE createdBy = 'blast_jun09_2026' AND leadId = 270004;\n\n-- Tag the typo lead for manual correction\nUPDATE leads SET tags = JSON_ARRAY_APPEND(COALESCE(tags, '[]'), '$', 'email_typo_needs_fix')\nWHERE id = 270004;\n\n-- Verify final active count\nSELECT COUNT(*) as active_blast_count FROM leadSequenceQueue \nWHERE createdBy = 'blast_jun09_2026' AND status = 'scheduled';\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3SwZhQGwFybjoYh.root --database cXp7keMiYsMkePUngpTNmV --execute \n-- Cancel the test row (Direct Test / directtest100@test.com)\nUPDATE leadSequenceQueue \nSET status = 'cancelled', cancelReason = 'test_row_excluded', cancelledAt = NOW()\nWHERE createdBy = 'blast_jun09_2026' AND leadId = 270002;\n\n-- Cancel the typo email row (gmaol.com)\nUPDATE leadSequenceQueue \nSET status = 'cancelled', cancelReason = 'invalid_email_typo_gmaol', cancelledAt = NOW()\nWHERE createdBy = 'blast_jun09_2026' AND leadId = 270004;\n\n-- Tag the typo lead for manual correction\nUPDATE leads SET tags = JSON_ARRAY_APPEND(COALESCE(tags, '[]'), '$', 'email_typo_needs_fix')\nWHERE id = 270004;\n\n-- Verify final active count\nSELECT COUNT(*) as active_blast_count FROM leadSequenceQueue \nWHERE createdBy = 'blast_jun09_2026' AND status = 'scheduled';\n",
+  "rows": [
+    {
+      "active_blast_count": "143"
+    }
+  ],
+  "messages": [],
+  "stdout": "active_blast_count\n143\n",
+  "stderr": "",
+  "execution_time_ms": 289
+}

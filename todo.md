@@ -169,3 +169,20 @@
 - [x] Fix TypeScript: isLeads type in AdsInsightsDashboard, program→programs in AttendanceKiosk
 - [x] leadActivities table created in DB
 - [x] tags column added to leads table in DB
+
+## Emergency Fixes (2026-06-09)
+- [x] Add /camp → /camp-registration 301 redirect in Express (blast emails used wrong URL)
+- [x] Fix all 8 summer_camp_nurture templates: replace tmatkd.com/camp with tmatkd.com/camp-registration in bodyText + bodyHtml
+- [x] Archive prior versions of all 8 templates to sequenceTemplateHistory before fix
+- [x] Apply renderedHtml MEDIUMTEXT migration to leadActivities table (ALTER TABLE)
+- [x] Update confirmTouchDispatched to accept and snapshot renderedHtml in leadActivities
+- [x] Update confirmSent tRPC procedure to accept renderedHtml field (z.string().max(2000000))
+- [x] Add STOP/UNSUBSCRIBE keyword detection to recordInboundEmailReply (auto-flip automationPaused=1)
+- [ ] Upgrade Resend to Pro plan ($20/month, 50k/month) — currently on free tier (100/day)
+
+## Post-Blast Hygiene (2026-06-09)
+- [x] One-shot bounce sync: pull tonight's 40 Resend bounces via API, mark leadSequenceQueue.status='failed' + failureReason='hard_bounce', write inbound activity row per bounce
+- [x] Wire Resend webhook endpoint (/api/resend-webhook) for ongoing bounce/complaint/delivery events
+- [x] Update n8n confirmSent node to pass renderedHtml from fetchAndRender response (patch doc written to references/n8n-confirmSent-renderedHtml-patch.md)
+- [x] Build scheduled morning report tRPC procedure (bounce rate, complaint rate, automationPaused count, new enrollments since 5pm)
+- [ ] Register heartbeat job to fire morning report at 11:30 AM ET daily (requires deploy first)

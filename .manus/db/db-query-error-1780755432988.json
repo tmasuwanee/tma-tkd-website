@@ -1,0 +1,26 @@
+{
+  "query": "SELECT sequenceKey, touchKey, subject, channel, delayHours FROM sequenceTemplates ORDER BY sequenceKey, delayHours LIMIT 30;\nSELECT sequenceKey, programInterest, utmCampaign, triggerEvent FROM sequenceTriggerRules LIMIT 20;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3SwZhQGwFybjoYh.root --database cXp7keMiYsMkePUngpTNmV --execute SELECT sequenceKey, touchKey, subject, channel, delayHours FROM sequenceTemplates ORDER BY sequenceKey, delayHours LIMIT 30;\nSELECT sequenceKey, programInterest, utmCampaign, triggerEvent FROM sequenceTriggerRules LIMIT 20;",
+  "returncode": 1,
+  "logs": [
+    "sequenceKey\ttouchKey\tsubject\tchannel\tdelayHours",
+    "afterschool_nurture\tday_0_program_overview\tTMA After-School: pickup, training, homework, handled\temail\t0",
+    "afterschool_nurture\tday_3_schedule_pricing\t{{firstName}}, here are TMA After-School pricing and schedule details\temail\t72",
+    "afterschool_nurture\tday_7_enrollment_open\tAfter-school enrollment is open, reserve your spot\temail\t168",
+    "bjj_trial_nurture\tday_2_bjj_intro\tYour TMA BJJ trial. What to expect.\temail\t48",
+    "bjj_trial_nurture\tday_4_bjj_final\tOne last note about BJJ at TMA\temail\t96",
+    "booked_trial_confirmation\tbooking_confirmation\tYour trial class is booked for {{trialDateLabel}}, {{firstName}}\temail\t0",
+    "fb_generic_nurture\tday_1_thanks_for_interest\tThanks for reaching out, {{firstName}}\temail\t24",
+    "fb_generic_nurture\tday_4_pick_a_program\t{{firstName}}, which TMA program is right for you?\temail\t96",
+    "kickboxing_trial_nurture\tday_2_adult_check_in\tYour TMA Kickboxing trial. Quick check-in.\temail\t48",
+    "kickboxing_trial_nurture\tday_4_what_first_class_is_like\tWhat your first TMA Kickboxing class will be like\temail\t96",
+    "summer_camp_nurture\tday_0_camp_overview\t{{firstName}}, here is everything about TMA Summer Camp\temail\t0",
+    "summer_camp_nurture\tday_3_spots_filling\tTMA Summer Camp spots are filling fast\temail\t72",
+    "summer_camp_nurture\tday_6_last_call\tLast call before TMA Summer Camp starts\temail\t144",
+    "tkd_trial_nurture\tday_2_still_thinking\tStill thinking about that free TKD class, {{firstName}}?\temail\t48",
+    "tkd_trial_nurture\tday_4_one_last_thing\tOne last thing about your TKD trial, {{firstName}}\temail\t96",
+    "web_form_nurture\tday_2_default_followup\tFollowing up on your TMA inquiry, {{firstName}}\temail\t48",
+    "web_form_nurture\tday_4_default_final\tLast note from TMA, {{firstName}}\temail\t96",
+    "ERROR 1054 (42S22) at line 2: Unknown column 'programinterest' in 'field list'"
+  ]
+}

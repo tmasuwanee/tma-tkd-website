@@ -1,0 +1,52 @@
+{
+  "query": "SELECT touchKey, status, COUNT(*) as cnt, MIN(scheduledFor) as earliest\nFROM leadSequenceQueue\nWHERE sequenceKey = 'summer_camp_nurture'\nGROUP BY touchKey, status\nORDER BY touchKey, status;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3SwZhQGwFybjoYh.root --database cXp7keMiYsMkePUngpTNmV --execute SELECT touchKey, status, COUNT(*) as cnt, MIN(scheduledFor) as earliest\nFROM leadSequenceQueue\nWHERE sequenceKey = 'summer_camp_nurture'\nGROUP BY touchKey, status\nORDER BY touchKey, status;",
+  "rows": [
+    {
+      "touchKey": "day_0_camp_overview",
+      "status": "sent",
+      "cnt": "144",
+      "earliest": "2026-05-21 04:54:03"
+    },
+    {
+      "touchKey": "day_0_camp_overview",
+      "status": "skipped",
+      "cnt": "12",
+      "earliest": "2026-06-09 20:22:14"
+    },
+    {
+      "touchKey": "day_0_camp_overview",
+      "status": "cancelled",
+      "cnt": "5",
+      "earliest": "2026-05-21 04:59:29"
+    },
+    {
+      "touchKey": "day_3_spots_filling",
+      "status": "sent",
+      "cnt": "12",
+      "earliest": "2026-05-25 02:15:12"
+    },
+    {
+      "touchKey": "day_3_spots_filling",
+      "status": "cancelled",
+      "cnt": "4",
+      "earliest": "2026-05-24 04:54:03"
+    },
+    {
+      "touchKey": "day_6_last_call",
+      "status": "sent",
+      "cnt": "12",
+      "earliest": "2026-05-28 02:15:12"
+    },
+    {
+      "touchKey": "day_6_last_call",
+      "status": "cancelled",
+      "cnt": "4",
+      "earliest": "2026-05-27 04:54:03"
+    }
+  ],
+  "messages": [],
+  "stdout": "touchKey\tstatus\tcnt\tearliest\nday_0_camp_overview\tsent\t144\t2026-05-21 04:54:03\nday_0_camp_overview\tskipped\t12\t2026-06-09 20:22:14\nday_0_camp_overview\tcancelled\t5\t2026-05-21 04:59:29\nday_3_spots_filling\tsent\t12\t2026-05-25 02:15:12\nday_3_spots_filling\tcancelled\t4\t2026-05-24 04:54:03\nday_6_last_call\tsent\t12\t2026-05-28 02:15:12\nday_6_last_call\tcancelled\t4\t2026-05-27 04:54:03\n",
+  "stderr": "",
+  "execution_time_ms": 263
+}

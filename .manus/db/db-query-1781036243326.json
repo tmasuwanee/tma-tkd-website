@@ -1,0 +1,13 @@
+{
+  "query": "\n-- BLAST FILTER SQL — summer camp leads only\n-- Exclude: non-camp programInterest, do_not_contact, enrolled, already in sequence\nSELECT COUNT(*) as blast_count\nFROM leads l\nWHERE l.email IS NOT NULL\n  AND l.email != ''\n  AND (l.tags IS NULL OR l.tags NOT LIKE '%do_not_contact%')\n  AND LOWER(TRIM(l.programInterest)) IN (\n    'summer camp 2026', 'summer_camp', 'summer camp', 'summer'\n  )\n  AND NOT EXISTS (\n    SELECT 1 FROM campRegistrations cr\n    WHERE LOWER(cr.email) = LOWER(l.email)\n    AND cr.stripePaymentStatus = 'succeeded'\n  )\n  AND NOT EXISTS (\n    SELECT 1 FROM leadSequenceQueue q\n    WHERE q.leadId = l.id\n    AND q.sequenceKey = 'summer_camp_nurture'\n    AND q.status IN ('sent', 'queued', 'pending')\n  );\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3SwZhQGwFybjoYh.root --database cXp7keMiYsMkePUngpTNmV --execute \n-- BLAST FILTER SQL — summer camp leads only\n-- Exclude: non-camp programInterest, do_not_contact, enrolled, already in sequence\nSELECT COUNT(*) as blast_count\nFROM leads l\nWHERE l.email IS NOT NULL\n  AND l.email != ''\n  AND (l.tags IS NULL OR l.tags NOT LIKE '%do_not_contact%')\n  AND LOWER(TRIM(l.programInterest)) IN (\n    'summer camp 2026', 'summer_camp', 'summer camp', 'summer'\n  )\n  AND NOT EXISTS (\n    SELECT 1 FROM campRegistrations cr\n    WHERE LOWER(cr.email) = LOWER(l.email)\n    AND cr.stripePaymentStatus = 'succeeded'\n  )\n  AND NOT EXISTS (\n    SELECT 1 FROM leadSequenceQueue q\n    WHERE q.leadId = l.id\n    AND q.sequenceKey = 'summer_camp_nurture'\n    AND q.status IN ('sent', 'queued', 'pending')\n  );\n",
+  "rows": [
+    {
+      "blast_count": "145"
+    }
+  ],
+  "messages": [],
+  "stdout": "blast_count\n145\n",
+  "stderr": "",
+  "execution_time_ms": 285
+}

@@ -1,0 +1,9 @@
+{
+  "query": "UPDATE campRegistrations SET anticipatedWeeks = '[\\\"Week 1: May 26 – May 29 (Tue–Fri)\\\",\\\"Week 2: June 2 – June 6\\\",\\\"Week 3: June 9 – June 13\\\",\\\"Week 4: June 16 – June 20\\\",\\\"Week 5: June 20 – June 24\\\",\\\"Week 6: July 20 – July 24\\\"]', updatedAt = NOW() WHERE id = 630002;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3SwZhQGwFybjoYh.root --database cXp7keMiYsMkePUngpTNmV --execute UPDATE campRegistrations SET anticipatedWeeks = '[\\\"Week 1: May 26 – May 29 (Tue–Fri)\\\",\\\"Week 2: June 2 – June 6\\\",\\\"Week 3: June 9 – June 13\\\",\\\"Week 4: June 16 – June 20\\\",\\\"Week 5: June 20 – June 24\\\",\\\"Week 6: July 20 – July 24\\\"]', updatedAt = NOW() WHERE id = 630002;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 265
+}

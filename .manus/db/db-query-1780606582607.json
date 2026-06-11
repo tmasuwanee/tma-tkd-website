@@ -1,0 +1,9 @@
+{
+  "query": "ALTER TABLE `studioAssets` ADD `tags` text;\nUPDATE `studioAssets` SET `tags` = JSON_ARRAY(`vertical`) WHERE `tags` IS NULL;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3SwZhQGwFybjoYh.root --database cXp7keMiYsMkePUngpTNmV --execute ALTER TABLE `studioAssets` ADD `tags` text;\nUPDATE `studioAssets` SET `tags` = JSON_ARRAY(`vertical`) WHERE `tags` IS NULL;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 533
+}

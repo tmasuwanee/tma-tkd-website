@@ -1181,9 +1181,49 @@ export async function preSendGuard(args: {
   const leadRows = await db.select().from(leads).where(eq(leads.id, args.leadId)).limit(1);
   const lead = leadRows[0];
   if (!lead) return { ok: false, reason: 'lead_not_found' };
-  if (lead.automationPaused) return { ok: false, reason: 'automation_paused' };
+  // Auto-stop 4: unsubscribed (automationPaused flag set by Resend webhook or STOP reply)
+  if (lead.automationPaused) return { ok: false, reason: 'auto_stop_unsubscribed' };
   if (lead.pipelineStage === 'enrolled') return { ok: false, reason: 'lead_enrolled' };
   if (lead.pipelineStage === 'lost') return { ok: false, reason: 'lead_lost' };
+
+  // Auto-stop 1: lead replied to any prior touch (inbound email/sms/call activity)
+  const replyRows = await db
+    .select({ id: leadActivities.id })
+    .from(leadActivities)
+    .where(
+      and(
+        eq(leadActivities.leadId, args.leadId),
+        eq(leadActivities.direction, 'inbound'),
+        inArray(leadActivities.type, ['email', 'sms', 'call'])
+      )
+    )
+    .limit(1);
+  if (replyRows.length > 0) return { ok: false, reason: 'auto_stop_replied' };
+
+  // Auto-stop 2: lead enrolled in camp (succeeded Stripe payment)
+  if (lead.email) {
+    const [enrolledResult] = await db.execute(
+      sql`SELECT 1 FROM campRegistrations WHERE LOWER(email) = LOWER(${lead.email}) AND stripePaymentStatus = 'succeeded' LIMIT 1`
+    ) as unknown as [Array<unknown>];
+    if (enrolledResult && enrolledResult.length > 0) {
+      return { ok: false, reason: 'auto_stop_enrolled' };
+    }
+  }
+
+  // Auto-stop 3: prior touch in this sequence hard-bounced
+  const bounceRows = await db
+    .select({ id: leadSequenceQueue.id })
+    .from(leadSequenceQueue)
+    .where(
+      and(
+        eq(leadSequenceQueue.leadId, args.leadId),
+        eq(leadSequenceQueue.sequenceKey, args.sequenceKey),
+        eq(leadSequenceQueue.status, 'failed'),
+        like(leadSequenceQueue.failureReason, '%bounce%')
+      )
+    )
+    .limit(1);
+  if (bounceRows.length > 0) return { ok: false, reason: 'auto_stop_bounced' };
 
   const template = await getTemplate(args.sequenceKey, args.touchKey);
   if (!template) return { ok: false, reason: 'template_not_found' };
@@ -1503,6 +1543,10 @@ export async function confirmTouchDispatched(args: {
   providerStatus?: number;
   failureReason?: string;
   skipReason?: string;
+  // 2026-06-09: audit-grade snapshot of rendered HTML. Passed by the dispatcher
+  // after fetchAndRender returns bodyHtml. Stored in leadActivities.renderedHtml
+  // so the admin timeline shows exactly what was delivered (compliance / dispute).
+  renderedHtml?: string;
 }): Promise<{ ok: boolean; alreadyTerminal?: boolean }> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -1530,7 +1574,9 @@ export async function confirmTouchDispatched(args: {
       body: args.providerMessageId ? `provider_id=${args.providerMessageId} status=${args.providerStatus ?? ''}` : 'dispatched',
       sentBy: `n8n_dispatcher:${row.sequenceKey}`,
       status: 'sent',
-    });
+      // Snapshot rendered HTML at send time for audit/compliance.
+      renderedHtml: args.renderedHtml ?? null,
+    } as any);
   } else if (args.status === 'failed') {
     await db.update(leadSequenceQueue).set({
       status: 'failed', failedAt: now,
@@ -1826,6 +1872,13 @@ export async function recordInboundEmailReply(args: {
   );
   if (!lead) return { matched: 0 };
 
+  // ── STOP / UNSUBSCRIBE keyword detection ──────────────────────────────────
+  // If the body (trimmed, first line) matches an opt-out keyword, auto-flip
+  // automationPaused=1 and write a distinct activity status so the admin
+  // timeline shows "unsubscribed via reply" rather than a generic reply.
+  const firstLine = (args.body ?? '').trim().split(/\r?\n/)[0].trim();
+  const isStopRequest = /^(STOP|UNSUBSCRIBE|REMOVE ME|REMOVE|END|CANCEL|QUIT)$/i.test(firstLine);
+
   // Insert. Unique index on externalId stops duplicate writes for the same Gmail message.
   try {
     await db.insert(leadActivities).values({
@@ -1835,13 +1888,34 @@ export async function recordInboundEmailReply(args: {
       subject: args.subject?.slice(0, 255) ?? null,
       body: args.body?.slice(0, 65000) ?? null,
       sentBy: "gmail_reply_poller",
-      status: "replied",
+      status: isStopRequest ? "unsubscribed_by_reply" : "replied",
       externalId: args.gmailMessageId,
     } as any);
   } catch (e: any) {
     // duplicate key = already processed this message
     if (e?.code === "ER_DUP_ENTRY") return { matched: lead.id };
     throw e;
+  }
+
+  if (isStopRequest) {
+    // Flip automation off immediately — preSendGuard checks this flag before
+    // every touch so no further sequence emails will be sent to this lead.
+    await db.update(leads).set({
+      automationPaused: 1,
+      automationPausedAt: new Date(),
+      automationPausedBy: 'gmail_reply_poller',
+      automationPauseReason: `STOP keyword reply: "${firstLine.slice(0, 80)}"`,
+    } as any).where(eq(leads.id, lead.id));
+
+    await logAudit({
+      level: 'info',
+      source: 'inbound_email',
+      event: 'stop_keyword_unsubscribed',
+      leadId: lead.id,
+      details: JSON.stringify({ gmailMessageId: args.gmailMessageId, firstLine }),
+    });
+
+    return { matched: lead.id };
   }
 
   // If lead is still in early stages, the fact that they replied is a strong

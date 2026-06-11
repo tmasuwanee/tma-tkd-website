@@ -1,0 +1,22 @@
+{
+  "query": "-- Check for any day_3 rows created after the blast (tonight)\nSELECT touchKey, status, COUNT(*) as cnt, MIN(scheduledFor) as earliest, MAX(scheduledFor) as latest\nFROM leadSequenceQueue\nWHERE sequenceKey = 'summer_camp_nurture'\n  AND touchKey IN ('day_3_spots_filling', 'day_6_last_call')\n  AND createdAt > '2026-06-09 19:00:00'\nGROUP BY touchKey, status;\n\n-- Also check day_0 rows created tonight to confirm blast count\nSELECT status, COUNT(*) as cnt\nFROM leadSequenceQueue\nWHERE sequenceKey = 'summer_camp_nurture'\n  AND touchKey = 'day_0_camp_overview'\n  AND createdAt > '2026-06-09 19:00:00'\nGROUP BY status;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3SwZhQGwFybjoYh.root --database cXp7keMiYsMkePUngpTNmV --execute -- Check for any day_3 rows created after the blast (tonight)\nSELECT touchKey, status, COUNT(*) as cnt, MIN(scheduledFor) as earliest, MAX(scheduledFor) as latest\nFROM leadSequenceQueue\nWHERE sequenceKey = 'summer_camp_nurture'\n  AND touchKey IN ('day_3_spots_filling', 'day_6_last_call')\n  AND createdAt > '2026-06-09 19:00:00'\nGROUP BY touchKey, status;\n\n-- Also check day_0 rows created tonight to confirm blast count\nSELECT status, COUNT(*) as cnt\nFROM leadSequenceQueue\nWHERE sequenceKey = 'summer_camp_nurture'\n  AND touchKey = 'day_0_camp_overview'\n  AND createdAt > '2026-06-09 19:00:00'\nGROUP BY status;",
+  "rows": [
+    {
+      "status": "cancelled",
+      "cnt": "2"
+    },
+    {
+      "status": "skipped",
+      "cnt": "12"
+    },
+    {
+      "status": "sent",
+      "cnt": "131"
+    }
+  ],
+  "messages": [],
+  "stdout": "status\tcnt\ncancelled\t2\nskipped\t12\nsent\t131\n",
+  "stderr": "",
+  "execution_time_ms": 264
+}

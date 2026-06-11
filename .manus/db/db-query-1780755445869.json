@@ -1,0 +1,28 @@
+{
+  "query": "SELECT COUNT(*) as total_in_queue FROM leadSequenceQueue WHERE sequenceKey = 'summer_camp_nurture';\nSELECT status, COUNT(*) as cnt FROM leadSequenceQueue WHERE sequenceKey = 'summer_camp_nurture' GROUP BY status;\nSELECT COUNT(*) as registered_emails FROM campRegistrations WHERE email IS NOT NULL AND email != '';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3SwZhQGwFybjoYh.root --database cXp7keMiYsMkePUngpTNmV --execute SELECT COUNT(*) as total_in_queue FROM leadSequenceQueue WHERE sequenceKey = 'summer_camp_nurture';\nSELECT status, COUNT(*) as cnt FROM leadSequenceQueue WHERE sequenceKey = 'summer_camp_nurture' GROUP BY status;\nSELECT COUNT(*) as registered_emails FROM campRegistrations WHERE email IS NOT NULL AND email != '';",
+  "rows": [
+    {
+      "total_in_queue": "48"
+    },
+    {
+      "total_in_queue": "status\tcnt"
+    },
+    {
+      "total_in_queue": "sent\t37"
+    },
+    {
+      "total_in_queue": "cancelled\t11"
+    },
+    {
+      "total_in_queue": "registered_emails"
+    },
+    {
+      "total_in_queue": "44"
+    }
+  ],
+  "messages": [],
+  "stdout": "total_in_queue\n48\nstatus\tcnt\nsent\t37\ncancelled\t11\nregistered_emails\n44\n",
+  "stderr": "",
+  "execution_time_ms": 270
+}

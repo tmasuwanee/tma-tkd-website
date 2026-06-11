@@ -26,4 +26,7 @@ export const ENV = {
   // 2026-06-06: Gmail reply poller shared secret. Required for /api/trpc/inbound.emailReply.
   // The poller (scripts/gmail_reply_poller.ts) sends this in the input payload.
   gmailPollerSharedSecret: process.env.GMAIL_POLLER_SHARED_SECRET ?? "",
+  // 2026-06-09: Resend webhook signing secret. Set in Resend dashboard → Webhooks → Signing secret.
+  // Used to verify POST /api/resend-webhook requests are genuinely from Resend.
+  resendWebhookSecret: process.env.RESEND_WEBHOOK_SECRET ?? "",
 };

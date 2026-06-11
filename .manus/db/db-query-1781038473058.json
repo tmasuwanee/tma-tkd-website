@@ -1,0 +1,22 @@
+{
+  "query": "\nSELECT sentBy, subject, status, COUNT(*) as cnt\nFROM leadActivities\nWHERE sentBy LIKE 'n8n_dispatcher%'\n  AND DATE(createdAt) = '2026-06-09'\nGROUP BY sentBy, subject, status\nORDER BY cnt DESC;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3SwZhQGwFybjoYh.root --database cXp7keMiYsMkePUngpTNmV --execute \nSELECT sentBy, subject, status, COUNT(*) as cnt\nFROM leadActivities\nWHERE sentBy LIKE 'n8n_dispatcher%'\n  AND DATE(createdAt) = '2026-06-09'\nGROUP BY sentBy, subject, status\nORDER BY cnt DESC;\n",
+  "rows": [
+    {
+      "sentBy": "n8n_dispatcher",
+      "subject": "day_0_camp_overview",
+      "status": "sent",
+      "cnt": "131"
+    },
+    {
+      "sentBy": "n8n_dispatcher",
+      "subject": "Sequence skipped: day_0_camp_overview",
+      "status": "skipped",
+      "cnt": "12"
+    }
+  ],
+  "messages": [],
+  "stdout": "sentBy\tsubject\tstatus\tcnt\nn8n_dispatcher\tday_0_camp_overview\tsent\t131\nn8n_dispatcher\tSequence skipped: day_0_camp_overview\tskipped\t12\n",
+  "stderr": "",
+  "execution_time_ms": 275
+}
