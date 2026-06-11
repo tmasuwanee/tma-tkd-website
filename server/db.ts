@@ -1991,3 +1991,73 @@ export async function setAllAutomations(enabled: boolean, updatedBy: string): Pr
     details: JSON.stringify({ by: updatedBy }),
   });
 }
+
+// ─── Outbound voice agent call logging (2026-06-11) ───────────────────────────
+
+/**
+ * Records the result of an OUTBOUND voice-agent call against a lead so it
+ * shows in /admin/calls (dailyCallQueue) and on the lead timeline.
+ */
+export async function recordOutboundCall(args: {
+  leadId: number;
+  status: CallOutcome;
+  summary: string;
+  calledBy: string;
+}): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not configured");
+  const date = todayDateString();
+
+  const [existing] = await db.select().from(dailyCallQueue)
+    .where(and(eq(dailyCallQueue.leadId, args.leadId), eq(dailyCallQueue.queueDate, date))!);
+  if (existing) {
+    await db.update(dailyCallQueue).set({
+      status: args.status, outcomeNotes: args.summary,
+      calledAt: new Date(), calledBy: args.calledBy,
+    } as any).where(eq(dailyCallQueue.id, existing.id));
+  } else {
+    const [lead] = await db.select().from(leads).where(eq(leads.id, args.leadId));
+    await db.insert(dailyCallQueue).values({
+      leadId: args.leadId, queueDate: date, score: 0,
+      reason: "outbound voice agent call",
+      vertical: normalizeVertical(lead?.programInterest),
+      status: args.status, outcomeNotes: args.summary,
+      calledAt: new Date(), calledBy: args.calledBy,
+    } as any);
+  }
+
+  await db.insert(leadActivities).values({
+    leadId: args.leadId, type: "call", direction: "outbound",
+    subject: `Outbound voice: ${args.status}`, body: args.summary,
+    sentBy: args.calledBy, status: args.status,
+  } as any);
+
+  if (args.status === "not_interested") {
+    await db.update(leads).set({ pipelineStage: "lost" } as any).where(eq(leads.id, args.leadId));
+  }
+}
+
+/** Lead context for an outbound agent to read at the start of a call. */
+export async function getLeadContextForCall(leadId: number): Promise<any | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const [lead] = await db.select().from(leads).where(eq(leads.id, leadId));
+  if (!lead) return null;
+  const parentMissing = !lead.parentName || lead.parentName.trim() === "" ||
+    lead.parentName.trim().toLowerCase() === (lead.kidName ?? "").trim().toLowerCase();
+  return {
+    leadId: lead.id,
+    parentName: lead.parentName ?? null,
+    studentName: lead.kidName ?? null,
+    studentAge: lead.kidAge ?? null,
+    program: lead.programInterest ?? null,
+    phone: lead.phone ?? null,
+    stage: lead.pipelineStage,
+    trialDate: lead.trialClassDate ?? null,
+    trialTime: lead.trialClassTime ?? null,
+    inquiredAbout: lead.motivation ?? lead.additionalNotes ?? null,
+    note: parentMissing
+      ? "No separate parent name on file; this may be the student themselves. Confirm who you're speaking with."
+      : `Speaking with the parent (${lead.parentName}) about ${lead.kidName}.`,
+  };
+}

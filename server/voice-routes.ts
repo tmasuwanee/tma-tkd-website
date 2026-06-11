@@ -17,11 +17,16 @@
  *   POST /api/voice/book-trial         { caller_name, phone, email, student_name, student_age, program, date_iso, time }
  *   POST /api/voice/route-to-human     { caller_name, phone, reason, email? }
  *   POST /api/voice/notify-pickup      { parent_name, child_name, program? }
+ *   POST /api/voice/lead-context       { lead_id }                         (outbound)
+ *   POST /api/voice/log-call-outcome   { lead_id, outcome, summary, booked, asked_about } (outbound)
+ *   POST /api/voice/schedule-retry     { lead_id, when, reason }           (outbound)
  */
 import type { Express, Request, Response } from "express";
 import { getEligibleSlots, getNextDateForSlot, formatDate, type ClassSlot } from "../shared/classSchedule";
-import { createLead } from "./db";
+import { createLead, recordOutboundCall, getLeadContextForCall } from "./db";
 import { sendTelegramMessage } from "./telegram";
+
+const CALLS_URL = "https://tmatkd.com/admin/calls";
 
 const WEEKDAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
 const MONTHS = ["january", "february", "march", "april", "may", "june", "july",
@@ -255,5 +260,76 @@ export function registerVoiceRoutes(app: Express): void {
       `Please send them down immediately.`
     );
     res.json({ result: `Thank you. I'm letting staff know right now to send ${childName} down. They'll be right out.` });
+  });
+
+  // ─── get_lead_context (outbound) ───────────────────────────────────────────
+  // Outbound agent reads this at the start of a call so it knows who it is
+  // talking to (parent vs student), the student's age/program, and prior trial.
+  app.post("/api/voice/lead-context", async (req: Request, res: Response) => {
+    if (!authed(req)) { res.status(401).json({ result: "Unauthorized" }); return; }
+    const leadId = parseInt(String(req.body?.lead_id ?? req.body?.leadId ?? ""), 10);
+    if (isNaN(leadId)) { res.json({ result: "No lead id provided.", found: false }); return; }
+    const ctx = await getLeadContextForCall(leadId);
+    if (!ctx) { res.json({ result: "I couldn't find that lead.", found: false }); return; }
+    res.json({ found: true, ...ctx });
+  });
+
+  // ─── log_call_outcome (outbound) ───────────────────────────────────────────
+  // Called at the end of every outbound call. Writes the result + summary to
+  // /admin/calls and the lead timeline, and Telegrams staff with a link.
+  app.post("/api/voice/log-call-outcome", async (req: Request, res: Response) => {
+    if (!authed(req)) { res.status(401).json({ result: "Unauthorized" }); return; }
+    const b = req.body ?? {};
+    const leadId = parseInt(String(b.lead_id ?? b.leadId ?? ""), 10);
+    const status = String(b.outcome ?? b.status ?? "answered").trim();
+    const summary = String(b.summary ?? "").trim();
+    const booked = b.booked === true || b.booked === "true";
+    const askedAbout = String(b.asked_about ?? b.askedAbout ?? "").trim();
+    const validOutcomes = ["answered", "voicemail", "no_answer", "booked", "not_interested", "callback_later", "skipped"];
+    const outcome = (booked ? "booked" : (validOutcomes.includes(status) ? status : "answered")) as any;
+    if (isNaN(leadId)) { res.json({ result: "No lead id.", logged: false }); return; }
+    try {
+      const fullSummary = [summary, askedAbout ? `Asked about: ${askedAbout}` : ""].filter(Boolean).join(" — ");
+      await recordOutboundCall({ leadId, status: outcome, summary: fullSummary || outcome, calledBy: "voice_agent_outbound" });
+      const ctx = await getLeadContextForCall(leadId);
+      const who = ctx ? `${ctx.parentName || ctx.studentName || ("lead #" + leadId)}` : `lead #${leadId}`;
+      void sendTelegramMessage(
+        `📞 <b>Outbound call: ${outcome}</b>\n` +
+        `${who}${ctx?.studentName ? ` (${ctx.studentName})` : ""}\n` +
+        (fullSummary ? `${fullSummary}\n` : "") +
+        `${booked ? "✅ Booked a trial\n" : ""}` +
+        `Details: ${CALLS_URL}`
+      );
+      res.json({ result: "Logged.", logged: true });
+    } catch (err: any) {
+      console.error("[voice log-call-outcome] error:", err?.message ?? err);
+      res.json({ result: "Could not log.", logged: false });
+    }
+  });
+
+  // ─── schedule_retry (outbound) ─────────────────────────────────────────────
+  // Caller asked to be called back later, or is not ready. Logs the request +
+  // alerts staff. The escalating retry CADENCE (1 min, then 12pm/2pm/4pm/6pm on
+  // following days) is driven by the n8n outbound scheduler, not the agent.
+  app.post("/api/voice/schedule-retry", async (req: Request, res: Response) => {
+    if (!authed(req)) { res.status(401).json({ result: "Unauthorized" }); return; }
+    const b = req.body ?? {};
+    const leadId = parseInt(String(b.lead_id ?? b.leadId ?? ""), 10);
+    const when = String(b.when ?? "later").trim();
+    const reason = String(b.reason ?? "caller asked to be reached later").trim();
+    if (isNaN(leadId)) { res.json({ result: "No lead id.", logged: false }); return; }
+    try {
+      await recordOutboundCall({ leadId, status: "callback_later", summary: `Retry: ${when}. ${reason}`, calledBy: "voice_agent_outbound" });
+      const ctx = await getLeadContextForCall(leadId);
+      void sendTelegramMessage(
+        `🔁 <b>Callback requested</b>\n` +
+        `${ctx?.parentName || ctx?.studentName || ("lead #" + leadId)} — call back ${when}.\n` +
+        `Reason: ${reason}`
+      );
+      res.json({ result: `Got it, we'll reach back ${when}.`, logged: true });
+    } catch (err: any) {
+      console.error("[voice schedule-retry] error:", err?.message ?? err);
+      res.json({ result: "Noted.", logged: false });
+    }
   });
 }
