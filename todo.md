@@ -200,5 +200,13 @@
 - [x] Set env vars: VOICE_AGENT_SHARED_SECRET, TMA_TELEGRAM_STAFF_CHAT_ID, TMA_TELEGRAM_BOT_TOKEN
 - [x] Register heartbeat cron: 8:00 AM ET → POST /api/scheduled/trial-reminders-am (task_uid=9C57uhRgSreLPWKvgQi2Fq)
 - [x] Register heartbeat cron: 8:30 PM ET → POST /api/scheduled/trial-checkin-pm (task_uid=99JJKQjod232Mmj8jm7XyR)
-- [ ] Deploy checkpoint with all changes (in progress)
-- [ ] Verify POST /api/voice/resolve-date with x-voice-secret header returns resolved date
+- [x] Deploy checkpoint with all changes (checkpoint 8b8e716b)
+- [x] Verify POST /api/voice/resolve-date with x-voice-secret header returns resolved date — returns {iso:"2026-06-13",human:"Saturday, June 13, 2026",resolved:true}; wrong secret returns 401
+
+## Automation Controls Deploy (2026-06-11)
+- [x] Pull commit 35dc72d (automation controls kill-switch + admin pages)
+- [x] Run migration 0019_automation_controls.sql (creates kill-switch table, seeds 8 automations — all enabled=1)
+- [x] Register heartbeat cron: ~7:45 AM ET → POST /api/scheduled/daily-call-queue (task_uid=kmMfowiGMokjCefrKvsWVk, next=2026-06-12T11:45Z)
+- [ ] Deploy checkpoint with all changes
+- [ ] Verify /admin/controls loads behind login
+- [ ] Verify /admin/checkin loads behind login
