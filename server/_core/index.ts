@@ -15,6 +15,7 @@ import { handleResendWebhook } from "../resend-webhook";
 import { handleMorningReport } from "../morning-report";
 import { registerVoiceRoutes } from "../voice-routes";
 import { handleTrialRemindersAM, handleTrialCheckinPM, handleDailyCallQueue } from "../staff-reminders";
+import { handleOutboundSpeedToLead, handleOutboundNoShow, handleOutboundPostTrial } from "../outbound-voice";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -99,6 +100,14 @@ async function startServer() {
   app.post("/api/scheduled/trial-checkin-pm", handleTrialCheckinPM);
   // Daily call queue (~8 AM ET): scores leads, fills /admin/calls, Telegrams the list.
   app.post("/api/scheduled/daily-call-queue", handleDailyCallQueue);
+
+  // ─── Outbound voice agent triggers ─────────────────────────────────────────
+  // Cron-fired. Each is gated by the voice_agent_outbound kill switch, calling
+  // hours (8 AM-9 PM ET), noOutboundCalls, and per-lead dedup. SAFETY: do not
+  // register the crons until the outbound agent is tested.
+  app.post("/api/scheduled/outbound-speed-to-lead", handleOutboundSpeedToLead);
+  app.post("/api/scheduled/outbound-noshow", handleOutboundNoShow);
+  app.post("/api/scheduled/outbound-posttrial", handleOutboundPostTrial);
 
   // ─── Scheduled: daily Facebook ad insights sync ──────────────────────────
   // Triggered by a Heartbeat cron (project-level, §4a).

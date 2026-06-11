@@ -2077,3 +2077,55 @@ export async function setNoOutboundCalls(leadId: number, on: boolean): Promise<v
     noOutboundCallsAt: on ? new Date() : null,
   } as any).where(eq(leads.id, leadId));
 }
+
+// ─── Outbound voice candidate queries (2026-06-11) ────────────────────────────
+// All exclude noOutboundCalls leads. The outbound-voice handlers add the
+// kill-switch, calling-hours, and per-lead dedup guards.
+
+export async function getSpeedToLeadCandidates(): Promise<Lead[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(leads).where(sql`
+    pipelineStage = 'new_lead' AND trialClassDate IS NULL
+    AND noOutboundCalls = 0
+    AND createdAt > (NOW() - INTERVAL 30 MINUTE)`);
+}
+
+export async function getNoShowRecoveryCandidates(): Promise<Lead[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(leads).where(sql`
+    pipelineStage = 'no_show' AND noOutboundCalls = 0
+    AND updatedAt > (NOW() - INTERVAL 2 DAY)`);
+}
+
+export async function getPostTrialCandidates(): Promise<Lead[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(leads).where(sql`
+    pipelineStage = 'trial_attended' AND noOutboundCalls = 0
+    AND trialClassDate IS NOT NULL
+    AND trialClassDate <= DATE_SUB(CURDATE(), INTERVAL 3 DAY)
+    AND trialClassDate >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)`);
+}
+
+/** Has the outbound agent already attempted this lead within `hours`? (dedup) */
+export async function hasOutboundAttempt(leadId: number, hours: number): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  const rows = await db.select().from(leadActivities).where(sql`
+    leadId = ${leadId} AND sentBy = 'voice_agent_outbound'
+    AND createdAt > (NOW() - INTERVAL ${hours} HOUR)`).limit(1);
+  return rows.length > 0;
+}
+
+/** Record that an outbound call was placed (dedup marker; outcome comes later via log_call_outcome). */
+export async function markOutboundAttempt(leadId: number, callType: string): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.insert(leadActivities).values({
+    leadId, type: "call", direction: "outbound",
+    subject: `Outbound ${callType}: placing call`, body: null,
+    sentBy: "voice_agent_outbound", status: "attempted",
+  } as any);
+}
