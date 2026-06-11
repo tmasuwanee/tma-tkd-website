@@ -15,9 +15,20 @@ describe("Class Schedule Eligibility", () => {
     expect(slots[0].startTime).toBe("7:10 PM");
   });
 
-  it("TKD under age 6 returns empty (too young)", () => {
-    expect(getEligibleSlots("taekwondo", 4)).toHaveLength(0);
-    expect(getEligibleSlots("taekwondo", 5)).toHaveLength(0);
+  it("TKD age 4-5 auto-routes to Little Tigers slots (3 slots: Mon/Tue/Thu)", () => {
+    // Little Tigers feature: picking 'taekwondo' with age 4 or 5 returns Little Tigers slots
+    expect(getEligibleSlots("taekwondo", 4)).toHaveLength(3);
+    expect(getEligibleSlots("taekwondo", 5)).toHaveLength(3);
+    expect(getEligibleSlots("taekwondo", 4).map(s => s.day)).toEqual(["Monday", "Tuesday", "Thursday"]);
+  });
+
+  it("Little Tigers program directly returns 3 slots for ages 4-5", () => {
+    expect(getEligibleSlots("little_tigers", 4)).toHaveLength(3);
+    expect(getEligibleSlots("little_tigers", 5)).toHaveLength(3);
+  });
+
+  it("Little Tigers returns empty for age 6+ (too old)", () => {
+    expect(getEligibleSlots("little_tigers", 6)).toHaveLength(0);
   });
 
   it("BJJ age 9+ gets 3 slots (Mon/Wed/Fri)", () => {

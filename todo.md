@@ -193,3 +193,12 @@
 - [x] Diagnose day_3 "0 eligible leads" gap in leadSequenceQueue (Case 1: only day_0/3/6 existed for June 9 cohort)
 - [x] Enroll 131 blast leads in remaining sequence touches (day_3 through day_48) if missing — 131 rows inserted per touch
 - [x] Fix address in all summer_camp_nurture email templates (3945 Peachtree Pkwy → 2005 Lawrenceville-Suwanee Rd) — 5 templates fixed (day_13/20/31/42/48), archived to history
+
+## Voice Agent + Trial Reminder Crons (2026-06-11)
+- [x] Pull commit 3cc89bc (voice agent: server/voice-routes.ts, server/telegram.ts, _core/index.ts)
+- [x] Pull commit 1ffb028 (pickup + cron endpoints: trial-reminders-am, trial-checkin-pm)
+- [x] Set env vars: VOICE_AGENT_SHARED_SECRET, TMA_TELEGRAM_STAFF_CHAT_ID, TMA_TELEGRAM_BOT_TOKEN
+- [x] Register heartbeat cron: 8:00 AM ET → POST /api/scheduled/trial-reminders-am (task_uid=9C57uhRgSreLPWKvgQi2Fq)
+- [x] Register heartbeat cron: 8:30 PM ET → POST /api/scheduled/trial-checkin-pm (task_uid=99JJKQjod232Mmj8jm7XyR)
+- [ ] Deploy checkpoint with all changes (in progress)
+- [ ] Verify POST /api/voice/resolve-date with x-voice-secret header returns resolved date
