@@ -44,6 +44,16 @@ function authed(req: Request): boolean {
   return got === expected;
 }
 
+/**
+ * Retell custom-function tools deliver their arguments nested under `body.args`
+ * (per the voice-agent production patterns). Direct callers (curl, tests) send
+ * args at the top level. Read from whichever is present.
+ */
+function argsOf(req: Request): any {
+  const b = req.body ?? {};
+  return (b && typeof b.args === "object" && b.args) ? b.args : b;
+}
+
 function isoOf(d: Date): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -117,8 +127,9 @@ export function registerVoiceRoutes(app: Express): void {
   // ─── resolve_date ──────────────────────────────────────────────────────────
   app.post("/api/voice/resolve-date", (req: Request, res: Response) => {
     if (!authed(req)) { res.status(401).json({ result: "Unauthorized" }); return; }
-    const spoken = String(req.body?.spoken_date ?? req.body?.spokenDate ?? "");
-    const reference = req.body?.reference ? String(req.body.reference) : undefined;
+    const a = argsOf(req);
+    const spoken = String(a.spoken_date ?? a.spokenDate ?? "");
+    const reference = a.reference ? String(a.reference) : undefined;
     const r = resolveSpokenDate(spoken, reference);
     if (!r) {
       res.json({ result: "I couldn't catch that date. Could you say it another way, like a weekday or a month and day?", resolved: false });
@@ -130,8 +141,9 @@ export function registerVoiceRoutes(app: Express): void {
   // ─── check_availability ────────────────────────────────────────────────────
   app.post("/api/voice/check-availability", (req: Request, res: Response) => {
     if (!authed(req)) { res.status(401).json({ result: "Unauthorized" }); return; }
-    const program = String(req.body?.program ?? "").toLowerCase().trim();
-    const age = parseInt(String(req.body?.age ?? ""), 10);
+    const a = argsOf(req);
+    const program = String(a.program ?? "").toLowerCase().trim();
+    const age = parseInt(String(a.age ?? ""), 10);
     if (!program || isNaN(age)) {
       res.json({ result: "I need the program and the student's age to check class times.", slots: [] });
       return;
@@ -158,7 +170,7 @@ export function registerVoiceRoutes(app: Express): void {
   // ─── book_trial ────────────────────────────────────────────────────────────
   app.post("/api/voice/book-trial", async (req: Request, res: Response) => {
     if (!authed(req)) { res.status(401).json({ result: "Unauthorized" }); return; }
-    const b = req.body ?? {};
+    const b = argsOf(req);
     const callerName = String(b.caller_name ?? b.callerName ?? "").trim();
     const phone = digitsOnly(String(b.phone ?? ""));
     const email = String(b.email ?? "").toLowerCase().trim();
@@ -210,7 +222,7 @@ export function registerVoiceRoutes(app: Express): void {
   // ─── route_to_human ────────────────────────────────────────────────────────
   app.post("/api/voice/route-to-human", async (req: Request, res: Response) => {
     if (!authed(req)) { res.status(401).json({ result: "Unauthorized" }); return; }
-    const b = req.body ?? {};
+    const b = argsOf(req);
     const callerName = String(b.caller_name ?? b.callerName ?? "Unknown caller").trim();
     const phone = digitsOnly(String(b.phone ?? ""));
     const reason = String(b.reason ?? "wants a callback").trim();
@@ -255,7 +267,7 @@ export function registerVoiceRoutes(app: Express): void {
   // agent. Fire an URGENT Telegram so staff send the child down immediately.
   app.post("/api/voice/notify-pickup", (req: Request, res: Response) => {
     if (!authed(req)) { res.status(401).json({ result: "Unauthorized" }); return; }
-    const b = req.body ?? {};
+    const b = argsOf(req);
     const parentName = String(b.parent_name ?? b.parentName ?? "A parent").trim();
     const childName = String(b.child_name ?? b.childName ?? "their child").trim();
     const program = String(b.program ?? "").trim();
@@ -272,7 +284,8 @@ export function registerVoiceRoutes(app: Express): void {
   // talking to (parent vs student), the student's age/program, and prior trial.
   app.post("/api/voice/lead-context", async (req: Request, res: Response) => {
     if (!authed(req)) { res.status(401).json({ result: "Unauthorized" }); return; }
-    const leadId = parseInt(String(req.body?.lead_id ?? req.body?.leadId ?? ""), 10);
+    const a = argsOf(req);
+    const leadId = parseInt(String(a.lead_id ?? a.leadId ?? ""), 10);
     if (isNaN(leadId)) { res.json({ result: "No lead id provided.", found: false }); return; }
     const ctx = await getLeadContextForCall(leadId);
     if (!ctx) { res.json({ result: "I couldn't find that lead.", found: false }); return; }
@@ -284,7 +297,7 @@ export function registerVoiceRoutes(app: Express): void {
   // /admin/calls and the lead timeline, and Telegrams staff with a link.
   app.post("/api/voice/log-call-outcome", async (req: Request, res: Response) => {
     if (!authed(req)) { res.status(401).json({ result: "Unauthorized" }); return; }
-    const b = req.body ?? {};
+    const b = argsOf(req);
     const leadId = parseInt(String(b.lead_id ?? b.leadId ?? ""), 10);
     const status = String(b.outcome ?? b.status ?? "answered").trim();
     const summary = String(b.summary ?? "").trim();
@@ -318,7 +331,7 @@ export function registerVoiceRoutes(app: Express): void {
   // following days) is driven by the n8n outbound scheduler, not the agent.
   app.post("/api/voice/schedule-retry", async (req: Request, res: Response) => {
     if (!authed(req)) { res.status(401).json({ result: "Unauthorized" }); return; }
-    const b = req.body ?? {};
+    const b = argsOf(req);
     const leadId = parseInt(String(b.lead_id ?? b.leadId ?? ""), 10);
     const when = String(b.when ?? "later").trim();
     const reason = String(b.reason ?? "caller asked to be reached later").trim();
