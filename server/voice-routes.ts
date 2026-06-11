@@ -35,7 +35,12 @@ const MONTHS = ["january", "february", "march", "april", "may", "june", "july",
 function authed(req: Request): boolean {
   const expected = process.env.VOICE_AGENT_SHARED_SECRET;
   if (!expected) return false;
-  const got = (req.headers["x-voice-secret"] as string) || (req.body && req.body.secret) || "";
+  // Accept the secret via header, body, OR query (?secret=) so the Retell tool
+  // can send it whichever way it supports.
+  const got = (req.headers["x-voice-secret"] as string)
+    || (req.body && req.body.secret)
+    || (req.query && (req.query.secret as string))
+    || "";
   return got === expected;
 }
 
