@@ -13,7 +13,7 @@
  */
 
 import type { Express, Request, Response } from "express";
-import { getLeadById, getLeadsByStages, updateLeadStage } from "./db";
+import { getLeadById, getLeadsByStages, updateLeadStage, getAutomationControls, isAutomationEnabled } from "./db";
 import { getAdInsights, syncAdInsights } from "./facebook-ads";
 
 const VALID_STAGES = [
@@ -114,5 +114,18 @@ export function registerApiRoutes(app: Express): void {
     }
     const result = await syncAdInsights();
     res.json(result);
+  });
+
+  // ─── Kill switch: automation control status (read-only, for n8n) ───────────
+  // n8n workflows GET this before running so a paused automation truly stops.
+  // GET /api/controls            -> all controls
+  // GET /api/controls/:key/status -> { controlKey, enabled }
+  app.get("/api/controls", async (_req: Request, res: Response) => {
+    res.json(await getAutomationControls());
+  });
+  app.get("/api/controls/:key/status", async (req: Request, res: Response) => {
+    const key = req.params.key;
+    const enabled = await isAutomationEnabled(key);
+    res.json({ controlKey: key, enabled });
   });
 }

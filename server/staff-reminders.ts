@@ -14,10 +14,11 @@
  * trial_attended or no_show) in /admin/registrations.
  */
 import type { Request, Response } from "express";
-import { getLeadsByStagesAndTrialDate } from "./db";
+import { getLeadsByStagesAndTrialDate, generateDailyCallQueue, listTodaysCalls, isAutomationEnabled } from "./db";
 import { sendTelegramMessage } from "./telegram";
 
 const ADMIN_URL = "https://tmatkd.com/admin/registrations";
+const CALLS_URL = "https://tmatkd.com/admin/calls";
 
 /** Today's date in America/New_York as YYYY-MM-DD (matches stored trialClassDate). */
 function todayET(): string {
@@ -33,6 +34,7 @@ function fmtLead(l: any): string {
 }
 
 export async function handleTrialRemindersAM(_req: Request, res: Response): Promise<void> {
+  if (!(await isAutomationEnabled("telegram_reminders"))) { res.json({ ok: true, skipped: "paused" }); return; }
   const date = todayET();
   let leads: any[] = [];
   try {
@@ -55,6 +57,7 @@ export async function handleTrialRemindersAM(_req: Request, res: Response): Prom
 }
 
 export async function handleTrialCheckinPM(_req: Request, res: Response): Promise<void> {
+  if (!(await isAutomationEnabled("telegram_reminders"))) { res.json({ ok: true, skipped: "paused" }); return; }
   const date = todayET();
   let leads: any[] = [];
   try {
@@ -76,4 +79,36 @@ export async function handleTrialCheckinPM(_req: Request, res: Response): Promis
     `(Move them to Trial Attended or No-Show so the follow-up is correct.)`;
   const r = await sendTelegramMessage(msg);
   res.json({ ok: true, count: leads.length, sent: r.ok });
+}
+
+/**
+ * Daily call queue generator (~8 AM ET cron). Scores leads, fills today's
+ * call list (top 5), and Telegrams it with a link to /admin/calls. Replaces
+ * the manual "Generate top 5" button. Respects the kill switch.
+ */
+export async function handleDailyCallQueue(_req: Request, res: Response): Promise<void> {
+  if (!(await isAutomationEnabled("daily_call_queue"))) { res.json({ ok: true, skipped: "paused" }); return; }
+  try {
+    await generateDailyCallQueue({ limit: 5 });
+    const rows = await listTodaysCalls();
+    const pending = rows.filter((r: any) => r.status === "pending");
+    if (pending.length === 0) {
+      res.json({ ok: true, count: 0, sent: false });
+      return;
+    }
+    const lines = pending.map((r: any) => {
+      const l = r.lead;
+      if (!l) return `• (lead #${r.leadId})`;
+      return `• ${l.parentName}${l.kidName ? ` (${l.kidName})` : ""} — ${l.phone}  [${r.vertical || "lead"}, score ${r.score}]`;
+    });
+    const msg =
+      `📞 <b>Today's call list</b> (${pending.length})\n\n` +
+      lines.join("\n") +
+      `\n\nWork them here: ${CALLS_URL}`;
+    const r = await sendTelegramMessage(msg);
+    res.json({ ok: true, count: pending.length, sent: r.ok });
+  } catch (err: any) {
+    console.error("[daily-call-queue] failed:", err?.message ?? err);
+    res.status(500).json({ ok: false, error: "failed" });
+  }
 }

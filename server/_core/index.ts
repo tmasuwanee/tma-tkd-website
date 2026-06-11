@@ -14,7 +14,7 @@ import { serveStatic, setupVite } from "./vite";
 import { handleResendWebhook } from "../resend-webhook";
 import { handleMorningReport } from "../morning-report";
 import { registerVoiceRoutes } from "../voice-routes";
-import { handleTrialRemindersAM, handleTrialCheckinPM } from "../staff-reminders";
+import { handleTrialRemindersAM, handleTrialCheckinPM, handleDailyCallQueue } from "../staff-reminders";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -97,6 +97,8 @@ async function startServer() {
   // PM ~8:30 ET reminds staff to mark who showed up, with a dashboard link.
   app.post("/api/scheduled/trial-reminders-am", handleTrialRemindersAM);
   app.post("/api/scheduled/trial-checkin-pm", handleTrialCheckinPM);
+  // Daily call queue (~8 AM ET): scores leads, fills /admin/calls, Telegrams the list.
+  app.post("/api/scheduled/daily-call-queue", handleDailyCallQueue);
 
   // ─── Scheduled: daily Facebook ad insights sync ──────────────────────────
   // Triggered by a Heartbeat cron (project-level, §4a).

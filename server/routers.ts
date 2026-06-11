@@ -31,6 +31,8 @@ import {
   setStudioAssetTags,
   // Call queue + inbound replies (2026-06-06)
   generateDailyCallQueue, listTodaysCalls, markCallOutcome, recordInboundEmailReply,
+  // Automation controls / kill switch (2026-06-11)
+  getAutomationControls, setAutomationControl, setAllAutomations,
 } from "./db";
 import { storagePut, storageGet } from "./storage";
 import { sendToGoogleSheets, sendToSlack, sendEmailNotification, sendCampRegistrationConfirmation } from "./integrations";
@@ -1363,6 +1365,30 @@ export const appRouter = router({
           receivedAt: new Date(input.receivedAtIso),
         });
         return result;
+      }),
+  }),
+
+  // ─── Automation Controls / Kill Switch (2026-06-11) ───────────────────────
+  // Password-gated on the client (same gate as the admin dashboard / studio).
+  controls: router({
+    list: publicProcedure.query(async () => getAutomationControls()),
+
+    set: publicProcedure
+      .input(z.object({
+        controlKey: z.string().min(1).max(64),
+        enabled: z.boolean(),
+        updatedBy: z.string().max(255),
+      }))
+      .mutation(async ({ input }) => {
+        await setAutomationControl(input.controlKey, input.enabled, input.updatedBy);
+        return { success: true } as const;
+      }),
+
+    setAll: publicProcedure
+      .input(z.object({ enabled: z.boolean(), updatedBy: z.string().max(255) }))
+      .mutation(async ({ input }) => {
+        await setAllAutomations(input.enabled, input.updatedBy);
+        return { success: true } as const;
       }),
   }),
 });

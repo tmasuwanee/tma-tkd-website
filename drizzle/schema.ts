@@ -523,3 +523,19 @@ export const dailyCallQueue = mysqlTable("dailyCallQueue", {
 export type DailyCallQueueRow = typeof dailyCallQueue.$inferSelect;
 export type InsertDailyCallQueueRow = typeof dailyCallQueue.$inferInsert;
 
+
+// ─── Automation Controls / Kill Switch (2026-06-11) ───────────────────────────
+// One row per pausable automation. n8n workflows and the website check
+// `enabled` before running. The /admin/controls page (password-gated) toggles
+// these. Belt-and-suspenders after the 2026-05-20 spam incident: one place to
+// pause everything fast.
+export const automationControls = mysqlTable("automationControls", {
+  controlKey: varchar("controlKey", { length: 64 }).primaryKey(),
+  label: varchar("label", { length: 255 }).notNull(),
+  enabled: tinyint("enabled").default(1).notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  updatedBy: varchar("updatedBy", { length: 255 }),
+});
+
+export type AutomationControl = typeof automationControls.$inferSelect;
+export type InsertAutomationControl = typeof automationControls.$inferInsert;

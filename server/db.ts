@@ -16,6 +16,7 @@ import {
   systemAuditLog, InsertSystemAuditLog,
   studioAssets, InsertStudioAsset, StudioAsset,
   dailyCallQueue, InsertDailyCallQueueRow, DailyCallQueueRow,
+  automationControls, AutomationControl,
 } from "../drizzle/schema";
 import { lte } from "drizzle-orm";
 import { ENV } from './_core/env';
@@ -1947,3 +1948,46 @@ export async function deleteStudioAsset(id: number): Promise<void> {
   await db.delete(studioAssets).where(eq(studioAssets.id, id));
 }
 
+
+// ─── Automation Controls / Kill Switch (2026-06-11) ───────────────────────────
+
+export async function getAutomationControls(): Promise<AutomationControl[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(automationControls).orderBy(automationControls.label);
+}
+
+export async function isAutomationEnabled(controlKey: string): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return true; // fail-open: if DB is unreachable, don't block (matches prior behavior)
+  const [row] = await db.select().from(automationControls).where(eq(automationControls.controlKey, controlKey));
+  // Unknown key -> treat as enabled (control not configured = not paused)
+  return row ? row.enabled === 1 : true;
+}
+
+export async function setAutomationControl(controlKey: string, enabled: boolean, updatedBy: string): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not configured");
+  await db.update(automationControls)
+    .set({ enabled: enabled ? 1 : 0, updatedBy } as any)
+    .where(eq(automationControls.controlKey, controlKey));
+  await logAudit({
+    level: enabled ? "info" : "warn",
+    source: "kill_switch",
+    event: enabled ? "automation_enabled" : "automation_paused",
+    details: JSON.stringify({ controlKey, by: updatedBy }),
+  });
+}
+
+/** Pause or resume EVERY automation at once (the big red button). */
+export async function setAllAutomations(enabled: boolean, updatedBy: string): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not configured");
+  await db.update(automationControls).set({ enabled: enabled ? 1 : 0, updatedBy } as any);
+  await logAudit({
+    level: enabled ? "info" : "critical",
+    source: "kill_switch",
+    event: enabled ? "all_automations_enabled" : "all_automations_paused",
+    details: JSON.stringify({ by: updatedBy }),
+  });
+}
