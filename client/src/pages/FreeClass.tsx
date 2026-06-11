@@ -24,6 +24,8 @@ const PROGRAM_MAP: Record<string, string> = {
   bjj: "bjj",
   kickboxing: "kickboxing",
   taekwondo: "taekwondo",
+  little_tigers: "little_tigers",
+  littletigers: "little_tigers",
   afterschool: "afterschool",
   summer: "summer",
 };
@@ -269,7 +271,8 @@ export default function FreeClass() {
                             <SelectValue placeholder="Select program" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="taekwondo">Taekwondo</SelectItem>
+                            <SelectItem value="little_tigers">Little Tigers Taekwondo (ages 4-5)</SelectItem>
+                            <SelectItem value="taekwondo">Taekwondo (ages 6+)</SelectItem>
                             <SelectItem value="bjj">Brazilian Jiu-Jitsu</SelectItem>
                             <SelectItem value="kickboxing">Kickboxing</SelectItem>
                             <SelectItem value="afterschool">Afterschool Program</SelectItem>

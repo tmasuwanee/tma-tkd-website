@@ -34,6 +34,12 @@ function slot(day: DayOfWeek, startTime: string, endTime: string): ClassSlot {
 
 // All class slots by program
 export const CLASS_SCHEDULE: Record<string, ClassSlot[]> = {
+  // Little Tigers Taekwondo — ages 4-5, 30-minute classes
+  little_tigers: [
+    slot("Monday",   "4:40 PM", "5:10 PM"),
+    slot("Tuesday",  "5:20 PM", "5:50 PM"),
+    slot("Thursday", "5:20 PM", "5:50 PM"),
+  ],
   taekwondo_kids: [
     slot("Monday",    "5:50 PM", "6:30 PM"),
     slot("Tuesday",   "4:40 PM", "5:20 PM"),
@@ -66,10 +72,16 @@ export const CLASS_SCHEDULE: Record<string, ClassSlot[]> = {
  */
 export function getEligibleSlots(program: string, age: number): ClassSlot[] {
   switch (program) {
+    case "little_tigers":
+      // Little Tigers Taekwondo, ages 4-5 only
+      if (age >= 4 && age <= 5) return CLASS_SCHEDULE.little_tigers;
+      return [];
     case "taekwondo":
+      // Route 4-5 year olds to Little Tigers automatically if they pick Taekwondo
+      if (age >= 4 && age <= 5) return CLASS_SCHEDULE.little_tigers;
       if (age >= 6 && age <= 13) return CLASS_SCHEDULE.taekwondo_kids;
       if (age >= 14) return CLASS_SCHEDULE.taekwondo_adult;
-      return []; // under 6 — contact school directly
+      return []; // under 4 — contact school directly
     case "bjj":
       if (age >= 9) return CLASS_SCHEDULE.bjj;
       return []; // under 9 — not eligible
