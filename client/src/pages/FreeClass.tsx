@@ -415,7 +415,7 @@ export default function FreeClass() {
           <div className="grid md:grid-cols-4 gap-6 text-center">
             <div className="flex flex-col items-center gap-2">
               <MapPin className="w-6 h-6 text-accent" />
-              <p className="text-white text-sm font-medium">4055 Five Forks Trickum Rd SW<br />Suite 110, Lilburn, GA 30047</p>
+              <p className="text-white text-sm font-medium">2005 Lawrenceville Suwanee Rd<br />Suwanee, GA 30024</p>
             </div>
             <div className="flex flex-col items-center gap-2">
               <Phone className="w-6 h-6 text-accent" />
