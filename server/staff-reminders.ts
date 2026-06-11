@@ -17,7 +17,7 @@ import type { Request, Response } from "express";
 import { getLeadsByStagesAndTrialDate, generateDailyCallQueue, listTodaysCalls, isAutomationEnabled } from "./db";
 import { sendTelegramMessage } from "./telegram";
 
-const ADMIN_URL = "https://tmatkd.com/admin/registrations";
+const ADMIN_URL = "https://tmatkd.com/admin/checkin";
 const CALLS_URL = "https://tmatkd.com/admin/calls";
 
 /** Today's date in America/New_York as YYYY-MM-DD (matches stored trialClassDate). */
@@ -75,8 +75,8 @@ export async function handleTrialCheckinPM(_req: Request, res: Response): Promis
   const msg =
     `🌙 <b>Did they show?</b> ${leads.length} trial${leads.length > 1 ? "s" : ""} today still need marking:\n\n` +
     leads.map(fmtLead).join("\n") +
-    `\n\nUpdate who showed up here: ${ADMIN_URL}\n` +
-    `(Move them to Trial Attended or No-Show so the follow-up is correct.)`;
+    `\n\nTap who showed up here: ${ADMIN_URL}\n` +
+    `(One tap per kid: Showed up or No-show. Drives the right follow-up.)`;
   const r = await sendTelegramMessage(msg);
   res.json({ ok: true, count: leads.length, sent: r.ok });
 }

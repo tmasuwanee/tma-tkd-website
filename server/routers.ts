@@ -33,6 +33,8 @@ import {
   generateDailyCallQueue, listTodaysCalls, markCallOutcome, recordInboundEmailReply,
   // Automation controls / kill switch (2026-06-11)
   getAutomationControls, setAutomationControl, setAllAutomations,
+  // Trial check-in (2026-06-11)
+  getLeadsByStagesAndTrialDate,
 } from "./db";
 import { storagePut, storageGet } from "./storage";
 import { sendToGoogleSheets, sendToSlack, sendEmailNotification, sendCampRegistrationConfirmation } from "./integrations";
@@ -1389,6 +1391,31 @@ export const appRouter = router({
       .mutation(async ({ input }) => {
         await setAllAutomations(input.enabled, input.updatedBy);
         return { success: true } as const;
+      }),
+  }),
+
+  // ─── Trial Check-in (2026-06-11) ──────────────────────────────────────────
+  // Powers /admin/checkin: the 8:30 PM "did they show?" view. Lists today's
+  // (or a given date's) trial_scheduled leads with one-tap Showed/No-show.
+  checkin: router({
+    listForDate: publicProcedure
+      .input(z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() }))
+      .query(async ({ input }) => {
+        const date = input.date ?? new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+        const leads = await getLeadsByStagesAndTrialDate(
+          ["trial_scheduled", "trial_attended", "no_show"], date
+        );
+        return { date, leads };
+      }),
+
+    mark: publicProcedure
+      .input(z.object({
+        leadId: z.number().int().positive(),
+        showed: z.boolean(),
+      }))
+      .mutation(async ({ input }) => {
+        await updateLeadStage(input.leadId, input.showed ? "trial_attended" : "no_show");
+        return { success: true, stage: input.showed ? "trial_attended" : "no_show" } as const;
       }),
   }),
 });
