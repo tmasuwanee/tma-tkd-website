@@ -29,4 +29,10 @@ export const ENV = {
   // 2026-06-09: Resend webhook signing secret. Set in Resend dashboard → Webhooks → Signing secret.
   // Used to verify POST /api/resend-webhook requests are genuinely from Resend.
   resendWebhookSecret: process.env.RESEND_WEBHOOK_SECRET ?? "",
+  // 2026-06-10: Voice agent (Retell) tool auth + Telegram staff notifications.
+  // VOICE_AGENT_SHARED_SECRET gates /api/voice/* (Retell sends it as x-voice-secret).
+  // TMA_TELEGRAM_* power staff alerts (new leads, call hand-offs, trial reminders).
+  voiceAgentSharedSecret: process.env.VOICE_AGENT_SHARED_SECRET ?? "",
+  telegramBotToken: process.env.TMA_TELEGRAM_BOT_TOKEN ?? "",
+  telegramStaffChatId: process.env.TMA_TELEGRAM_STAFF_CHAT_ID ?? "",
 };

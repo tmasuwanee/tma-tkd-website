@@ -13,6 +13,7 @@ import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { handleResendWebhook } from "../resend-webhook";
 import { handleMorningReport } from "../morning-report";
+import { registerVoiceRoutes } from "../voice-routes";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -58,6 +59,9 @@ async function startServer() {
   registerStorageProxy(app);
   registerOAuthRoutes(app);
   registerApiRoutes(app);
+  // Voice agent (Retell) custom-function tools: resolve-date, check-availability,
+  // book-trial, route-to-human. Shared-secret protected (VOICE_AGENT_SHARED_SECRET).
+  registerVoiceRoutes(app);
 
   // ─── Resend webhook: bounce, complaint, delivery events ─────────────────────
   // Resend POSTs signed events here in real time.
