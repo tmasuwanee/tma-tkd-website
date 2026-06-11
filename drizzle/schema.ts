@@ -60,6 +60,13 @@ export const leads = mysqlTable("leads", {
   smsConsentAt: timestamp("smsConsentAt"),
   smsConsentIp: varchar("smsConsentIp", { length: 64 }),
   smsConsentText: text("smsConsentText"),
+  // 2026-06-11: outbound voice opt-out. Set when a caller on an OUTBOUND agent
+  // call asks for a human ("stop calling me with a robot"). The outbound voice
+  // scheduler skips these leads. Does NOT affect inbound calls, email, or SMS
+  // (each channel has its own opt-out). A human should still call them, so they
+  // are prioritized in the daily call queue.
+  noOutboundCalls: tinyint("noOutboundCalls").default(0).notNull(),
+  noOutboundCallsAt: timestamp("noOutboundCallsAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

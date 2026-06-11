@@ -396,6 +396,8 @@ export const appRouter = router({
             smsConsentAt: new Date(),
             smsConsentIp: ip ? String(ip).slice(0, 64) : null,
             smsConsentText: input.smsConsentText,
+            noOutboundCalls: 0,
+            noOutboundCallsAt: null,
             createdAt: new Date(),
             updatedAt: new Date(),
           };

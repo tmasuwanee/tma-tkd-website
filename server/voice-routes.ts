@@ -20,10 +20,11 @@
  *   POST /api/voice/lead-context       { lead_id }                         (outbound)
  *   POST /api/voice/log-call-outcome   { lead_id, outcome, summary, booked, asked_about } (outbound)
  *   POST /api/voice/schedule-retry     { lead_id, when, reason }           (outbound)
+ *   POST /api/voice/request-human-followup { lead_id, reason }             (outbound)
  */
 import type { Express, Request, Response } from "express";
 import { getEligibleSlots, getNextDateForSlot, formatDate, type ClassSlot } from "../shared/classSchedule";
-import { createLead, recordOutboundCall, getLeadContextForCall } from "./db";
+import { createLead, recordOutboundCall, getLeadContextForCall, setNoOutboundCalls } from "./db";
 import { sendTelegramMessage } from "./telegram";
 
 const CALLS_URL = "https://tmatkd.com/admin/calls";
@@ -348,6 +349,33 @@ export function registerVoiceRoutes(app: Express): void {
     } catch (err: any) {
       console.error("[voice schedule-retry] error:", err?.message ?? err);
       res.json({ result: "Noted.", logged: false });
+    }
+  });
+
+  // ─── request_human_followup (outbound) ─────────────────────────────────────
+  // The person on an OUTBOUND call asked to deal with a human instead of the
+  // bot. Set noOutboundCalls so the outbound voice scheduler stops calling them,
+  // and alert staff to call them personally. Does NOT touch inbound/email/SMS.
+  app.post("/api/voice/request-human-followup", async (req: Request, res: Response) => {
+    if (!authed(req)) { res.status(401).json({ result: "Unauthorized" }); return; }
+    const a = argsOf(req);
+    const leadId = parseInt(String(a.lead_id ?? a.leadId ?? ""), 10);
+    const reason = String(a.reason ?? "asked for a human").trim();
+    if (isNaN(leadId)) { res.json({ result: "No lead id.", set: false }); return; }
+    try {
+      await setNoOutboundCalls(leadId, true);
+      await recordOutboundCall({ leadId, status: "callback_later", summary: `Wants a human (no more bot calls): ${reason}`, calledBy: "voice_agent_outbound" });
+      const ctx = await getLeadContextForCall(leadId);
+      void sendTelegramMessage(
+        `🙋 <b>Wants a human</b>\n` +
+        `${ctx?.parentName || ctx?.studentName || ("lead #" + leadId)}${ctx?.phone ? ` — ${ctx.phone}` : ""}\n` +
+        `Reason: ${reason}\n` +
+        `The bot will stop calling them. Please call them personally. They're now top of the call list: ${CALLS_URL}`
+      );
+      res.json({ result: "Understood, a real person will reach out to you. We won't keep calling you with the assistant.", set: true });
+    } catch (err: any) {
+      console.error("[voice request-human-followup] error:", err?.message ?? err);
+      res.json({ result: "Noted.", set: false });
     }
   });
 }

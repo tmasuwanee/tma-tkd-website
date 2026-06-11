@@ -1735,6 +1735,10 @@ export async function generateDailyCallQueue(opts: {
     const ageDays = ageMs / (1000 * 60 * 60 * 24);
     const reasons: string[] = [];
 
+    if ((l as any).noOutboundCalls === 1) {
+      s += 45;
+      reasons.push("ASKED FOR A HUMAN — call them");
+    }
     if (stage === "trial_scheduled") {
       s += 40;
       reasons.push("trial coming up — confirm");
@@ -2060,4 +2064,16 @@ export async function getLeadContextForCall(leadId: number): Promise<any | null>
       ? "No separate parent name on file; this may be the student themselves. Confirm who you're speaking with."
       : `Speaking with the parent (${lead.parentName}) about ${lead.kidName}.`,
   };
+}
+
+// ─── Outbound voice opt-out (2026-06-11) ──────────────────────────────────────
+// Set when a caller on an OUTBOUND agent call asks for a human. Stops the
+// outbound voice agent from calling again. Inbound/email/SMS unaffected.
+export async function setNoOutboundCalls(leadId: number, on: boolean): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not configured");
+  await db.update(leads).set({
+    noOutboundCalls: on ? 1 : 0,
+    noOutboundCallsAt: on ? new Date() : null,
+  } as any).where(eq(leads.id, leadId));
 }
