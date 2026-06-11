@@ -16,6 +16,7 @@
  *   POST /api/voice/check-availability { program, age }
  *   POST /api/voice/book-trial         { caller_name, phone, email, student_name, student_age, program, date_iso, time }
  *   POST /api/voice/route-to-human     { caller_name, phone, reason, email? }
+ *   POST /api/voice/notify-pickup      { parent_name, child_name, program? }
  */
 import type { Express, Request, Response } from "express";
 import { getEligibleSlots, getNextDateForSlot, formatDate, type ClassSlot } from "../shared/classSchedule";
@@ -237,5 +238,22 @@ export function registerVoiceRoutes(app: Express): void {
     }
 
     res.json({ result: "I'll put a note down and a staff member will call or text you back as soon as possible." });
+  });
+
+  // ─── notify_pickup ─────────────────────────────────────────────────────────
+  // Parent is outside to pick up a child from afterschool/camp and got the
+  // agent. Fire an URGENT Telegram so staff send the child down immediately.
+  app.post("/api/voice/notify-pickup", (req: Request, res: Response) => {
+    if (!authed(req)) { res.status(401).json({ result: "Unauthorized" }); return; }
+    const b = req.body ?? {};
+    const parentName = String(b.parent_name ?? b.parentName ?? "A parent").trim();
+    const childName = String(b.child_name ?? b.childName ?? "their child").trim();
+    const program = String(b.program ?? "").trim();
+    void sendTelegramMessage(
+      `🚨 <b>PICKUP — send the child down now</b>\n` +
+      `${parentName} is outside to pick up <b>${childName}</b>${program ? ` (${program})` : ""}.\n` +
+      `Please send them down immediately.`
+    );
+    res.json({ result: `Thank you. I'm letting staff know right now to send ${childName} down. They'll be right out.` });
   });
 }

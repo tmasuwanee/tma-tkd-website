@@ -14,6 +14,7 @@ import { serveStatic, setupVite } from "./vite";
 import { handleResendWebhook } from "../resend-webhook";
 import { handleMorningReport } from "../morning-report";
 import { registerVoiceRoutes } from "../voice-routes";
+import { handleTrialRemindersAM, handleTrialCheckinPM } from "../staff-reminders";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -90,6 +91,12 @@ async function startServer() {
   // Sends bounce rate, complaint rate, paused count, and enrollment count
   // to the project owner via notifyOwner().
   app.post("/api/scheduled/morning-report", handleMorningReport);
+
+  // ─── Scheduled: Telegram staff reminders ───────────────────────────────────
+  // Heartbeat crons (project-level): AM ~8:00 ET lists today's trials;
+  // PM ~8:30 ET reminds staff to mark who showed up, with a dashboard link.
+  app.post("/api/scheduled/trial-reminders-am", handleTrialRemindersAM);
+  app.post("/api/scheduled/trial-checkin-pm", handleTrialCheckinPM);
 
   // ─── Scheduled: daily Facebook ad insights sync ──────────────────────────
   // Triggered by a Heartbeat cron (project-level, §4a).
