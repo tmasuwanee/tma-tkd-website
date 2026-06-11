@@ -1,0 +1,9 @@
+{
+  "query": "ALTER TABLE `leads` ADD `noOutboundCalls` tinyint NOT NULL DEFAULT 0;\nALTER TABLE `leads` ADD `noOutboundCallsAt` timestamp;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3SwZhQGwFybjoYh.root --database cXp7keMiYsMkePUngpTNmV --execute ALTER TABLE `leads` ADD `noOutboundCalls` tinyint NOT NULL DEFAULT 0;\nALTER TABLE `leads` ADD `noOutboundCallsAt` timestamp;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 910
+}

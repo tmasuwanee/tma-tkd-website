@@ -1,0 +1,90 @@
+{
+  "query": "SELECT id, parentName, kidName, email, phone, createdAt \nFROM leads \nWHERE parentName LIKE '%Jordan%' OR email LIKE '%jordan.lee%' OR email LIKE '%example.com%'\nORDER BY createdAt DESC\nLIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3SwZhQGwFybjoYh.root --database cXp7keMiYsMkePUngpTNmV --execute SELECT id, parentName, kidName, email, phone, createdAt \nFROM leads \nWHERE parentName LIKE '%Jordan%' OR email LIKE '%jordan.lee%' OR email LIKE '%example.com%'\nORDER BY createdAt DESC\nLIMIT 10;",
+  "rows": [
+    {
+      "id": "1590002",
+      "parentName": "Jordan Lee",
+      "kidName": "Mia",
+      "email": "jordan.lee@testexample.com",
+      "phone": "7755501420",
+      "createdAt": "2026-06-11 18:15:37"
+    },
+    {
+      "id": "720002",
+      "parentName": "E2E Test Booked",
+      "kidName": "Test Kid",
+      "email": "e2etest_1779198629_booked@example.com",
+      "phone": "7705558629",
+      "createdAt": "2026-05-19 13:50:31"
+    },
+    {
+      "id": "690008",
+      "parentName": "E2E Test StaffNote",
+      "kidName": "Test Kid",
+      "email": "e2etest_1779197660_staffnote@example.com",
+      "phone": "7705557660",
+      "createdAt": "2026-05-19 13:34:20"
+    },
+    {
+      "id": "690007",
+      "parentName": "E2E Test Enrolled",
+      "kidName": "Test Kid",
+      "email": "e2etest_1779197583_enrolled@example.com",
+      "phone": "7705557583",
+      "createdAt": "2026-05-19 13:33:03"
+    },
+    {
+      "id": "690006",
+      "parentName": "E2E Test Unbooked",
+      "kidName": "Test Kid",
+      "email": "e2etest_1779197517_unbooked@example.com",
+      "phone": "7705557517",
+      "createdAt": "2026-05-19 13:31:57"
+    },
+    {
+      "id": "690005",
+      "parentName": "E2E Test StaffNote",
+      "kidName": "Test Kid",
+      "email": "e2etest_1779197332_staffnote@example.com",
+      "phone": "7705557332",
+      "createdAt": "2026-05-19 13:28:53"
+    },
+    {
+      "id": "690004",
+      "parentName": "E2E Test Enrolled",
+      "kidName": "Test Kid",
+      "email": "e2etest_1779197256_enrolled@example.com",
+      "phone": "7705557256",
+      "createdAt": "2026-05-19 13:27:36"
+    },
+    {
+      "id": "690003",
+      "parentName": "E2E Test Unbooked",
+      "kidName": "Test Kid",
+      "email": "e2etest_1779197189_unbooked@example.com",
+      "phone": "7705557189",
+      "createdAt": "2026-05-19 13:26:30"
+    },
+    {
+      "id": "690002",
+      "parentName": "E2E Test Booked",
+      "kidName": "Test Kid",
+      "email": "e2etest_1779197133_booked@example.com",
+      "phone": "7705557133",
+      "createdAt": "2026-05-19 13:25:35"
+    },
+    {
+      "id": "30001",
+      "parentName": "Test Parent",
+      "kidName": "Test Child",
+      "email": "test@example.com",
+      "phone": "(555) 555-5555",
+      "createdAt": "2026-03-10 14:17:16"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tparentName\tkidName\temail\tphone\tcreatedAt\n1590002\tJordan Lee\tMia\tjordan.lee@testexample.com\t7755501420\t2026-06-11 18:15:37\n720002\tE2E Test Booked\tTest Kid\te2etest_1779198629_booked@example.com\t7705558629\t2026-05-19 13:50:31\n690008\tE2E Test StaffNote\tTest Kid\te2etest_1779197660_staffnote@example.com\t7705557660\t2026-05-19 13:34:20\n690007\tE2E Test Enrolled\tTest Kid\te2etest_1779197583_enrolled@example.com\t7705557583\t2026-05-19 13:33:03\n690006\tE2E Test Unbooked\tTest Kid\te2etest_1779197517_unbooked@example.com\t7705557517\t2026-05-19 13:31:57\n690005\tE2E Test StaffNote\tTest Kid\te2etest_1779197332_staffnote@example.com\t7705557332\t2026-05-19 13:28:53\n690004\tE2E Test Enrolled\tTest Kid\te2etest_1779197256_enrolled@example.com\t7705557256\t2026-05-19 13:27:36\n690003\tE2E Test Unbooked\tTest Kid\te2etest_1779197189_unbooked@example.com\t7705557189\t2026-05-19 13:26:30\n690002\tE2E Test Booked\tTest Kid\te2etest_1779197133_booked@example.com\t7705557133\t2026-05-19 13:25:35\n30001\tTest Parent\tTest Child\ttest@example.com\t(555) 555-5555\t2026-03-10 14:17:16\n",
+  "stderr": "",
+  "execution_time_ms": 273
+}

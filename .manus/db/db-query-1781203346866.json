@@ -1,0 +1,9 @@
+{
+  "query": "-- Find the lead first to confirm before deleting\nSELECT id, parentName, kidName, email FROM leads WHERE email = 'jordan.lee.test@example.com';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3SwZhQGwFybjoYh.root --database cXp7keMiYsMkePUngpTNmV --execute -- Find the lead first to confirm before deleting\nSELECT id, parentName, kidName, email FROM leads WHERE email = 'jordan.lee.test@example.com';",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 266
+}
