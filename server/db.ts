@@ -2082,12 +2082,24 @@ export async function setNoOutboundCalls(leadId: number, on: boolean): Promise<v
 // All exclude noOutboundCalls leads. The outbound-voice handlers add the
 // kill-switch, calling-hours, and per-lead dedup guards.
 
+// The three trial-class flows below only target trial-class programs
+// (Taekwondo, Kickboxing, BJJ, Little Tigers). Afterschool has its own
+// afterschool_tour flow; summer camp is email-only. Excluding both here keeps
+// those leads from getting a "book a free trial" call that doesn't apply to
+// them. COALESCE so leads with a NULL programInterest are NOT excluded.
+const NOT_AFTERSCHOOL_OR_CAMP = sql`
+    AND LOWER(COALESCE(programInterest,'')) NOT LIKE '%afterschool%'
+    AND LOWER(COALESCE(programInterest,'')) NOT LIKE '%after-school%'
+    AND LOWER(COALESCE(programInterest,'')) NOT LIKE '%after school%'
+    AND LOWER(COALESCE(programInterest,'')) NOT LIKE '%camp%'`;
+
 export async function getSpeedToLeadCandidates(): Promise<Lead[]> {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(leads).where(sql`
     pipelineStage = 'new_lead' AND trialClassDate IS NULL
     AND noOutboundCalls = 0
+    ${NOT_AFTERSCHOOL_OR_CAMP}
     AND createdAt > (NOW() - INTERVAL 30 MINUTE)`);
 }
 
@@ -2096,6 +2108,7 @@ export async function getNoShowRecoveryCandidates(): Promise<Lead[]> {
   if (!db) return [];
   return db.select().from(leads).where(sql`
     pipelineStage = 'no_show' AND noOutboundCalls = 0
+    ${NOT_AFTERSCHOOL_OR_CAMP}
     AND updatedAt > (NOW() - INTERVAL 2 DAY)`);
 }
 
@@ -2104,9 +2117,30 @@ export async function getPostTrialCandidates(): Promise<Lead[]> {
   if (!db) return [];
   return db.select().from(leads).where(sql`
     pipelineStage = 'trial_attended' AND noOutboundCalls = 0
+    ${NOT_AFTERSCHOOL_OR_CAMP}
     AND trialClassDate IS NOT NULL
     AND trialClassDate <= DATE_SUB(CURDATE(), INTERVAL 3 DAY)
     AND trialClassDate >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)`);
+}
+
+/**
+ * Afterschool leads to invite for a TOUR (not a trial). The outbound
+ * afterschool_tour flow targets these. Mirrors the speed-to-lead cadence so a
+ * fresh afterschool inquiry gets a quick, on-script call (book a 2-4pm M/W/F
+ * tour, or staff coordinates another time).
+ */
+export async function getAfterschoolTourCandidates(): Promise<Lead[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(leads).where(sql`
+    pipelineStage = 'new_lead' AND trialClassDate IS NULL
+    AND noOutboundCalls = 0
+    AND (
+      LOWER(COALESCE(programInterest,'')) LIKE '%afterschool%'
+      OR LOWER(COALESCE(programInterest,'')) LIKE '%after-school%'
+      OR LOWER(COALESCE(programInterest,'')) LIKE '%after school%'
+    )
+    AND createdAt > (NOW() - INTERVAL 30 MINUTE)`);
 }
 
 /** Has the outbound agent already attempted this lead within `hours`? (dedup) */

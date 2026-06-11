@@ -22,10 +22,12 @@
 import type { Request, Response } from "express";
 import {
   isAutomationEnabled, getSpeedToLeadCandidates, getNoShowRecoveryCandidates,
-  getPostTrialCandidates, hasOutboundAttempt, markOutboundAttempt,
+  getPostTrialCandidates, getAfterschoolTourCandidates, hasOutboundAttempt,
+  markOutboundAttempt,
 } from "./db";
 
 type Lead = any;
+type CallType = "speed_to_lead" | "no_show" | "post_trial" | "afterschool_tour";
 
 /** 8 AM - 9 PM America/New_York. */
 function withinCallingHours(): boolean {
@@ -36,7 +38,7 @@ function withinCallingHours(): boolean {
 function digitsOnly(s: string): string { return (s || "").replace(/\D/g, ""); }
 
 /** Place one outbound call via Retell with the lead's context as dynamic vars. */
-async function originate(lead: Lead, callType: "speed_to_lead" | "no_show" | "post_trial"): Promise<boolean> {
+async function originate(lead: Lead, callType: CallType): Promise<boolean> {
   const apiKey = process.env.RETELL_API_KEY;
   const agentId = process.env.RETELL_OUTBOUND_AGENT_ID;
   const fromNumber = process.env.RETELL_OUTBOUND_FROM_NUMBER;
@@ -79,7 +81,7 @@ async function originate(lead: Lead, callType: "speed_to_lead" | "no_show" | "po
 }
 
 async function runJob(
-  res: Response, callType: "speed_to_lead" | "no_show" | "post_trial",
+  res: Response, callType: CallType,
   getCandidates: () => Promise<Lead[]>, dedupHours: number, cap: number,
 ): Promise<void> {
   if (!(await isAutomationEnabled("voice_agent_outbound"))) { res.json({ ok: true, skipped: "paused" }); return; }
@@ -109,4 +111,8 @@ export async function handleOutboundNoShow(_req: Request, res: Response): Promis
 }
 export async function handleOutboundPostTrial(_req: Request, res: Response): Promise<void> {
   await runJob(res, "post_trial", getPostTrialCandidates, 72, 20);
+}
+export async function handleOutboundAfterschoolTour(_req: Request, res: Response): Promise<void> {
+  // Fresh afterschool inquiries -> quick tour-booking call. Dedup 24h, small cap.
+  await runJob(res, "afterschool_tour", getAfterschoolTourCandidates, 24, 10);
 }

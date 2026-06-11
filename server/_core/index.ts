@@ -15,7 +15,7 @@ import { handleResendWebhook } from "../resend-webhook";
 import { handleMorningReport } from "../morning-report";
 import { registerVoiceRoutes } from "../voice-routes";
 import { handleTrialRemindersAM, handleTrialCheckinPM, handleDailyCallQueue } from "../staff-reminders";
-import { handleOutboundSpeedToLead, handleOutboundNoShow, handleOutboundPostTrial } from "../outbound-voice";
+import { handleOutboundSpeedToLead, handleOutboundNoShow, handleOutboundPostTrial, handleOutboundAfterschoolTour } from "../outbound-voice";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -108,6 +108,7 @@ async function startServer() {
   app.post("/api/scheduled/outbound-speed-to-lead", handleOutboundSpeedToLead);
   app.post("/api/scheduled/outbound-noshow", handleOutboundNoShow);
   app.post("/api/scheduled/outbound-posttrial", handleOutboundPostTrial);
+  app.post("/api/scheduled/outbound-afterschool-tour", handleOutboundAfterschoolTour);
 
   // ─── Scheduled: daily Facebook ad insights sync ──────────────────────────
   // Triggered by a Heartbeat cron (project-level, §4a).
