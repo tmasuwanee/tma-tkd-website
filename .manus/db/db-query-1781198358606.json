@@ -1,0 +1,50 @@
+{
+  "query": "SELECT controlKey, label, enabled FROM automationControls ORDER BY controlKey;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3SwZhQGwFybjoYh.root --database cXp7keMiYsMkePUngpTNmV --execute SELECT controlKey, label, enabled FROM automationControls ORDER BY controlKey;",
+  "rows": [
+    {
+      "controlKey": "daily_call_queue",
+      "label": "Daily Call Queue Generator",
+      "enabled": "1"
+    },
+    {
+      "controlKey": "email_dispatcher",
+      "label": "Email Sequence Dispatcher (sends nurture emails)",
+      "enabled": "1"
+    },
+    {
+      "controlKey": "fb_lead_sync",
+      "label": "Facebook Lead Ads Sync",
+      "enabled": "1"
+    },
+    {
+      "controlKey": "noshow_recovery",
+      "label": "Trial No-Show Recovery",
+      "enabled": "1"
+    },
+    {
+      "controlKey": "sequence_enrollment",
+      "label": "New-Lead Sequence Enrollment",
+      "enabled": "1"
+    },
+    {
+      "controlKey": "telegram_reminders",
+      "label": "Telegram Staff Reminders (8am / 8:30pm)",
+      "enabled": "1"
+    },
+    {
+      "controlKey": "voice_agent_inbound",
+      "label": "Inbound Voice Agent (answers calls)",
+      "enabled": "1"
+    },
+    {
+      "controlKey": "voice_agent_outbound",
+      "label": "Outbound Voice Agent (makes calls)",
+      "enabled": "1"
+    }
+  ],
+  "messages": [],
+  "stdout": "controlKey\tlabel\tenabled\ndaily_call_queue\tDaily Call Queue Generator\t1\nemail_dispatcher\tEmail Sequence Dispatcher (sends nurture emails)\t1\nfb_lead_sync\tFacebook Lead Ads Sync\t1\nnoshow_recovery\tTrial No-Show Recovery\t1\nsequence_enrollment\tNew-Lead Sequence Enrollment\t1\ntelegram_reminders\tTelegram Staff Reminders (8am / 8:30pm)\t1\nvoice_agent_inbound\tInbound Voice Agent (answers calls)\t1\nvoice_agent_outbound\tOutbound Voice Agent (makes calls)\t1\n",
+  "stderr": "",
+  "execution_time_ms": 471
+}
