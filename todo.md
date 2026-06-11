@@ -207,6 +207,6 @@
 - [x] Pull commit 35dc72d (automation controls kill-switch + admin pages)
 - [x] Run migration 0019_automation_controls.sql (creates kill-switch table, seeds 8 automations — all enabled=1)
 - [x] Register heartbeat cron: ~7:45 AM ET → POST /api/scheduled/daily-call-queue (task_uid=kmMfowiGMokjCefrKvsWVk, next=2026-06-12T11:45Z)
-- [ ] Deploy checkpoint with all changes
-- [ ] Verify /admin/controls loads behind login
-- [ ] Verify /admin/checkin loads behind login
+- [x] Deploy checkpoint with all changes (checkpoint d12bf481)
+- [x] Verify /admin/controls loads behind login (HTTP 200, SPA serves TMA app shell, auth handled client-side)
+- [x] Verify /admin/checkin loads behind login (HTTP 200, SPA serves TMA app shell, auth handled client-side)
