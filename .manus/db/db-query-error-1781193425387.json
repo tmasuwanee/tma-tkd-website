@@ -1,0 +1,8 @@
+{
+  "query": "SELECT touchKey, status, COUNT(*) AS n, MIN(scheduledAt) AS earliest, MAX(scheduledAt) AS latest\nFROM leadSequenceQueue\nWHERE sequenceKey = 'summer_camp_nurture'\nGROUP BY touchKey, status\nORDER BY touchKey, status;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3SwZhQGwFybjoYh.root --database cXp7keMiYsMkePUngpTNmV --execute SELECT touchKey, status, COUNT(*) AS n, MIN(scheduledAt) AS earliest, MAX(scheduledAt) AS latest\nFROM leadSequenceQueue\nWHERE sequenceKey = 'summer_camp_nurture'\nGROUP BY touchKey, status\nORDER BY touchKey, status;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 1: Unknown column 'scheduledat' in 'where clause'"
+  ]
+}

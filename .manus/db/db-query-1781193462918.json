@@ -1,0 +1,13 @@
+{
+  "query": "-- Count leads that got day_0 on June 9 but have no day_3 row\nSELECT COUNT(*) AS leads_needing_enrollment\nFROM leadSequenceQueue q0\nWHERE q0.sequenceKey = 'summer_camp_nurture'\n  AND q0.touchKey = 'day_0_camp_overview'\n  AND q0.status = 'sent'\n  AND DATE(q0.sentAt) = '2026-06-09'\n  AND NOT EXISTS (\n    SELECT 1 FROM leadSequenceQueue q3\n    WHERE q3.leadId = q0.leadId\n      AND q3.sequenceKey = 'summer_camp_nurture'\n      AND q3.touchKey = 'day_3_spots_filling'\n  );",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3SwZhQGwFybjoYh.root --database cXp7keMiYsMkePUngpTNmV --execute -- Count leads that got day_0 on June 9 but have no day_3 row\nSELECT COUNT(*) AS leads_needing_enrollment\nFROM leadSequenceQueue q0\nWHERE q0.sequenceKey = 'summer_camp_nurture'\n  AND q0.touchKey = 'day_0_camp_overview'\n  AND q0.status = 'sent'\n  AND DATE(q0.sentAt) = '2026-06-09'\n  AND NOT EXISTS (\n    SELECT 1 FROM leadSequenceQueue q3\n    WHERE q3.leadId = q0.leadId\n      AND q3.sequenceKey = 'summer_camp_nurture'\n      AND q3.touchKey = 'day_3_spots_filling'\n  );",
+  "rows": [
+    {
+      "leads_needing_enrollment": "131"
+    }
+  ],
+  "messages": [],
+  "stdout": "leads_needing_enrollment\n131\n",
+  "stderr": "",
+  "execution_time_ms": 269
+}

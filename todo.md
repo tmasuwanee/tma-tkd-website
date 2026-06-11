@@ -185,4 +185,11 @@
 - [x] Wire Resend webhook endpoint (/api/resend-webhook) for ongoing bounce/complaint/delivery events
 - [x] Update n8n confirmSent node to pass renderedHtml from fetchAndRender response (patch doc written to references/n8n-confirmSent-renderedHtml-patch.md)
 - [x] Build scheduled morning report tRPC procedure (bounce rate, complaint rate, automationPaused count, new enrollments since 5pm)
-- [ ] Register heartbeat job to fire morning report at 11:30 AM ET daily (requires deploy first)
+- [x] Register heartbeat job to fire morning report at 11:30 AM ET daily (task_uid=kg5JRwsPE4yGSdEHrJas6m, next_execution=2026-06-10T15:30:00Z)
+
+## Deploy + Day_3 Fix (2026-06-11)
+- [x] Pull and deploy latest main through commit cd6362f (Little Tigers Taekwondo)
+- [ ] Verify /free-class shows Little Tigers (ages 4-5) dropdown + Mon/Tue/Thu slots (verify after deploy)
+- [x] Diagnose day_3 "0 eligible leads" gap in leadSequenceQueue (Case 1: only day_0/3/6 existed for June 9 cohort)
+- [x] Enroll 131 blast leads in remaining sequence touches (day_3 through day_48) if missing — 131 rows inserted per touch
+- [x] Fix address in all summer_camp_nurture email templates (3945 Peachtree Pkwy → 2005 Lawrenceville-Suwanee Rd) — 5 templates fixed (day_13/20/31/42/48), archived to history
