@@ -37,8 +37,11 @@ describe("Class Schedule Eligibility", () => {
     expect(slots.map(s => s.day)).toEqual(["Monday","Wednesday","Friday"]);
   });
 
-  it("BJJ under age 9 returns empty", () => {
-    expect(getEligibleSlots("bjj", 8)).toHaveLength(0);
+  it("BJJ age 8 returns slots (trial-for-fit, commit 15885ad)", () => {
+    // commit 15885ad: age 8 is now eligible for BJJ trial-for-fit
+    expect(getEligibleSlots("bjj", 8)).not.toHaveLength(0);
+    // age 7 and under still empty
+    expect(getEligibleSlots("bjj", 7)).toHaveLength(0);
   });
 
   it("Kickboxing returns 5 slots for ages 9+", () => {
@@ -47,8 +50,11 @@ describe("Class Schedule Eligibility", () => {
     expect(getEligibleSlots("kickboxing", 30)).toHaveLength(5);
   });
 
-  it("Kickboxing under age 9 returns empty", () => {
-    expect(getEligibleSlots("kickboxing", 8)).toHaveLength(0);
+  it("Kickboxing age 8 returns slots (trial-for-fit, commit 15885ad)", () => {
+    // commit 15885ad: age 8 is now eligible for kickboxing trial-for-fit
+    expect(getEligibleSlots("kickboxing", 8)).not.toHaveLength(0);
+    // age 7 and under still empty
+    expect(getEligibleSlots("kickboxing", 7)).toHaveLength(0);
     expect(getEligibleSlots("kickboxing", 5)).toHaveLength(0);
   });
 
