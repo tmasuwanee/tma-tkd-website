@@ -25,10 +25,12 @@
 import type { Express, Request, Response } from "express";
 import { getEligibleSlots, getNextDateForSlot, formatDate, type ClassSlot } from "../shared/classSchedule";
 import { createLead, recordOutboundCall, getLeadContextForCall, setNoOutboundCalls,
-  upsertCallLog, getCallLog, findLeadIdByPhone, getLeadNameById } from "./db";
+  upsertCallLog, getCallLog, findLeadIdByPhone, getLeadNameById,
+  getLeadByEmail, recordReturningParentTrial } from "./db";
 import { sendTelegramMessage } from "./telegram";
 
 const CALLS_URL = "https://tmatkd.com/admin/calls";
+const CALL_LOG_URL = "https://tmatkd.com/admin/call-log";
 
 const WEEKDAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
 const MONTHS = ["january", "february", "march", "april", "may", "june", "july",
@@ -176,7 +178,7 @@ export function registerVoiceRoutes(app: Express): void {
           `${head}\n${who}\n` +
           (summary ? `${summary}\n` : "(no summary captured)\n") +
           (booked ? "✅ Booked a trial\n" : "") +
-          `Full log: ${CALLS_URL}`
+          `Full log: ${CALL_LOG_URL}`
         );
       }
 
@@ -301,6 +303,7 @@ export function registerVoiceRoutes(app: Express): void {
       res.json({ result: "I'm missing some details to book that. Let me have a staff member call you back.", booked: false });
       return;
     }
+    const dateHuman = (() => { try { return formatDate(dateIso); } catch { return dateIso; } })();
     try {
       const leadId = await createLead({
         parentName: callerName,
@@ -317,7 +320,6 @@ export function registerVoiceRoutes(app: Express): void {
         tags: JSON.stringify(["inbound_call", "voice_agent"]),
       } as any);
 
-      const dateHuman = (() => { try { return formatDate(dateIso); } catch { return dateIso; } })();
       void sendTelegramMessage(
         `📞 <b>New trial booked by voice agent</b>\n` +
         `Student: ${studentName} (age ${studentAge || "?"})\n` +
@@ -329,8 +331,30 @@ export function registerVoiceRoutes(app: Express): void {
       );
       res.json({ result: `You're all set. I've booked the trial for ${dateHuman}${time ? " at " + time : ""}. We'll see ${studentName} then.`, booked: true, leadId });
     } catch (err: any) {
+      // A unique-email error usually means a RETURNING parent (e.g. booking a
+      // second child). Don't fail — update their existing lead, note the new
+      // child so siblings both get booked, and ping staff to confirm both.
+      try {
+        const existing = await getLeadByEmail(email);
+        if (existing) {
+          await recordReturningParentTrial({
+            leadId: existing.id, studentName, studentAge, program,
+            dateIso, time: time || null, existingNotes: existing.internalNotes,
+          });
+          void sendTelegramMessage(
+            `📞 <b>Trial booked (returning parent / 2nd child)</b>\n` +
+            `Student: ${studentName} (age ${studentAge || "?"})\n` +
+            `Program: ${program}\nWhen: ${dateHuman} ${time}\n` +
+            `Parent: ${callerName} — ${phone}\n` +
+            `Already lead #${existing.id}. Please confirm BOTH children's trials.`
+          );
+          res.json({ result: `You're all set, I've got ${studentName} down for ${dateHuman}${time ? " at " + time : ""} too. We'll see them then.`, booked: true, leadId: existing.id });
+          return;
+        }
+      } catch (e2: any) {
+        console.error("[voice book-trial] returning-parent update failed:", e2?.message ?? e2);
+      }
       console.error("[voice book-trial] error:", err?.message ?? err);
-      // Likely a duplicate email (unique constraint) or DB issue — fall back to a human.
       void sendTelegramMessage(`⚠️ Voice agent tried to book a trial but the save failed for ${callerName} (${phone}). Please call them back.`);
       res.json({ result: "I had trouble saving that. I'll have a staff member call you back to confirm the trial.", booked: false });
     }

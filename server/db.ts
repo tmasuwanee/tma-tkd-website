@@ -2221,3 +2221,24 @@ export async function getLeadNameById(leadId: number): Promise<string | null> {
   const rows = await db.select({ parentName: leads.parentName }).from(leads).where(eq(leads.id, leadId)).limit(1);
   return rows[0]?.parentName ?? null;
 }
+
+/** A returning parent (their email already has a lead) is booking another trial
+ *  via the voice agent, typically a second child. Update their existing lead
+ *  with the new trial and append a note about the child, instead of failing on
+ *  the unique-email constraint. Staff get pinged to confirm both kids. */
+export async function recordReturningParentTrial(args: {
+  leadId: number; studentName: string; studentAge: string; program: string;
+  dateIso: string; time: string | null; existingNotes?: string | null;
+}): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  const when = `${args.dateIso}${args.time ? " at " + args.time : ""}`;
+  const note = `[voice booking] Also booking ${args.studentName} (age ${args.studentAge}) for ${args.program} on ${when}.`;
+  const internalNotes = [args.existingNotes, note].filter(Boolean).join("\n");
+  await db.update(leads).set({
+    pipelineStage: "trial_scheduled",
+    trialClassDate: args.dateIso,
+    trialClassTime: args.time ?? null,
+    internalNotes,
+  }).where(eq(leads.id, args.leadId));
+}
