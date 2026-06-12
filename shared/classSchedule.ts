@@ -83,11 +83,12 @@ export function getEligibleSlots(program: string, age: number): ClassSlot[] {
       if (age >= 14) return CLASS_SCHEDULE.taekwondo_adult;
       return []; // under 4 — contact school directly
     case "bjj":
-      if (age >= 9) return CLASS_SCHEDULE.bjj;
-      return []; // under 9 — not eligible
+      // 9+ standard; a child who is exactly 8 may trial for fit. Under 8: none.
+      if (age >= 8) return CLASS_SCHEDULE.bjj;
+      return [];
     case "kickboxing":
-      if (age >= 9) return CLASS_SCHEDULE.kickboxing;
-      return []; // under 9 not eligible
+      if (age >= 8) return CLASS_SCHEDULE.kickboxing;
+      return [];
     default:
       return []; // afterschool, summer — no trial class calendar
   }

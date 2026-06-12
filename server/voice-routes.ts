@@ -270,10 +270,9 @@ export function registerVoiceRoutes(app: Express): void {
     if (slots.length === 0) {
       // Helpful redirect by age for the common cases
       let hint = "";
-      if ((program === "kickboxing" || program === "bjj") && age < 9) {
-        hint = age === 8
-          ? " An eight year old can do a trial class first to see if it is a good fit."
-          : " Those classes start at age nine.";
+      if ((program === "kickboxing" || program === "bjj") && age < 8) {
+        // age 8 now returns real slots (trial-for-fit); this only fires under 8.
+        hint = " The youngest we usually start kickboxing or BJJ is eight. Taekwondo is a great fit at this age, and our staff can talk kickboxing through if you're really set on it.";
       } else if (program === "taekwondo" && age >= 4 && age <= 5) {
         hint = " For ages four and five we have Little Tigers Taekwondo.";
       }
