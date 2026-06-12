@@ -21,6 +21,7 @@ import AdminTodaysCalls from "./pages/AdminTodaysCalls";
 import AdminControls from "./pages/AdminControls";
 import AdminCheckin from "./pages/AdminCheckin";
 import AdminCallLog from "./pages/AdminCallLog";
+import AdminVoiceTest from "./pages/AdminVoiceTest";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import Terms from "./pages/Terms";
 import SmsTerms from "./pages/SmsTerms";
@@ -46,6 +47,7 @@ function Router() {
       <Route path={"/admin/controls"} component={AdminControls} />
       <Route path={"/admin/checkin"} component={AdminCheckin} />
       <Route path={"/admin/call-log"} component={AdminCallLog} />
+      <Route path={"/admin/voice-test"} component={AdminVoiceTest} />
       <Route path={"/privacy-policy"} component={PrivacyPolicy} />
       <Route path={"/terms"} component={Terms} />
       <Route path={"/sms-terms"} component={SmsTerms} />

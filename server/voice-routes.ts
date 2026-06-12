@@ -199,6 +199,49 @@ export function registerVoiceRoutes(app: Express): void {
     }
   });
 
+  // ─── Outbound TEST trigger (staff QA) ──────────────────────────────────────
+  // Passcode-gated. Places ONE outbound test call to the phone given, with a
+  // chosen call_type, so staff can QA the outbound agent on their own phone.
+  // Powers /admin/voice-test. Does NOT touch the crons or real leads.
+  app.post("/api/voice/test-outbound", async (req: Request, res: Response) => {
+    const b = req.body ?? {};
+    if (String(b.passcode ?? "") !== process.env.VOICE_AGENT_SHARED_SECRET) {
+      res.status(401).json({ ok: false, error: "Wrong passcode." }); return;
+    }
+    const callType = String(b.call_type ?? b.callType ?? "");
+    const valid = ["speed_to_lead", "no_show", "post_trial", "afterschool_tour"];
+    if (!valid.includes(callType)) { res.status(400).json({ ok: false, error: "Invalid scenario." }); return; }
+    const digits = String(b.phone ?? "").replace(/\D/g, "").replace(/^1/, "");
+    if (digits.length !== 10) { res.status(400).json({ ok: false, error: "Enter a 10-digit US phone number." }); return; }
+    const toNumber = "+1" + digits;
+    const apiKey = process.env.RETELL_API_KEY;
+    const agentId = process.env.RETELL_OUTBOUND_AGENT_ID;
+    const fromNumber = process.env.RETELL_OUTBOUND_FROM_NUMBER;
+    if (!apiKey || !agentId || !fromNumber) {
+      res.status(503).json({ ok: false, error: "Outbound is not configured on the server yet (RETELL_OUTBOUND_* env)." }); return;
+    }
+    const vars: Record<string, string> = {
+      call_type: callType, lead_id: "0",
+      parent_name: String(b.name ?? "there").slice(0, 60),
+      student_name: "Jordan", student_age: "8", program: "taekwondo",
+    };
+    if (callType === "no_show") vars.prev_trial_date = "this past Monday";
+    if (callType === "post_trial") vars.prev_trial_date = "a few days ago";
+    if (callType === "afterschool_tour") vars.program = "afterschool";
+    try {
+      const r = await fetch("https://api.retellai.com/v2/create-phone-call", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ from_number: fromNumber, to_number: toNumber, override_agent_id: agentId, retell_llm_dynamic_variables: vars }),
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!r.ok) { res.status(502).json({ ok: false, error: `Retell error ${r.status}` }); return; }
+      res.json({ ok: true, callType });
+    } catch (err: any) {
+      res.status(500).json({ ok: false, error: String(err?.message ?? err) });
+    }
+  });
+
   // ─── resolve_date ──────────────────────────────────────────────────────────
   app.post("/api/voice/resolve-date", (req: Request, res: Response) => {
     if (!authed(req)) { res.status(401).json({ result: "Unauthorized" }); return; }
