@@ -546,3 +546,37 @@ export const automationControls = mysqlTable("automationControls", {
 
 export type AutomationControl = typeof automationControls.$inferSelect;
 export type InsertAutomationControl = typeof automationControls.$inferInsert;
+
+
+// ─── Call Logs (2026-06-11) ───────────────────────────────────────────────────
+// One row per Retell voice call (inbound + outbound), written by the Retell
+// call_analyzed webhook. Powers the dashboard call log (summary + transcript)
+// and the "every call" Telegram ping. Call-centric, not per-lead, because spam
+// and brand-new callers have no lead; leadId is an optional best-effort match
+// (no FK so a call without a lead still logs).
+export const callLogs = mysqlTable("callLogs", {
+  id: int("id").autoincrement().primaryKey(),
+  callId: varchar("callId", { length: 128 }).notNull(),       // Retell call_id (unique)
+  agentId: varchar("agentId", { length: 128 }),
+  direction: mysqlEnum("direction", ["inbound", "outbound"]).default("inbound").notNull(),
+  fromNumber: varchar("fromNumber", { length: 32 }),
+  toNumber: varchar("toNumber", { length: 32 }),
+  callerName: varchar("callerName", { length: 255 }),
+  leadId: int("leadId"),
+  summary: text("summary"),
+  transcript: mediumtext("transcript"),
+  recordingUrl: varchar("recordingUrl", { length: 512 }),
+  durationSec: int("durationSec"),
+  disconnectReason: varchar("disconnectReason", { length: 64 }),
+  sentiment: varchar("sentiment", { length: 32 }),
+  intent: varchar("intent", { length: 64 }),
+  booked: tinyint("booked").default(0),
+  startedAt: timestamp("startedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  callIdUniq: uniqueIndex("call_logs_call_id_uniq").on(table.callId),
+  createdIdx: index("call_logs_created_idx").on(table.createdAt),
+}));
+
+export type CallLog = typeof callLogs.$inferSelect;
+export type InsertCallLog = typeof callLogs.$inferInsert;

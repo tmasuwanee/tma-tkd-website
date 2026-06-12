@@ -24,7 +24,8 @@
  */
 import type { Express, Request, Response } from "express";
 import { getEligibleSlots, getNextDateForSlot, formatDate, type ClassSlot } from "../shared/classSchedule";
-import { createLead, recordOutboundCall, getLeadContextForCall, setNoOutboundCalls } from "./db";
+import { createLead, recordOutboundCall, getLeadContextForCall, setNoOutboundCalls,
+  upsertCallLog, getCallLog, findLeadIdByPhone, getLeadNameById } from "./db";
 import { sendTelegramMessage } from "./telegram";
 
 const CALLS_URL = "https://tmatkd.com/admin/calls";
@@ -125,6 +126,79 @@ function digitsOnly(s: string): string {
 }
 
 export function registerVoiceRoutes(app: Express): void {
+  // ─── Retell call webhook: Telegram ping on EVERY call + store transcript ────
+  // Set as each agent's webhook_url with ?secret=VOICE_AGENT_SHARED_SECRET.
+  // Retell fires call_started / call_ended / call_analyzed; we act on
+  // call_analyzed (carries the summary + transcript). Covers inbound AND
+  // outbound, whether or not any tool fired during the call.
+  app.post("/api/voice/retell-webhook", async (req: Request, res: Response) => {
+    if ((req.query?.secret as string) !== process.env.VOICE_AGENT_SHARED_SECRET) {
+      res.status(401).json({ ok: false }); return;
+    }
+    const body = req.body ?? {};
+    const event = body.event ?? body.event_type;
+    const call = body.call ?? body.data ?? {};
+    if (event !== "call_analyzed") { res.json({ ok: true, ignored: event }); return; }
+    try {
+      const callId = String(call.call_id ?? call.callId ?? "");
+      if (!callId) { res.json({ ok: true, skipped: "no call_id" }); return; }
+      const direction = (call.direction === "outbound" ? "outbound" : "inbound") as "inbound" | "outbound";
+      const dyn = call.retell_llm_dynamic_variables ?? {};
+      const analysis = call.call_analysis ?? {};
+      const custom = analysis.custom_analysis_data ?? {};
+      const fromNumber = String(call.from_number ?? "");
+      const toNumber = String(call.to_number ?? "");
+      const durMs = Number(call.duration_ms ?? ((call.end_timestamp ?? 0) - (call.start_timestamp ?? 0))) || 0;
+      const durationSec = durMs > 0 ? Math.round(durMs / 1000) : null;
+
+      // Resolve lead + caller name (so the dashboard shows a real name, not blank).
+      let leadId: number | null = null;
+      const dynLead = parseInt(String(dyn.lead_id ?? ""), 10);
+      if (!isNaN(dynLead)) leadId = dynLead;
+      else if (direction === "inbound") leadId = await findLeadIdByPhone(fromNumber);
+      let callerName = String(custom.caller_name ?? dyn.parent_name ?? "").trim();
+      if (!callerName && leadId) callerName = (await getLeadNameById(leadId)) ?? "";
+      if (!callerName) callerName = direction === "inbound" ? (fromNumber || "Unknown caller") : "";
+
+      const summary = String(analysis.call_summary ?? "").trim();
+      const transcript = String(call.transcript ?? "").trim();
+      const booked = (custom.booked === true || custom.booked === "true" || String(custom.intent ?? "").includes("book")) ? 1 : 0;
+
+      // 1) Telegram on every call (skip if we already pinged for this callId).
+      const existing = await getCallLog(callId);
+      if (!existing) {
+        const mins = durationSec ? `${Math.floor(durationSec / 60)}m ${durationSec % 60}s` : "";
+        const head = direction === "outbound"
+          ? `📞 <b>Outbound call</b>${dyn.call_type ? ` (${dyn.call_type})` : ""}${mins ? ` · ${mins}` : ""}`
+          : `📞 <b>Inbound call</b>${mins ? ` · ${mins}` : ""}`;
+        const who = `${callerName || "Unknown"}${(fromNumber && direction === "inbound") ? ` · ${fromNumber}` : ""}`;
+        void sendTelegramMessage(
+          `${head}\n${who}\n` +
+          (summary ? `${summary}\n` : "(no summary captured)\n") +
+          (booked ? "✅ Booked a trial\n" : "") +
+          `Full log: ${CALLS_URL}`
+        );
+      }
+
+      // 2) Persist (idempotent upsert by callId; webhook retries are safe).
+      await upsertCallLog({
+        callId, agentId: String(call.agent_id ?? ""), direction,
+        fromNumber, toNumber, callerName: callerName || null, leadId: leadId ?? null,
+        summary: summary || null, transcript: transcript || null,
+        recordingUrl: call.recording_url ? String(call.recording_url) : null,
+        durationSec, disconnectReason: call.disconnection_reason ? String(call.disconnection_reason) : null,
+        sentiment: analysis.user_sentiment ? String(analysis.user_sentiment) : null,
+        intent: custom.intent ? String(custom.intent) : null, booked,
+        startedAt: call.start_timestamp ? new Date(Number(call.start_timestamp)) : null,
+      } as any);
+
+      res.json({ ok: true });
+    } catch (err: any) {
+      console.error("[retell-webhook] error:", err?.message ?? err);
+      res.json({ ok: false }); // 200 so Retell doesn't hammer retries
+    }
+  });
+
   // ─── resolve_date ──────────────────────────────────────────────────────────
   app.post("/api/voice/resolve-date", (req: Request, res: Response) => {
     if (!authed(req)) { res.status(401).json({ result: "Unauthorized" }); return; }

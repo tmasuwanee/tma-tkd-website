@@ -17,6 +17,7 @@ import {
   studioAssets, InsertStudioAsset, StudioAsset,
   dailyCallQueue, InsertDailyCallQueueRow, DailyCallQueueRow,
   automationControls, AutomationControl,
+  callLogs, InsertCallLog, CallLog,
 } from "../drizzle/schema";
 import { lte } from "drizzle-orm";
 import { ENV } from './_core/env';
@@ -2162,4 +2163,61 @@ export async function markOutboundAttempt(leadId: number, callType: string): Pro
     subject: `Outbound ${callType}: placing call`, body: null,
     sentBy: "voice_agent_outbound", status: "attempted",
   } as any);
+}
+
+// ─── Call Logs (written by the Retell call_analyzed webhook) ──────────────────
+/** Upsert a call log by Retell callId (idempotent; the webhook can retry). */
+export async function upsertCallLog(row: InsertCallLog): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.insert(callLogs).values(row as any).onDuplicateKeyUpdate({
+    set: {
+      callerName: row.callerName, summary: row.summary, transcript: row.transcript,
+      recordingUrl: row.recordingUrl, durationSec: row.durationSec,
+      disconnectReason: row.disconnectReason, sentiment: row.sentiment,
+      intent: row.intent, booked: row.booked, leadId: row.leadId,
+    } as any,
+  });
+}
+
+/** Recent calls for the dashboard call log, newest first. */
+export async function listCallLogs(limit = 100, offset = 0): Promise<CallLog[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(callLogs).orderBy(desc(callLogs.createdAt)).limit(limit).offset(offset);
+}
+
+/** One call by numeric id or by Retell callId (for the transcript pane). */
+export async function getCallLog(idOrCallId: number | string): Promise<CallLog | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = typeof idOrCallId === "number"
+    ? await db.select().from(callLogs).where(eq(callLogs.id, idOrCallId)).limit(1)
+    : await db.select().from(callLogs).where(eq(callLogs.callId, idOrCallId)).limit(1);
+  return rows[0] ?? null;
+}
+
+/** Best-effort: find a lead id by phone (last 10 digits) so inbound calls link
+ *  to the CRM and show the saved name. Returns null if no confident match. */
+export async function findLeadIdByPhone(phone: string): Promise<number | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const last10 = (phone || "").replace(/\D/g, "").slice(-10);
+  if (last10.length < 10) return null;
+  try {
+    const rows = await db.select({ id: leads.id, parentName: leads.parentName }).from(leads)
+      .where(sql`RIGHT(REGEXP_REPLACE(COALESCE(phone,''), '[^0-9]', ''), 10) = ${last10}`)
+      .orderBy(desc(leads.id)).limit(1);
+    return rows[0]?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Lead name + phone by id, for resolving the caller name on a call log. */
+export async function getLeadNameById(leadId: number): Promise<string | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select({ parentName: leads.parentName }).from(leads).where(eq(leads.id, leadId)).limit(1);
+  return rows[0]?.parentName ?? null;
 }
