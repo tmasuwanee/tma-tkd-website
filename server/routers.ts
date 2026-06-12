@@ -31,6 +31,8 @@ import {
   setStudioAssetTags,
   // Call queue + inbound replies (2026-06-06)
   generateDailyCallQueue, listTodaysCalls, markCallOutcome, recordInboundEmailReply,
+  // Call log from the Retell webhook (2026-06-11)
+  listCallLogs, getCallLog,
   // Automation controls / kill switch (2026-06-11)
   getAutomationControls, setAutomationControl, setAllAutomations,
   // Trial check-in (2026-06-11)
@@ -1419,6 +1421,23 @@ export const appRouter = router({
         await updateLeadStage(input.leadId, input.showed ? "trial_attended" : "no_show");
         return { success: true, stage: input.showed ? "trial_attended" : "no_show" } as const;
       }),
+  }),
+
+  // ─── Call Log (2026-06-11) ────────────────────────────────────────────────
+  // Read-only view of Retell voice calls (inbound + outbound) captured by
+  // /api/voice/retell-webhook. Powers /admin/call-log (Gmail-style list +
+  // clickable transcript). Password-gated on the client like the rest of /admin.
+  callLog: router({
+    list: publicProcedure
+      .input(z.object({
+        limit: z.number().int().min(1).max(200).default(100),
+        offset: z.number().int().min(0).default(0),
+      }).optional())
+      .query(async ({ input }) => listCallLogs(input?.limit ?? 100, input?.offset ?? 0)),
+
+    get: publicProcedure
+      .input(z.object({ id: z.number().int().positive() }))
+      .query(async ({ input }) => getCallLog(input.id)),
   }),
 });
 export type AppRouter = typeof appRouter;

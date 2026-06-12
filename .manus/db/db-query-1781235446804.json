@@ -1,0 +1,70 @@
+{
+  "query": "SHOW TABLES LIKE 'callLogs';\nDESCRIBE callLogs;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3SwZhQGwFybjoYh.root --database cXp7keMiYsMkePUngpTNmV --execute SHOW TABLES LIKE 'callLogs';\nDESCRIBE callLogs;",
+  "rows": [
+    {
+      "Tables_in_cXp7keMiYsMkePUngpTNmV (callLogs)": "callLogs"
+    },
+    {
+      "Tables_in_cXp7keMiYsMkePUngpTNmV (callLogs)": "Field\tType\tNull\tKey\tDefault\tExtra"
+    },
+    {
+      "Tables_in_cXp7keMiYsMkePUngpTNmV (callLogs)": "id\tint\tNO\tPRI\tNULL\tauto_increment"
+    },
+    {
+      "Tables_in_cXp7keMiYsMkePUngpTNmV (callLogs)": "callId\tvarchar(128)\tNO\tUNI\tNULL\t"
+    },
+    {
+      "Tables_in_cXp7keMiYsMkePUngpTNmV (callLogs)": "agentId\tvarchar(128)\tYES\t\tNULL\t"
+    },
+    {
+      "Tables_in_cXp7keMiYsMkePUngpTNmV (callLogs)": "direction\tenum('inbound','outbound')\tNO\t\tinbound\t"
+    },
+    {
+      "Tables_in_cXp7keMiYsMkePUngpTNmV (callLogs)": "fromNumber\tvarchar(32)\tYES\t\tNULL\t"
+    },
+    {
+      "Tables_in_cXp7keMiYsMkePUngpTNmV (callLogs)": "toNumber\tvarchar(32)\tYES\t\tNULL\t"
+    },
+    {
+      "Tables_in_cXp7keMiYsMkePUngpTNmV (callLogs)": "callerName\tvarchar(255)\tYES\t\tNULL\t"
+    },
+    {
+      "Tables_in_cXp7keMiYsMkePUngpTNmV (callLogs)": "leadId\tint\tYES\t\tNULL\t"
+    },
+    {
+      "Tables_in_cXp7keMiYsMkePUngpTNmV (callLogs)": "summary\ttext\tYES\t\tNULL\t"
+    },
+    {
+      "Tables_in_cXp7keMiYsMkePUngpTNmV (callLogs)": "transcript\tmediumtext\tYES\t\tNULL\t"
+    },
+    {
+      "Tables_in_cXp7keMiYsMkePUngpTNmV (callLogs)": "recordingUrl\tvarchar(512)\tYES\t\tNULL\t"
+    },
+    {
+      "Tables_in_cXp7keMiYsMkePUngpTNmV (callLogs)": "durationSec\tint\tYES\t\tNULL\t"
+    },
+    {
+      "Tables_in_cXp7keMiYsMkePUngpTNmV (callLogs)": "disconnectReason\tvarchar(64)\tYES\t\tNULL\t"
+    },
+    {
+      "Tables_in_cXp7keMiYsMkePUngpTNmV (callLogs)": "sentiment\tvarchar(32)\tYES\t\tNULL\t"
+    },
+    {
+      "Tables_in_cXp7keMiYsMkePUngpTNmV (callLogs)": "intent\tvarchar(64)\tYES\t\tNULL\t"
+    },
+    {
+      "Tables_in_cXp7keMiYsMkePUngpTNmV (callLogs)": "booked\ttinyint\tYES\t\t0\t"
+    },
+    {
+      "Tables_in_cXp7keMiYsMkePUngpTNmV (callLogs)": "startedAt\ttimestamp\tYES\t\tNULL\t"
+    },
+    {
+      "Tables_in_cXp7keMiYsMkePUngpTNmV (callLogs)": "createdAt\ttimestamp\tNO\tMUL\tCURRENT_TIMESTAMP\t"
+    }
+  ],
+  "messages": [],
+  "stdout": "Tables_in_cXp7keMiYsMkePUngpTNmV (callLogs)\ncallLogs\nField\tType\tNull\tKey\tDefault\tExtra\nid\tint\tNO\tPRI\tNULL\tauto_increment\ncallId\tvarchar(128)\tNO\tUNI\tNULL\t\nagentId\tvarchar(128)\tYES\t\tNULL\t\ndirection\tenum('inbound','outbound')\tNO\t\tinbound\t\nfromNumber\tvarchar(32)\tYES\t\tNULL\t\ntoNumber\tvarchar(32)\tYES\t\tNULL\t\ncallerName\tvarchar(255)\tYES\t\tNULL\t\nleadId\tint\tYES\t\tNULL\t\nsummary\ttext\tYES\t\tNULL\t\ntranscript\tmediumtext\tYES\t\tNULL\t\nrecordingUrl\tvarchar(512)\tYES\t\tNULL\t\ndurationSec\tint\tYES\t\tNULL\t\ndisconnectReason\tvarchar(64)\tYES\t\tNULL\t\nsentiment\tvarchar(32)\tYES\t\tNULL\t\nintent\tvarchar(64)\tYES\t\tNULL\t\nbooked\ttinyint\tYES\t\t0\t\nstartedAt\ttimestamp\tYES\t\tNULL\t\ncreatedAt\ttimestamp\tNO\tMUL\tCURRENT_TIMESTAMP\t\n",
+  "stderr": "",
+  "execution_time_ms": 263
+}

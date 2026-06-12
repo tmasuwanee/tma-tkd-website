@@ -17,6 +17,7 @@ import {
   studioAssets, InsertStudioAsset, StudioAsset,
   dailyCallQueue, InsertDailyCallQueueRow, DailyCallQueueRow,
   automationControls, AutomationControl,
+  callLogs, InsertCallLog, CallLog,
 } from "../drizzle/schema";
 import { lte } from "drizzle-orm";
 import { ENV } from './_core/env';
@@ -2076,4 +2077,147 @@ export async function setNoOutboundCalls(leadId: number, on: boolean): Promise<v
     noOutboundCalls: on ? 1 : 0,
     noOutboundCallsAt: on ? new Date() : null,
   } as any).where(eq(leads.id, leadId));
+}
+
+// ─── Outbound voice candidate queries (2026-06-11) ────────────────────────────
+// All exclude noOutboundCalls leads. The outbound-voice handlers add the
+// kill-switch, calling-hours, and per-lead dedup guards.
+
+// The three trial-class flows below only target trial-class programs
+// (Taekwondo, Kickboxing, BJJ, Little Tigers). Afterschool has its own
+// afterschool_tour flow; summer camp is email-only. Excluding both here keeps
+// those leads from getting a "book a free trial" call that doesn't apply to
+// them. COALESCE so leads with a NULL programInterest are NOT excluded.
+const NOT_AFTERSCHOOL_OR_CAMP = sql`
+    AND LOWER(COALESCE(programInterest,'')) NOT LIKE '%afterschool%'
+    AND LOWER(COALESCE(programInterest,'')) NOT LIKE '%after-school%'
+    AND LOWER(COALESCE(programInterest,'')) NOT LIKE '%after school%'
+    AND LOWER(COALESCE(programInterest,'')) NOT LIKE '%camp%'`;
+
+export async function getSpeedToLeadCandidates(): Promise<Lead[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(leads).where(sql`
+    pipelineStage = 'new_lead' AND trialClassDate IS NULL
+    AND noOutboundCalls = 0
+    ${NOT_AFTERSCHOOL_OR_CAMP}
+    AND createdAt > (NOW() - INTERVAL 30 MINUTE)`);
+}
+
+export async function getNoShowRecoveryCandidates(): Promise<Lead[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(leads).where(sql`
+    pipelineStage = 'no_show' AND noOutboundCalls = 0
+    ${NOT_AFTERSCHOOL_OR_CAMP}
+    AND updatedAt > (NOW() - INTERVAL 2 DAY)`);
+}
+
+export async function getPostTrialCandidates(): Promise<Lead[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(leads).where(sql`
+    pipelineStage = 'trial_attended' AND noOutboundCalls = 0
+    ${NOT_AFTERSCHOOL_OR_CAMP}
+    AND trialClassDate IS NOT NULL
+    AND trialClassDate <= DATE_SUB(CURDATE(), INTERVAL 3 DAY)
+    AND trialClassDate >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)`);
+}
+
+/**
+ * Afterschool leads to invite for a TOUR (not a trial). The outbound
+ * afterschool_tour flow targets these. Mirrors the speed-to-lead cadence so a
+ * fresh afterschool inquiry gets a quick, on-script call (book a 2-4pm M/W/F
+ * tour, or staff coordinates another time).
+ */
+export async function getAfterschoolTourCandidates(): Promise<Lead[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(leads).where(sql`
+    pipelineStage = 'new_lead' AND trialClassDate IS NULL
+    AND noOutboundCalls = 0
+    AND (
+      LOWER(COALESCE(programInterest,'')) LIKE '%afterschool%'
+      OR LOWER(COALESCE(programInterest,'')) LIKE '%after-school%'
+      OR LOWER(COALESCE(programInterest,'')) LIKE '%after school%'
+    )
+    AND createdAt > (NOW() - INTERVAL 30 MINUTE)`);
+}
+
+/** Has the outbound agent already attempted this lead within `hours`? (dedup) */
+export async function hasOutboundAttempt(leadId: number, hours: number): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  const rows = await db.select().from(leadActivities).where(sql`
+    leadId = ${leadId} AND sentBy = 'voice_agent_outbound'
+    AND createdAt > (NOW() - INTERVAL ${hours} HOUR)`).limit(1);
+  return rows.length > 0;
+}
+
+/** Record that an outbound call was placed (dedup marker; outcome comes later via log_call_outcome). */
+export async function markOutboundAttempt(leadId: number, callType: string): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.insert(leadActivities).values({
+    leadId, type: "call", direction: "outbound",
+    subject: `Outbound ${callType}: placing call`, body: null,
+    sentBy: "voice_agent_outbound", status: "attempted",
+  } as any);
+}
+
+// ─── Call Logs (written by the Retell call_analyzed webhook) ──────────────────
+/** Upsert a call log by Retell callId (idempotent; the webhook can retry). */
+export async function upsertCallLog(row: InsertCallLog): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.insert(callLogs).values(row as any).onDuplicateKeyUpdate({
+    set: {
+      callerName: row.callerName, summary: row.summary, transcript: row.transcript,
+      recordingUrl: row.recordingUrl, durationSec: row.durationSec,
+      disconnectReason: row.disconnectReason, sentiment: row.sentiment,
+      intent: row.intent, booked: row.booked, leadId: row.leadId,
+    } as any,
+  });
+}
+
+/** Recent calls for the dashboard call log, newest first. */
+export async function listCallLogs(limit = 100, offset = 0): Promise<CallLog[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(callLogs).orderBy(desc(callLogs.createdAt)).limit(limit).offset(offset);
+}
+
+/** One call by numeric id or by Retell callId (for the transcript pane). */
+export async function getCallLog(idOrCallId: number | string): Promise<CallLog | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = typeof idOrCallId === "number"
+    ? await db.select().from(callLogs).where(eq(callLogs.id, idOrCallId)).limit(1)
+    : await db.select().from(callLogs).where(eq(callLogs.callId, idOrCallId)).limit(1);
+  return rows[0] ?? null;
+}
+
+/** Best-effort: find a lead id by phone (last 10 digits) so inbound calls link
+ *  to the CRM and show the saved name. Returns null if no confident match. */
+export async function findLeadIdByPhone(phone: string): Promise<number | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const last10 = (phone || "").replace(/\D/g, "").slice(-10);
+  if (last10.length < 10) return null;
+  try {
+    const rows = await db.select({ id: leads.id, parentName: leads.parentName }).from(leads)
+      .where(sql`RIGHT(REGEXP_REPLACE(COALESCE(phone,''), '[^0-9]', ''), 10) = ${last10}`)
+      .orderBy(desc(leads.id)).limit(1);
+    return rows[0]?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Lead name + phone by id, for resolving the caller name on a call log. */
+export async function getLeadNameById(leadId: number): Promise<string | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select({ parentName: leads.parentName }).from(leads).where(eq(leads.id, leadId)).limit(1);
+  return rows[0]?.parentName ?? null;
 }
