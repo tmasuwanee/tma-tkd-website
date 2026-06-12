@@ -121,9 +121,14 @@ export async function createLead(lead: InsertLead): Promise<number> {
   // Normalize email to lowercase on insert so getLeadByEmail can find it
   // reliably regardless of source casing. Defense-in-depth alongside the
   // case-insensitive LOWER() match in getLeadByEmail.
-  const normalized: InsertLead = lead.email
-    ? { ...lead, email: lead.email.toLowerCase().trim() }
-    : lead;
+  // Also auto-tag by program here, the one choke point every lead source flows
+  // through (web forms, voice agent, FB sync, imports), so the Leads view can
+  // always filter by program without each caller remembering to set the tag.
+  const normalized: InsertLead = {
+    ...lead,
+    ...(lead.email ? { email: lead.email.toLowerCase().trim() } : {}),
+    tags: mergeProgramTag(lead.tags as string | null | undefined, lead.programInterest),
+  };
   const [result] = await db.insert(leads).values(normalized);
   return (result as unknown as { insertId: number }).insertId ?? 0;
 }
@@ -1685,6 +1690,40 @@ export function normalizeVertical(raw?: string | null): string {
   if (s.includes("kickbox")) return "kickboxing";
   if (s.includes("bjj") || s.includes("brazilian")) return "bjj";
   return "other";
+}
+
+/**
+ * Merge a program-derived tag into a JSON tags-array string. Pure + idempotent.
+ * The Leads view filters by these tags, so every lead should carry the tag for
+ * the program it came in on (afterschool / tkd / kickboxing / bjj / summer_camp).
+ * Tolerates null and legacy non-JSON tag values. Returns a JSON string.
+ */
+export function mergeProgramTag(tagsJson: string | null | undefined, programRaw?: string | null): string {
+  let tags: string[] = [];
+  if (tagsJson) {
+    try { const p = JSON.parse(tagsJson); if (Array.isArray(p)) tags = p.map(String); } catch { /* legacy non-JSON, start fresh */ }
+  }
+  const vertical = normalizeVertical(programRaw);
+  if (vertical !== "other" && !tags.includes(vertical)) tags.push(vertical);
+  return JSON.stringify(tags);
+}
+
+/**
+ * Ensure an EXISTING lead carries the program tag for a given raw program string.
+ * Idempotent; a no-op when the program doesn't map to a known vertical or the tag
+ * is already present. Returns the vertical applied, or null if nothing changed.
+ */
+export async function applyProgramTag(leadId: number, programRaw?: string | null): Promise<string | null> {
+  const vertical = normalizeVertical(programRaw);
+  if (vertical === "other") return null;
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(leads).where(eq(leads.id, leadId)).limit(1);
+  if (!rows[0]) return null;
+  const merged = mergeProgramTag(rows[0].tags as string | null, programRaw);
+  if (merged === (rows[0].tags ?? "[]")) return vertical; // already tagged, no write
+  await db.update(leads).set({ tags: merged }).where(eq(leads.id, leadId));
+  return vertical;
 }
 
 function todayDateString(): string {

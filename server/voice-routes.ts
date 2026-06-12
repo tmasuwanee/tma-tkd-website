@@ -26,7 +26,8 @@ import type { Express, Request, Response } from "express";
 import { getEligibleSlots, getNextDateForSlot, formatDate, type ClassSlot } from "../shared/classSchedule";
 import { createLead, recordOutboundCall, getLeadContextForCall, setNoOutboundCalls,
   upsertCallLog, getCallLog, findLeadIdByPhone, getLeadNameById,
-  getLeadByEmail, recordReturningParentTrial } from "./db";
+  getLeadByEmail, recordReturningParentTrial, applyProgramTag,
+  recordLifecycleTransition } from "./db";
 import { sendTelegramMessage } from "./telegram";
 
 const CALLS_URL = "https://tmatkd.com/admin/calls";
@@ -193,6 +194,33 @@ export function registerVoiceRoutes(app: Express): void {
         intent: custom.intent ? String(custom.intent) : null, booked,
         startedAt: call.start_timestamp ? new Date(Number(call.start_timestamp)) : null,
       } as any);
+
+      // 3) Auto-update the matched lead from what the call revealed. Both steps
+      //    are best-effort and idempotent — never block the webhook ack.
+      if (leadId) {
+        // a) Tag by program so the Leads view can filter (outbound sets dyn.program;
+        //    inbound may surface it in custom_analysis_data).
+        const programHint = String(custom.program ?? dyn.program ?? "").trim();
+        if (programHint) {
+          try { await applyProgramTag(leadId, programHint); }
+          catch (e: any) { console.warn("[retell-webhook] applyProgramTag failed:", e?.message ?? e); }
+        }
+        // b) Advance the funnel stage when the call booked a trial. Uses the legal
+        //    state machine: a no-op if already trial_scheduled, and intentionally
+        //    rejected (caught below) for leads past that point — we never drag an
+        //    enrolled or trial-attended student backward off a stray "booked" flag.
+        if (booked) {
+          try {
+            await recordLifecycleTransition({
+              leadId, toStage: "trial_scheduled",
+              triggeredBy: `voice_${direction}`,
+              reason: "Auto-staged from call summary (agent booked a trial).",
+            });
+          } catch (e: any) {
+            console.warn("[retell-webhook] auto-stage skipped:", e?.message ?? e);
+          }
+        }
+      }
 
       res.json({ ok: true });
     } catch (err: any) {

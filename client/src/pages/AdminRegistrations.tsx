@@ -122,7 +122,7 @@ function StatusBadge({ status }: { status: string | null }) {
   return <Badge className="bg-red-100 text-red-800 border-red-200 gap-1"><XCircle className="w-3 h-3" />{status ?? "Unknown"}</Badge>;
 }
 
-function CampRegistrationsTab() {
+export function CampRegistrationsTab() {
   const [showDeleted, setShowDeleted] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
   const [showBatchDeleteConfirm, setShowBatchDeleteConfirm] = useState(false);

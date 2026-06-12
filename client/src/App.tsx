@@ -1,7 +1,7 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
-import { Route, Switch } from "wouter";
+import { Route, Switch, Redirect } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
@@ -14,14 +14,8 @@ import CampRegistration from "./pages/CampRegistration";
 import FreeClass from "./pages/FreeClass";
 import SpringBreakCamp from "./pages/SpringBreakCamp";
 import SpringBreakRegistration from "./pages/SpringBreakRegistration";
-import AdminRegistrations from "./pages/AdminRegistrations";
 import AttendanceKiosk from "./pages/AttendanceKiosk";
-import Studio from "./pages/Studio";
-import AdminTodaysCalls from "./pages/AdminTodaysCalls";
-import AdminControls from "./pages/AdminControls";
-import AdminCheckin from "./pages/AdminCheckin";
-import AdminCallLog from "./pages/AdminCallLog";
-import AdminVoiceTest from "./pages/AdminVoiceTest";
+import AdminShell from "./components/admin/AdminShell";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import Terms from "./pages/Terms";
 import SmsTerms from "./pages/SmsTerms";
@@ -41,13 +35,14 @@ function Router() {
       <Route path={"/spring-break-camp"} component={SpringBreakCamp} />
       <Route path={"/spring-break-registration"} component={SpringBreakRegistration} />
       <Route path={"/attendance"} component={AttendanceKiosk} />
-      <Route path={"/admin/registrations"} component={AdminRegistrations} />
-      <Route path={"/studio"} component={Studio} />
-      <Route path={"/admin/calls"} component={AdminTodaysCalls} />
-      <Route path={"/admin/controls"} component={AdminControls} />
-      <Route path={"/admin/checkin"} component={AdminCheckin} />
-      <Route path={"/admin/call-log"} component={AdminCallLog} />
-      <Route path={"/admin/voice-test"} component={AdminVoiceTest} />
+      {/* Legacy URLs that don't map 1:1 to a view key get redirected. */}
+      <Route path={"/admin/registrations"}><Redirect to="/admin/leads" /></Route>
+      <Route path={"/studio"}><Redirect to="/admin/studio" /></Route>
+      {/* Consolidated admin: one shell hosts every view at /admin/<view>.
+          Old URLs (/admin/calls, /admin/checkin, /admin/call-log,
+          /admin/voice-test, /admin/controls) still resolve here. */}
+      <Route path={"/admin"} component={AdminShell} />
+      <Route path={"/admin/:view"} component={AdminShell} />
       <Route path={"/privacy-policy"} component={PrivacyPolicy} />
       <Route path={"/terms"} component={Terms} />
       <Route path={"/sms-terms"} component={SmsTerms} />

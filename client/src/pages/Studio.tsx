@@ -114,7 +114,7 @@ function formatBytes(b: number): string {
   return `${(b / 1024 / 1024).toFixed(1)} MB`;
 }
 
-function StudioApp({ email, onLogout }: { email: string; onLogout: () => void }) {
+export function StudioApp({ email, onLogout, embedded }: { email: string; onLogout?: () => void; embedded?: boolean }) {
   // 2026-06-04: tags is now an array. Defaults to single afterschool tag.
   // The first tag in the array becomes the "primary vertical" server-side.
   const [tags, setTags] = useState<Vertical[]>(["afterschool"]);
@@ -219,8 +219,9 @@ function StudioApp({ email, onLogout }: { email: string; onLogout: () => void })
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-24">
+    <div className={embedded ? "pb-12" : "min-h-screen bg-gray-50 pb-24"}>
       {/* Header */}
+      {!embedded && (
       <div className="bg-[#1a2d5a] text-white px-4 py-3 flex items-center justify-between sticky top-0 z-10">
         <div className="flex items-center gap-2">
           <Camera className="w-5 h-5" />
@@ -234,6 +235,7 @@ function StudioApp({ email, onLogout }: { email: string; onLogout: () => void })
           <LogOut className="w-4 h-4" />
         </Button>
       </div>
+      )}
 
       <div className="max-w-2xl mx-auto px-4 py-4 space-y-4">
         {/* Upload Card */}

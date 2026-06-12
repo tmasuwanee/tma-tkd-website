@@ -63,7 +63,7 @@ function LoginGate({ onLogin }: { onLogin: (email: string) => void }) {
   );
 }
 
-function ControlsApp({ email, onLogout }: { email: string; onLogout: () => void }) {
+export function ControlsApp({ email, onLogout, embedded }: { email: string; onLogout?: () => void; embedded?: boolean }) {
   const listQuery = trpc.controls.list.useQuery(undefined, { refetchOnWindowFocus: false });
   const setOne = trpc.controls.set.useMutation();
   const setAll = trpc.controls.setAll.useMutation();
@@ -94,7 +94,8 @@ function ControlsApp({ email, onLogout }: { email: string; onLogout: () => void 
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-24">
+    <div className={embedded ? "pb-12" : "min-h-screen bg-gray-50 pb-24"}>
+      {!embedded && (
       <div className="bg-[#1a2d5a] text-white px-4 py-3 flex items-center justify-between sticky top-0 z-10">
         <div className="flex items-center gap-2">
           <ShieldAlert className="w-5 h-5" />
@@ -107,6 +108,7 @@ function ControlsApp({ email, onLogout }: { email: string; onLogout: () => void 
           <LogOut className="w-4 h-4" />
         </Button>
       </div>
+      )}
 
       <div className="max-w-xl mx-auto px-4 py-4 space-y-4">
         {/* Big red button */}

@@ -250,7 +250,7 @@ function CallDetail({ row, onClose }: { row: any | null; onClose: () => void }) 
 }
 
 // ─── app ──────────────────────────────────────────────────────────────────────
-function CallLogApp({ email, onLogout }: { email: string; onLogout: () => void }) {
+export function CallLogApp({ email, onLogout, embedded }: { email: string; onLogout?: () => void; embedded?: boolean }) {
   const [active, setActive] = useState<any | null>(null);
   const listQuery = trpc.callLog.list.useQuery({ limit: 100, offset: 0 }, { refetchOnWindowFocus: false });
   const utils = trpc.useUtils();
@@ -263,7 +263,8 @@ function CallLogApp({ email, onLogout }: { email: string; onLogout: () => void }
   }, [rows]);
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-24">
+    <div className={embedded ? "pb-12" : "min-h-screen bg-gray-50 pb-24"}>
+      {!embedded && (
       <div className="bg-[#1a2d5a] text-white px-4 py-3 flex items-center justify-between sticky top-0 z-10">
         <div className="flex items-center gap-2">
           <Phone className="w-5 h-5" />
@@ -282,6 +283,7 @@ function CallLogApp({ email, onLogout }: { email: string; onLogout: () => void }
           </Button>
         </div>
       </div>
+      )}
 
       <div className="max-w-2xl mx-auto px-4 py-4 space-y-5">
         {listQuery.isLoading ? (

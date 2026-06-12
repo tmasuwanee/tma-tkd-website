@@ -14,7 +14,7 @@ const SCENARIOS = [
   { key: "afterschool_tour", label: "After-school tour", desc: "Acts like you asked about after-school, it offers a tour." },
 ];
 
-export default function AdminVoiceTest() {
+export default function AdminVoiceTest({ embedded }: { embedded?: boolean } = {}) {
   const [phone, setPhone] = useState("");
   const [name, setName] = useState("");
   const [passcode, setPasscode] = useState("");
@@ -40,7 +40,7 @@ export default function AdminVoiceTest() {
   const ready = phone.replace(/\D/g, "").length >= 10 && passcode.length > 0;
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-start justify-center px-4 py-8">
+    <div className={embedded ? "flex items-start justify-center py-2" : "min-h-screen bg-gray-50 flex items-start justify-center px-4 py-8"}>
       <Card className="w-full max-w-md shadow-lg">
         <CardHeader className="text-center pb-2">
           <div className="w-12 h-12 bg-[#1a2d5a] rounded-xl flex items-center justify-center mx-auto mb-3">
