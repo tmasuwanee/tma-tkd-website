@@ -23,7 +23,7 @@
  *   POST /api/voice/request-human-followup { lead_id, reason }             (outbound)
  */
 import type { Express, Request, Response } from "express";
-import { getEligibleSlots, getNextDateForSlot, formatDate, type ClassSlot } from "../shared/classSchedule";
+import { getEligibleSlots, getNextDateForSlot, formatDateSpoken, type ClassSlot } from "../shared/classSchedule";
 import { createLead, recordOutboundCall, getLeadContextForCall, setNoOutboundCalls,
   upsertCallLog, getCallLog, findLeadIdByPhone, getLeadNameById,
   getLeadByEmail, recordReturningParentTrial, applyProgramTag,
@@ -309,7 +309,7 @@ export function registerVoiceRoutes(app: Express): void {
       res.json({ result: `I don't have a ${program} class for age ${age}.${hint}`, slots: [] });
       return;
     }
-    const enriched = slots.map(sl => ({ day: sl.day, startTime: sl.startTime, nextDate: getNextDateForSlot(sl), nextDateHuman: formatDate(getNextDateForSlot(sl)) }));
+    const enriched = slots.map(sl => ({ day: sl.day, startTime: sl.startTime, nextDate: getNextDateForSlot(sl), nextDateHuman: formatDateSpoken(getNextDateForSlot(sl)) }));
     const spoken = enriched.slice(0, 4).map(e => `${e.day} at ${e.startTime}`).join(", ");
     res.json({ result: `We have classes ${spoken}.`, slots: enriched });
   });
@@ -331,7 +331,7 @@ export function registerVoiceRoutes(app: Express): void {
       res.json({ result: "I'm missing some details to book that. Let me have a staff member call you back.", booked: false });
       return;
     }
-    const dateHuman = (() => { try { return formatDate(dateIso); } catch { return dateIso; } })();
+    const dateHuman = (() => { try { return formatDateSpoken(dateIso); } catch { return dateIso; } })();
     try {
       const leadId = await createLead({
         parentName: callerName,
