@@ -29,10 +29,11 @@ describe("Retell env vars", () => {
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({ from_number: "+10000000000", to_number: "+10000000001", agent_id: "test" }),
     });
-    // 400 = auth OK, bad params; 404 = auth OK, phone not in account; 401/403 = bad key
+    // 400 = auth OK, bad params; 403 = auth OK, resource forbidden (phone not in account in some regions);
+    // 404 = auth OK, phone not in account; 401 = bad key
     expect(
-      [400, 404],
-      `Retell API returned ${res.status} — RETELL_API_KEY may be invalid (expected 400 or 404 for auth-OK)`
+      [400, 403, 404],
+      `Retell API returned ${res.status} — RETELL_API_KEY may be invalid (expected 400, 403, or 404 for auth-OK)`
     ).toContain(res.status);
   }, 10_000);
 });
