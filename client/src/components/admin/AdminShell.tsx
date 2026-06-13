@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import {
   Kanban, ClipboardCheck, Phone, PhoneOutgoing, Mail, Route as RouteIcon,
   BarChart2, GraduationCap, CalendarCheck, ShieldAlert, Camera, LogOut,
-  Menu, PhoneCall,
+  Menu, PhoneCall, CalendarDays,
 } from "lucide-react";
 import { CallsApp } from "@/pages/AdminTodaysCalls";
 import { CallLogApp } from "@/pages/AdminCallLog";
@@ -19,17 +19,19 @@ import StudentsRoster from "@/components/admin/StudentsRoster";
 import AdsInsightsDashboard from "@/components/admin/AdsInsightsDashboard";
 import SequencesEditor from "@/components/admin/SequencesEditor";
 import IntakeRulesEditor from "@/components/admin/IntakeRulesEditor";
+import CalendarView from "@/components/admin/CalendarView";
 
 // Keys double as URL segments (/admin/<key>). They match the old standalone
 // routes where possible (/admin/calls, /admin/checkin, /admin/call-log,
 // /admin/voice-test, /admin/controls) so those URLs still land in the shell.
 type ViewKey =
-  | "calls" | "leads" | "checkin" | "call-log" | "voice-test"
+  | "calls" | "calendar" | "leads" | "checkin" | "call-log" | "voice-test"
   | "sequences" | "rules" | "ads" | "students" | "camp" | "controls" | "studio";
 
 const NAV: { group: string; items: { key: ViewKey; label: string; icon: any }[] }[] = [
   { group: "Leads", items: [
     { key: "calls", label: "Today's Calls", icon: PhoneCall },
+    { key: "calendar", label: "Calendar", icon: CalendarDays },
     { key: "leads", label: "Leads", icon: Kanban },
     { key: "checkin", label: "Trial Check-in", icon: ClipboardCheck },
   ]},
@@ -57,6 +59,7 @@ const ALL_ITEMS = NAV.flatMap(g => g.items);
 function renderView(key: ViewKey, email: string) {
   switch (key) {
     case "calls": return <CallsApp email={email} embedded />;
+    case "calendar": return <CalendarView />;
     case "leads": return <LeadsPipeline />;
     case "checkin": return <CheckinApp email={email} embedded />;
     case "call-log": return <CallLogApp email={email} embedded />;
