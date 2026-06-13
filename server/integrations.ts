@@ -1,6 +1,10 @@
 import { ENV } from './_core/env';
 import { Lead } from '../drizzle/schema';
 
+// Online summer camp waiver (Cloudflare Pages). Parents complete it before the
+// first day: liability release, medical/allergy info, and authorized pickup.
+const CAMP_WAIVER_URL = 'https://tma-camp-waiver.pages.dev/';
+
 /**
  * Send lead data to Google Sheets
  */
@@ -263,9 +267,14 @@ export async function sendCampRegistrationConfirmation(params: {
             ${params.addExtendedCare ? '<p style="margin: 4px 0;"><strong>Add-on:</strong> Early Drop-Off &amp; Late Pick-Up</p>' : ''}
             <p style="margin: 4px 0;"><strong>Amount Paid:</strong> ${amountFormatted}</p>
           </div>
+          <div style="background: #fff8e1; border: 1px solid #ffe082; border-radius: 8px; padding: 16px; margin: 20px 0; text-align: center;">
+            <p style="margin: 0 0 12px; font-weight: bold; color: #1a2d5a;">One required step: please complete your camp waiver before the first day.</p>
+            <a href="${CAMP_WAIVER_URL}" style="display: inline-block; background: #c41e3a; color: white; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-weight: bold;">Complete the camp waiver</a>
+            <p style="margin: 12px 0 0; font-size: 12px; color: #777;">We also sent this in a separate email so it is easy to find later.</p>
+          </div>
           <h3 style="color: #1a2d5a;">What's Next?</h3>
           <ul style="line-height: 1.8;">
-            <li>Camp runs <strong>Monday–Friday, 9am–4pm</strong> (Extended care: 7am–6pm)</li>
+            <li>Camp runs <strong>Monday to Friday, 9am to 4pm</strong> (Extended care: 7am to 6pm)</li>
             <li>Drop-off at <strong>Top Martial Arts, 2005 Lawrenceville Suwanee Rd, Suwanee, GA 30024</strong></li>
             <li>Wear comfortable athletic clothing and bring a water bottle and lunch</li>
           </ul>
@@ -281,6 +290,43 @@ export async function sendCampRegistrationConfirmation(params: {
     console.log('[Email] Confirmation sent to parent:', params.parentEmail);
   } catch (error) {
     console.error('[Email] Error sending camp confirmation:', error);
+  }
+}
+
+/**
+ * Send a dedicated waiver email to the parent right after camp registration.
+ * Separate from the confirmation so the required action does not get lost.
+ */
+export async function sendCampWaiverEmail(params: {
+  parentFirstName: string;
+  parentEmail: string;
+  camper1Name: string;
+}) {
+  try {
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: #1a2d5a; padding: 24px; text-align: center;">
+          <h1 style="color: white; margin: 0; font-size: 22px;">One Quick Step Before Camp</h1>
+          <p style="color: #a0b4d6; margin: 8px 0 0;">TMA Summer Camp 2026 Waiver</p>
+        </div>
+        <div style="padding: 24px; background: #ffffff;">
+          <p style="font-size: 16px;">Hi ${params.parentFirstName},</p>
+          <p>${params.camper1Name} is all set for camp. Before their first day, please complete the camp waiver. It covers the liability release, medical and allergy info, and authorized pickup, and it takes about 3 minutes.</p>
+          <div style="text-align: center; margin: 28px 0;">
+            <a href="${CAMP_WAIVER_URL}" style="display: inline-block; background: #c41e3a; color: white; text-decoration: none; padding: 14px 32px; border-radius: 6px; font-weight: bold; font-size: 16px;">Complete the camp waiver</a>
+          </div>
+          <p style="font-size: 13px; color: #777;">If the button does not work, copy and paste this link into your browser:<br><a href="${CAMP_WAIVER_URL}">${CAMP_WAIVER_URL}</a></p>
+          <p>Questions? Call or text us at <strong>(770) 277-3009</strong>.</p>
+        </div>
+        <div style="background: #1a2d5a; padding: 16px; text-align: center;">
+          <p style="color: white; margin: 0; font-size: 12px;">Top Martial Arts Suwanee &bull; 2005 Lawrenceville Suwanee Rd, Suwanee, GA 30024 &bull; (770) 277-3009</p>
+        </div>
+      </div>
+    `;
+    await sendEmail(params.parentEmail, 'Action needed: complete your TMA Summer Camp waiver', html);
+    console.log('[Email] Waiver email sent to parent:', params.parentEmail);
+  } catch (error) {
+    console.error('[Email] Error sending waiver email:', error);
   }
 }
 

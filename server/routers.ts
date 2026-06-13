@@ -39,7 +39,7 @@ import {
   getLeadsByStagesAndTrialDate,
 } from "./db";
 import { storagePut, storageGet } from "./storage";
-import { sendToGoogleSheets, sendToSlack, sendEmailNotification, sendCampRegistrationConfirmation } from "./integrations";
+import { sendToGoogleSheets, sendToSlack, sendEmailNotification, sendCampRegistrationConfirmation, sendCampWaiverEmail } from "./integrations";
 import { fireLeadEvent, firePurchaseEvent } from "./meta-capi";
 import { getAdInsights, syncAdInsights } from "./facebook-ads";
 import Stripe from "stripe";
@@ -252,9 +252,15 @@ export const appRouter = router({
                 amountPaid: registration.amountPaid ?? 0,
                 addExtendedCare: registration.addExtendedCare === 1,
               });
+              // Separate, dedicated waiver email so the required action stands out.
+              await sendCampWaiverEmail({
+                parentFirstName: registration.parentFirstName,
+                parentEmail: registration.email,
+                camper1Name: registration.camper1Name,
+              });
             }
           } catch (emailErr) {
-            console.error('[confirmPayment] Failed to send confirmation email:', emailErr);
+            console.error('[confirmPayment] Failed to send confirmation/waiver email:', emailErr);
           }
         }
 
