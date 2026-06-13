@@ -17,7 +17,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Phone, Mail, User, Tag, ChevronRight, ChevronLeft, Trash2, StickyNote, Globe, X, Plus, Clock, MessageSquare, PhoneCall, Send } from "lucide-react";
+import { Loader2, Phone, Mail, User, Tag, ChevronRight, ChevronLeft, Trash2, StickyNote, Globe, X, Plus, Clock, MessageSquare, PhoneCall, Send, Search } from "lucide-react";
 import { useState, useMemo } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
@@ -658,6 +658,7 @@ function LeadDetailDialog({ lead, open, onClose, onRefresh }: {
 export default function LeadsPipeline() {
   const [programFilter, setProgramFilter] = useState("all");
   const [tagFilter, setTagFilter] = useState("all");
+  const [search, setSearch] = useState("");
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
 
   const { data: leads = [], isLoading, refetch } = trpc.leads.getAll.useQuery();
@@ -677,8 +678,15 @@ export default function LeadsPipeline() {
     let result = leads as Lead[];
     if (programFilter !== "all") result = result.filter(l => l.programInterest === programFilter);
     if (tagFilter !== "all") result = result.filter(l => (l.tags ?? []).includes(tagFilter));
+    const q = search.trim().toLowerCase();
+    if (q) {
+      result = result.filter(l =>
+        [l.parentName, l.kidName, l.email, l.phone]
+          .some(f => (f ?? "").toLowerCase().includes(q))
+      );
+    }
     return result;
-  }, [leads, programFilter, tagFilter]);
+  }, [leads, programFilter, tagFilter, search]);
 
   const handleMove = (lead: Lead, direction: "forward" | "back") => {
     const idx = STAGES.findIndex(s => s.value === lead.pipelineStage);
@@ -727,6 +735,22 @@ export default function LeadsPipeline() {
             <p className="text-3xl font-bold text-blue-700">{newToday}</p>
           </CardContent>
         </Card>
+      </div>
+
+      {/* Search */}
+      <div className="relative max-w-sm">
+        <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+        <Input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search by name, phone, or email"
+          className="pl-9"
+        />
+        {search && (
+          <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+            <X className="w-4 h-4" />
+          </button>
+        )}
       </div>
 
       {/* Tag filter */}

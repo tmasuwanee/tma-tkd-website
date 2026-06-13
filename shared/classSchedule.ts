@@ -132,3 +132,14 @@ export function formatDate(isoDate: string): string {
   const d = new Date(isoDate + "T12:00:00"); // noon to avoid timezone shifts
   return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 }
+
+/**
+ * Spoken-friendly full date for the voice agent's readback, e.g.
+ * "Saturday, June 14". formatDate() stays compact ("Sat, Jun 14") for the web
+ * date-picker UI; the voice agent reads this fuller form so it never says a
+ * clipped "Sat, Jun 14" on a booking confirmation.
+ */
+export function formatDateSpoken(isoDate: string): string {
+  const d = new Date(isoDate + "T12:00:00"); // noon to avoid timezone shifts
+  return d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+}

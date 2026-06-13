@@ -121,9 +121,14 @@ export async function createLead(lead: InsertLead): Promise<number> {
   // Normalize email to lowercase on insert so getLeadByEmail can find it
   // reliably regardless of source casing. Defense-in-depth alongside the
   // case-insensitive LOWER() match in getLeadByEmail.
-  const normalized: InsertLead = lead.email
-    ? { ...lead, email: lead.email.toLowerCase().trim() }
-    : lead;
+  // Also auto-tag by program here, the one choke point every lead source flows
+  // through (web forms, voice agent, FB sync, imports), so the Leads view can
+  // always filter by program without each caller remembering to set the tag.
+  const normalized: InsertLead = {
+    ...lead,
+    ...(lead.email ? { email: lead.email.toLowerCase().trim() } : {}),
+    tags: mergeProgramTag(lead.tags as string | null | undefined, lead.programInterest),
+  };
   const [result] = await db.insert(leads).values(normalized);
   return (result as unknown as { insertId: number }).insertId ?? 0;
 }
@@ -1687,6 +1692,40 @@ export function normalizeVertical(raw?: string | null): string {
   return "other";
 }
 
+/**
+ * Merge a program-derived tag into a JSON tags-array string. Pure + idempotent.
+ * The Leads view filters by these tags, so every lead should carry the tag for
+ * the program it came in on (afterschool / tkd / kickboxing / bjj / summer_camp).
+ * Tolerates null and legacy non-JSON tag values. Returns a JSON string.
+ */
+export function mergeProgramTag(tagsJson: string | null | undefined, programRaw?: string | null): string {
+  let tags: string[] = [];
+  if (tagsJson) {
+    try { const p = JSON.parse(tagsJson); if (Array.isArray(p)) tags = p.map(String); } catch { /* legacy non-JSON, start fresh */ }
+  }
+  const vertical = normalizeVertical(programRaw);
+  if (vertical !== "other" && !tags.includes(vertical)) tags.push(vertical);
+  return JSON.stringify(tags);
+}
+
+/**
+ * Ensure an EXISTING lead carries the program tag for a given raw program string.
+ * Idempotent; a no-op when the program doesn't map to a known vertical or the tag
+ * is already present. Returns the vertical applied, or null if nothing changed.
+ */
+export async function applyProgramTag(leadId: number, programRaw?: string | null): Promise<string | null> {
+  const vertical = normalizeVertical(programRaw);
+  if (vertical === "other") return null;
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(leads).where(eq(leads.id, leadId)).limit(1);
+  if (!rows[0]) return null;
+  const merged = mergeProgramTag(rows[0].tags as string | null, programRaw);
+  if (merged === (rows[0].tags ?? "[]")) return vertical; // already tagged, no write
+  await db.update(leads).set({ tags: merged }).where(eq(leads.id, leadId));
+  return vertical;
+}
+
 function todayDateString(): string {
   // YYYY-MM-DD in local time (America/New_York for TMA, but cron runs server-local)
   const d = new Date();
@@ -2220,4 +2259,25 @@ export async function getLeadNameById(leadId: number): Promise<string | null> {
   if (!db) return null;
   const rows = await db.select({ parentName: leads.parentName }).from(leads).where(eq(leads.id, leadId)).limit(1);
   return rows[0]?.parentName ?? null;
+}
+
+/** A returning parent (their email already has a lead) is booking another trial
+ *  via the voice agent, typically a second child. Update their existing lead
+ *  with the new trial and append a note about the child, instead of failing on
+ *  the unique-email constraint. Staff get pinged to confirm both kids. */
+export async function recordReturningParentTrial(args: {
+  leadId: number; studentName: string; studentAge: string; program: string;
+  dateIso: string; time: string | null; existingNotes?: string | null;
+}): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  const when = `${args.dateIso}${args.time ? " at " + args.time : ""}`;
+  const note = `[voice booking] Also booking ${args.studentName} (age ${args.studentAge}) for ${args.program} on ${when}.`;
+  const internalNotes = [args.existingNotes, note].filter(Boolean).join("\n");
+  await db.update(leads).set({
+    pipelineStage: "trial_scheduled",
+    trialClassDate: args.dateIso,
+    trialClassTime: args.time ?? null,
+    internalNotes,
+  }).where(eq(leads.id, args.leadId));
 }
