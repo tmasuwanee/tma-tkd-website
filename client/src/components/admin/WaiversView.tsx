@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
-import { Loader2, FileSignature, X } from "lucide-react";
+import { Loader2, FileSignature, X, Trash2 } from "lucide-react";
 
 const INTEREST_LABELS: Record<string, string> = {
   better_listening: "Better listening",
@@ -17,9 +17,19 @@ function parseArr(s: any): any[] {
 
 // Signed waivers "on file". List → click → full record incl. the signature image.
 export default function WaiversView() {
+  const utils = trpc.useUtils();
   const list = trpc.waiver.list.useQuery();
+  const del = trpc.waiver.delete.useMutation({ onSuccess: () => utils.waiver.list.invalidate() });
   const [open, setOpen] = useState<any | null>(null);
   const waivers = (list.data ?? []) as any[];
+
+  const remove = (w: any) => {
+    const who = parseArr(w.students).map((k: any) => k.name).filter(Boolean).join(", ") || w.parentName;
+    if (confirm(`Delete the signed waiver for ${who}? This cannot be undone.`)) {
+      del.mutate({ id: w.id });
+      if (open?.id === w.id) setOpen(null);
+    }
+  };
 
   return (
     <div className="max-w-3xl mx-auto space-y-3">
@@ -34,16 +44,20 @@ export default function WaiversView() {
         waivers.map(w => {
           const kids = parseArr(w.students);
           return (
-            <button key={w.id} onClick={() => setOpen(w)}
-              className="w-full text-left bg-white border border-gray-200 rounded-lg p-3.5 hover:border-[#1a2d5a]/40 transition-colors flex items-center justify-between gap-3">
-              <div className="min-w-0">
+            <div key={w.id}
+              className="bg-white border border-gray-200 rounded-lg p-3.5 hover:border-[#1a2d5a]/40 transition-colors flex items-center justify-between gap-3">
+              <button onClick={() => setOpen(w)} className="flex-1 min-w-0 text-left">
                 <div className="font-semibold text-gray-800 text-sm truncate">
                   {kids.map((k: any) => k.name).filter(Boolean).join(", ") || w.parentName}
                 </div>
                 <div className="text-xs text-gray-500 truncate">{w.parentName} · {w.phone}</div>
-              </div>
+              </button>
               <div className="text-xs text-gray-400 shrink-0">signed {w.signedDate}</div>
-            </button>
+              <button onClick={() => remove(w)} title="Delete waiver"
+                className="text-gray-300 hover:text-red-500 shrink-0">
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
           );
         })
       )}

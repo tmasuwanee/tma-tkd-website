@@ -40,7 +40,7 @@ import {
   setLeadFollowUp,
   listAdminTasks, addAdminTask, updateAdminTask, deleteAdminTask,
   // Waivers / in-person sign-up (2026-06-15)
-  submitWaiver, getAllWaivers, getWaiversByLead,
+  submitWaiver, getAllWaivers, getWaiversByLead, deleteWaiver,
 } from "./db";
 import { sendTelegramMessage } from "./telegram";
 import { storagePut, storageGet } from "./storage";
@@ -1531,6 +1531,9 @@ export const appRouter = router({
     byLead: publicProcedure
       .input(z.object({ leadId: z.number().int().positive() }))
       .query(async ({ input }) => getWaiversByLead(input.leadId)),
+    delete: publicProcedure
+      .input(z.object({ id: z.number().int().positive() }))
+      .mutation(async ({ input }) => { await deleteWaiver(input.id); return { success: true }; }),
   }),
 
   // ─── Call Log (2026-06-11) ────────────────────────────────────────────────

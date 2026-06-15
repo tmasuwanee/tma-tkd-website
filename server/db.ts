@@ -304,6 +304,14 @@ export async function getWaiversByLead(leadId: number): Promise<Waiver[]> {
   return db.select().from(waivers).where(eq(waivers.leadId, leadId)).orderBy(desc(waivers.createdAt));
 }
 
+// Explicit single-waiver delete (test/mistaken rows). Deliberately NOT wired into
+// deleteLead's cascade: a signed waiver is a record we keep even if the lead is purged.
+export async function deleteWaiver(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(waivers).where(eq(waivers.id, id));
+}
+
 // Submit a signed waiver: match-or-create the lead so they enter the SAME
 // pipeline as web leads, then store the signed waiver on file linked to that
 // lead. Match-by-email (not blind insert) is what stops the unique-email crash

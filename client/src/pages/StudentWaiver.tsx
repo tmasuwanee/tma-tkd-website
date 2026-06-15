@@ -141,7 +141,7 @@ export default function StudentWaiver() {
           </div>
           <div>
             <h1 className="text-white font-bold text-lg leading-tight">Top Martial Arts Suwanee</h1>
-            <p className="text-white/70 text-xs">New Student Sign-Up &amp; Waiver</p>
+            <p className="text-white/70 text-xs">Waiver</p>
           </div>
         </div>
       </header>
@@ -272,17 +272,19 @@ export default function StudentWaiver() {
                 </div>
               </section>
 
-              {/* Optional SMS consent */}
-              <div className="flex items-start gap-3 p-4 bg-gray-50 border border-gray-200 rounded-lg">
-                <Checkbox id="smsConsent" checked={smsConsent} onCheckedChange={v => setSmsConsent(v === true)} className="mt-0.5" />
-                <Label htmlFor="smsConsent" className="text-xs text-gray-600 leading-relaxed cursor-pointer font-normal">
+              {/* Optional SMS consent — made prominent so it actually gets checked */}
+              <label htmlFor="smsConsent" className="flex items-start gap-3.5 p-4 bg-[#1a2d5a]/5 border-2 border-[#1a2d5a]/30 rounded-lg cursor-pointer hover:bg-[#1a2d5a]/10 transition-colors">
+                <Checkbox id="smsConsent" checked={smsConsent} onCheckedChange={v => setSmsConsent(v === true)}
+                  className="mt-0.5 h-6 w-6 border-2 border-[#1a2d5a]/60 data-[state=checked]:bg-[#1a2d5a] data-[state=checked]:border-[#1a2d5a]" />
+                <span className="text-sm text-gray-700 leading-relaxed">
+                  <span className="block font-bold text-[#1a2d5a] text-base mb-0.5">Text me class updates &amp; reminders</span>
                   I agree to receive recurring SMS text messages from Top Martial Arts Suwanee at the
                   number above (confirmations, reminders, updates; up to 10/month). Message and data
                   rates may apply. Reply <strong>STOP</strong> to unsubscribe. Consent is not a condition
                   of purchase. See <a href="/sms-terms" target="_blank" className="underline">SMS Terms</a> and{" "}
                   <a href="/privacy-policy" target="_blank" className="underline">Privacy Policy</a>.
-                </Label>
-              </div>
+                </span>
+              </label>
 
               <Button type="submit" disabled={isSubmitting} size="lg"
                 className="w-full bg-[#c41e3a] hover:bg-[#a81830] text-white text-base font-semibold">
