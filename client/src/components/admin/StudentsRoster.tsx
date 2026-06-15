@@ -6,8 +6,11 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Loader2, Upload, Search, Users, RefreshCw, ChevronUp, ChevronDown, AlertCircle, X, Award,
+  CreditCard, ExternalLink, Clock, FileSignature,
 } from "lucide-react";
-import { useState, useRef, useCallback, useMemo } from "react";
+import { useState, useRef, useCallback, useMemo, useEffect } from "react";
+import { loadStripe } from "@stripe/stripe-js";
+import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import {
@@ -26,6 +29,9 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BELT_SEQUENCE } from "@/../../shared/beltRanks";
+
+const stripePromise = loadStripe(import.meta.env.VITE_TMA_STRIPE_PUBLISHABLE_KEY);
+const TRIAL_PROGRAMS = ["Taekwondo", "Little Tigers", "BJJ", "Kickboxing"];
 
 const COLUMN_MAP: Record<string, string> = {
   "name": "name", "full name": "name", "student name": "name",
@@ -93,6 +99,7 @@ export default function StudentsRoster() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [hoveredRowId, setHoveredRowId] = useState<number | null>(null);
   const [eligibleFilter, setEligibleFilter] = useState(false);
+  const [trialOpen, setTrialOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const utils = trpc.useUtils();
@@ -497,15 +504,23 @@ export default function StudentsRoster() {
         </Card>
       )}
 
+      {/* 3-Week Trials */}
+      <TrialSection />
+
       {/* Table */}
       <Card>
         <CardHeader className="pb-3 flex items-center justify-between">
           <CardTitle className="text-base">
             {searchQuery.trim() ? `Search Results (${filteredByBelt.length})` : `All Students (${filteredByBelt.length})`}
           </CardTitle>
-          <Button size="sm" onClick={handleAddStudent}>
-            + Add Student
-          </Button>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" className="border-[#c41e3a]/40 text-[#c41e3a] hover:bg-[#c41e3a]/5" onClick={() => setTrialOpen(true)}>
+              <CreditCard className="w-4 h-4 mr-1" /> Add Trial Student
+            </Button>
+            <Button size="sm" onClick={handleAddStudent}>
+              + Add Student
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           {isLoadingData ? (
@@ -576,7 +591,100 @@ export default function StudentsRoster() {
           isNewStudent={!editingStudent.id}
         />
       )}
+
+      {/* Add Trial Student (the $99 3-week trial) */}
+      {trialOpen && (
+        <TrialStudentDialog
+          onClose={() => setTrialOpen(false)}
+          onDone={() => utils.trial.list.invalidate()}
+        />
+      )}
     </div>
+  );
+}
+
+// ── 3-Week Trials section ────────────────────────────────────────────────────
+function daysLeft(endDate?: string | null): number | null {
+  if (!endDate) return null;
+  const end = new Date(endDate + "T23:59:59");
+  const now = new Date();
+  return Math.ceil((end.getTime() - now.getTime()) / 86400000);
+}
+
+const TRIAL_STATUS_STYLE: Record<string, string> = {
+  pending: "bg-gray-100 text-gray-600",
+  active: "bg-blue-100 text-blue-800",
+  converted: "bg-green-100 text-green-800",
+  expired: "bg-amber-100 text-amber-800",
+  canceled: "bg-red-100 text-red-700",
+};
+
+function TrialSection() {
+  const utils = trpc.useUtils();
+  const { data: trials = [] } = trpc.trial.list.useQuery();
+  const setStatus = trpc.trial.setStatus.useMutation({ onSuccess: () => utils.trial.list.invalidate() });
+  const active = (trials as any[]).filter(t => t.status === "active" || t.status === "pending");
+
+  if (active.length === 0) return null;
+
+  return (
+    <Card className="border-[#c41e3a]/20">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <CreditCard className="w-4 h-4 text-[#c41e3a]" /> 3-Week Trials ({active.length})
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-0">
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-gray-50">
+                <TableHead className="font-semibold">Student</TableHead>
+                <TableHead className="font-semibold">Program</TableHead>
+                <TableHead className="font-semibold">Ends</TableHead>
+                <TableHead className="font-semibold">Status</TableHead>
+                <TableHead className="font-semibold text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {active.map((t: any) => {
+                const left = daysLeft(t.endDate);
+                return (
+                  <TableRow key={t.id}>
+                    <TableCell>
+                      <p className="font-medium text-gray-900">{t.studentName}</p>
+                      {t.phone && <p className="text-xs text-gray-500">{t.phone}</p>}
+                    </TableCell>
+                    <TableCell className="text-sm capitalize">{t.programInterest || "—"}</TableCell>
+                    <TableCell>
+                      <div className="text-sm text-gray-700">{t.endDate || "—"}</div>
+                      {left !== null && (
+                        <div className={`text-xs flex items-center gap-1 ${left <= 3 ? "text-[#c41e3a] font-medium" : "text-gray-400"}`}>
+                          <Clock className="w-3 h-3" />{left < 0 ? "ended" : left === 0 ? "ends today" : `${left} days left`}
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Badge className={`text-xs ${TRIAL_STATUS_STYLE[t.status] ?? "bg-gray-100 text-gray-600"}`}>{t.status}</Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {t.status === "active" && (
+                        <div className="flex gap-1 justify-end">
+                          <Button size="sm" variant="outline" className="h-7 text-xs border-green-300 text-green-700 hover:bg-green-50"
+                            onClick={() => setStatus.mutate({ id: t.id, status: "converted" })}>Converted</Button>
+                          <Button size="sm" variant="ghost" className="h-7 text-xs text-gray-400"
+                            onClick={() => setStatus.mutate({ id: t.id, status: "expired" })}>Expired</Button>
+                        </div>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -894,5 +1002,174 @@ function StudentEditDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// ── Add Trial Student ($99 3-week trial) ─────────────────────────────────────
+function TrialStudentDialog({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+  const today = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; })();
+  const [studentName, setStudentName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [program, setProgram] = useState("Taekwondo");
+  const [startDate, setStartDate] = useState(today);
+  const [emergencyContact, setEmergencyContact] = useState("");
+  const [tab, setTab] = useState("details");
+  const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [paymentIntentId, setPaymentIntentId] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+
+  const { data: waivers = [] } = trpc.waiver.list.useQuery();
+  const hasWaiver = !!email.trim() && (waivers as any[]).some(w => (w.email || "").toLowerCase() === email.trim().toLowerCase());
+
+  const endDate = (() => {
+    const s = new Date(startDate + "T12:00:00");
+    const e = new Date(s.getTime() + 21 * 86400000);
+    return `${e.getFullYear()}-${String(e.getMonth() + 1).padStart(2, "0")}-${String(e.getDate()).padStart(2, "0")}`;
+  })();
+
+  const createIntent = trpc.trial.createIntent.useMutation({
+    onSuccess: (r) => { setClientSecret(r.clientSecret ?? null); setPaymentIntentId(r.paymentIntentId); },
+    onError: (e) => toast.error("Couldn't start payment: " + e.message),
+  });
+
+  const startPayment = () => {
+    if (!studentName.trim()) { toast.error("Student name is required."); setTab("details"); return; }
+    if (!email.trim() && !phone.trim()) { toast.error("Add an email or phone."); setTab("details"); return; }
+    createIntent.mutate({
+      studentName: studentName.trim(),
+      email: email.trim() || undefined,
+      phone: phone.trim() || undefined,
+      programInterest: program,
+      emergencyContact: emergencyContact.trim() || undefined,
+      startDate,
+    });
+  };
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogHeader><DialogTitle>Add Trial Student · $99 3-Week Trial</DialogTitle></DialogHeader>
+
+        {success ? (
+          <div className="text-center py-8">
+            <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <CreditCard className="w-7 h-7 text-green-600" />
+            </div>
+            <h3 className="text-lg font-bold text-[#1a2d5a] mb-1">Payment received</h3>
+            <p className="text-sm text-gray-600 mb-1">{studentName} is enrolled in the 3-week trial.</p>
+            <p className="text-xs text-gray-400 mb-6">Receipt sent{email ? ` to ${email}` : ""}. Trial ends {endDate}.</p>
+            <Button onClick={() => { onDone(); onClose(); }} className="bg-[#1a2d5a] hover:bg-[#142347] text-white">Done</Button>
+          </div>
+        ) : (
+          <Tabs value={tab} onValueChange={setTab} className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="details">Details</TabsTrigger>
+              <TabsTrigger value="payment">Payment</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="details" className="space-y-4">
+              <div>
+                <label className="text-sm font-medium text-gray-700">Student name *</label>
+                <Input value={studentName} onChange={e => setStudentName(e.target.value)} placeholder="Full name" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Email</label>
+                  <Input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="for the receipt" />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Phone</label>
+                  <Input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="phone" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Program</label>
+                  <Select value={program} onValueChange={setProgram}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>{TRIAL_PROGRAMS.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Trial start date</label>
+                  <Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />
+                </div>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700">Emergency contact</label>
+                <Input value={emergencyContact} onChange={e => setEmergencyContact(e.target.value)} placeholder="Name and phone" />
+              </div>
+
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 text-sm">
+                  <FileSignature className="w-4 h-4 text-gray-400" />
+                  {email.trim()
+                    ? (hasWaiver ? <span className="text-green-700 font-medium">Waiver on file</span> : <span className="text-amber-700">No waiver on file yet</span>)
+                    : <span className="text-gray-500">Enter email to check for a waiver</span>}
+                </div>
+                <Button type="button" variant="outline" size="sm" onClick={() => window.open("/enroll", "_blank")}>
+                  Open waiver <ExternalLink className="w-3.5 h-3.5 ml-1" />
+                </Button>
+              </div>
+
+              <Button className="w-full bg-[#1a2d5a] hover:bg-[#142347] text-white" onClick={() => setTab("payment")}>
+                Continue to payment
+              </Button>
+            </TabsContent>
+
+            <TabsContent value="payment" className="space-y-4">
+              <div className="bg-[#1a2d5a]/5 border border-[#1a2d5a]/15 rounded-lg p-4 text-sm">
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-600">3-Week Trial</span>
+                  <span className="font-bold text-[#1a2d5a] text-lg">$99.00</span>
+                </div>
+                <div className="text-xs text-gray-500 mt-1">{studentName || "Student"} · starts {startDate} · ends {endDate}</div>
+              </div>
+
+              {!clientSecret ? (
+                <Button className="w-full bg-[#c41e3a] hover:bg-[#a81830] text-white" onClick={startPayment} disabled={createIntent.isPending}>
+                  {createIntent.isPending ? "Starting..." : "Charge $99"}
+                </Button>
+              ) : (
+                <Elements stripe={stripePromise} options={{ clientSecret, appearance: { theme: "stripe" } }}>
+                  <TrialPaymentForm paymentIntentId={paymentIntentId!} onSuccess={() => setSuccess(true)} />
+                </Elements>
+              )}
+            </TabsContent>
+          </Tabs>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function TrialPaymentForm({ paymentIntentId, onSuccess }: { paymentIntentId: string; onSuccess: () => void }) {
+  const stripe = useStripe();
+  const elements = useElements();
+  const [processing, setProcessing] = useState(false);
+  const confirm = trpc.trial.confirmPayment.useMutation();
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!stripe || !elements) return;
+    setProcessing(true);
+    const { error } = await stripe.confirmPayment({
+      elements,
+      confirmParams: { return_url: `${window.location.origin}/admin/students` },
+      redirect: "if_required",
+    });
+    if (error) { toast.error(error.message ?? "Payment failed. Please try again."); setProcessing(false); return; }
+    try { await confirm.mutateAsync({ paymentIntentId }); } catch (err) { console.error("confirm trial payment:", err); }
+    onSuccess();
+  };
+
+  return (
+    <form onSubmit={submit} className="space-y-4">
+      <PaymentElement />
+      <Button type="submit" disabled={!stripe || processing} className="w-full bg-[#c41e3a] hover:bg-[#a81830] text-white">
+        {processing ? "Processing..." : "Pay $99"}
+      </Button>
+    </form>
   );
 }
