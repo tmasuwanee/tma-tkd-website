@@ -641,3 +641,40 @@ export const waivers = mysqlTable("waivers", {
 
 export type Waiver = typeof waivers.$inferSelect;
 export type InsertWaiver = typeof waivers.$inferInsert;
+
+// ─── Trial enrollments / $99 3-week trial (2026-06-15) ───────────────────────
+// The "Add Trial Student" flow in the Students tab. One row per paid trial. The
+// $99 is charged through Stripe (same Payment Intent path as camp). startDate is
+// the enrollment date; endDate is start + 21 days and drives the end-of-trial
+// reminders. status walks pending -> active (paid) -> converted | expired | canceled.
+// Built generic (productKey/amountCents) so other programs can use the same table.
+export const trialEnrollments = mysqlTable("trialEnrollments", {
+  id: int("id").autoincrement().primaryKey(),
+  // Optional link to the CRM lead (set to trial_paid stage on payment).
+  leadId: int("leadId"),
+  studentName: varchar("studentName", { length: 255 }).notNull(),
+  email: varchar("email", { length: 320 }),
+  phone: varchar("phone", { length: 20 }),
+  programInterest: varchar("programInterest", { length: 100 }),
+  emergencyContact: varchar("emergencyContact", { length: 255 }),
+  productKey: varchar("productKey", { length: 50 }).default("3_week_99").notNull(),
+  amountCents: int("amountCents").default(9900).notNull(),
+  startDate: varchar("startDate", { length: 20 }),    // YYYY-MM-DD
+  endDate: varchar("endDate", { length: 20 }),        // YYYY-MM-DD (start + 21)
+  status: mysqlEnum("status", ["pending", "active", "converted", "expired", "canceled"]).default("pending").notNull(),
+  stripePaymentIntentId: varchar("stripePaymentIntentId", { length: 255 }),
+  stripePaymentStatus: varchar("stripePaymentStatus", { length: 50 }),
+  paidAt: timestamp("paidAt"),
+  // Link to a signed waiver on file, if any.
+  waiverId: int("waiverId"),
+  // Stamped when the end-of-trial reminder fires, so the cron pings only once.
+  reminderSentAt: timestamp("reminderSentAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  statusIdx: index("trial_status_idx").on(table.status, table.endDate),
+  piIdx: index("trial_pi_idx").on(table.stripePaymentIntentId),
+}));
+
+export type TrialEnrollment = typeof trialEnrollments.$inferSelect;
+export type InsertTrialEnrollment = typeof trialEnrollments.$inferInsert;

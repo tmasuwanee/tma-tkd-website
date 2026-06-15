@@ -43,10 +43,12 @@ import {
   submitWaiver, getAllWaivers, getWaiversByLead, deleteWaiver,
   // Manual calendar booking (2026-06-15)
   manualBookTrial,
+  // $99 3-week trial enrollments (2026-06-15)
+  createTrialEnrollment, getTrialByPaymentIntent, activateTrial, listTrialEnrollments, updateTrialStatus,
 } from "./db";
 import { sendTelegramMessage } from "./telegram";
 import { storagePut, storageGet } from "./storage";
-import { sendToGoogleSheets, sendToSlack, sendEmailNotification, sendCampRegistrationConfirmation, sendCampWaiverEmail } from "./integrations";
+import { sendToGoogleSheets, sendToSlack, sendEmailNotification, sendCampRegistrationConfirmation, sendCampWaiverEmail, sendTrialReceipt } from "./integrations";
 import { fireLeadEvent, firePurchaseEvent } from "./meta-capi";
 import { getAdInsights, syncAdInsights } from "./facebook-ads";
 import Stripe from "stripe";
@@ -1553,6 +1555,85 @@ export const appRouter = router({
     delete: publicProcedure
       .input(z.object({ id: z.number().int().positive() }))
       .mutation(async ({ input }) => { await deleteWaiver(input.id); return { success: true }; }),
+  }),
+
+  // ─── $99 3-Week Trial enrollments (2026-06-15) ────────────────────────────
+  // "Add Trial Student" in the Students tab. createIntent makes a $99 Stripe
+  // PaymentIntent (same path as camp) + a pending enrollment; the client pays via
+  // PaymentElement; confirmPayment activates it, emails a receipt, and pings staff.
+  trial: router({
+    createIntent: publicProcedure
+      .input(z.object({
+        studentName: z.string().min(1).max(255),
+        email: z.string().email().nullable().optional(),
+        phone: z.string().max(20).nullable().optional(),
+        programInterest: z.string().max(100).nullable().optional(),
+        emergencyContact: z.string().max(255).nullable().optional(),
+        startDate: z.string().min(1).max(20),   // YYYY-MM-DD
+      }))
+      .mutation(async ({ input }) => {
+        const AMOUNT = 9900;
+        const start = new Date(input.startDate + "T12:00:00");
+        const end = new Date(start.getTime() + 21 * 86400000);
+        const endDate = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}-${String(end.getDate()).padStart(2, "0")}`;
+        const stripe = getStripe();
+        const paymentIntent = await stripe.paymentIntents.create({
+          amount: AMOUNT,
+          currency: "usd",
+          metadata: { product: "3_week_99", studentName: input.studentName, email: input.email ?? "" },
+        });
+        const trialId = await createTrialEnrollment({
+          studentName: input.studentName,
+          email: input.email ?? null,
+          phone: input.phone ?? null,
+          programInterest: input.programInterest ?? null,
+          emergencyContact: input.emergencyContact ?? null,
+          productKey: "3_week_99",
+          amountCents: AMOUNT,
+          startDate: input.startDate,
+          endDate,
+          status: "pending",
+          stripePaymentIntentId: paymentIntent.id,
+          stripePaymentStatus: "pending",
+        });
+        return { clientSecret: paymentIntent.client_secret, paymentIntentId: paymentIntent.id, trialId };
+      }),
+
+    confirmPayment: publicProcedure
+      .input(z.object({ paymentIntentId: z.string() }))
+      .mutation(async ({ input }) => {
+        const stripe = getStripe();
+        const pi = await stripe.paymentIntents.retrieve(input.paymentIntentId);
+        if (pi.status !== "succeeded") return { status: pi.status };
+
+        const trial = await getTrialByPaymentIntent(input.paymentIntentId);
+        if (!trial) return { status: pi.status };
+
+        // Run side effects only on the first successful confirm (idempotent).
+        if (trial.status !== "active") {
+          await activateTrial(input.paymentIntentId, pi.status);
+          if (trial.email) {
+            void sendTrialReceipt({
+              email: trial.email,
+              studentName: trial.studentName,
+              amountCents: trial.amountCents,
+              startDate: trial.startDate ?? "",
+              endDate: trial.endDate ?? "",
+            }).catch(() => {});
+          }
+          void sendTelegramMessage(
+            `💳 New $99 3-week trial\n${trial.studentName}${trial.programInterest ? ` · ${trial.programInterest}` : ""}` +
+            (trial.endDate ? `\nTrial ends ${trial.endDate}` : "") +
+            `\nhttps://tmatkd.com/admin/students`
+          ).catch(() => {});
+        }
+        return { status: pi.status, trialId: trial.id };
+      }),
+
+    list: publicProcedure.query(async () => listTrialEnrollments()),
+    setStatus: publicProcedure
+      .input(z.object({ id: z.number().int().positive(), status: z.enum(["active", "converted", "expired", "canceled"]) }))
+      .mutation(async ({ input }) => { await updateTrialStatus(input.id, input.status); return { success: true }; }),
   }),
 
   // ─── Call Log (2026-06-11) ────────────────────────────────────────────────

@@ -20,6 +20,7 @@ import {
   callLogs, InsertCallLog, CallLog,
   adminTasks, AdminTask,
   waivers, InsertWaiver, Waiver,
+  trialEnrollments, InsertTrialEnrollment, TrialEnrollment,
 } from "../drizzle/schema";
 import { lte } from "drizzle-orm";
 import { ENV } from './_core/env';
@@ -374,6 +375,71 @@ export async function manualBookTrial(input: {
     tags: JSON.stringify(["walk_in_manual"]),
   });
   return { leadId: newId, created: true };
+}
+
+// ── Trial enrollments ($99 3-week trial) ─────────────────────────────────────
+export async function createTrialEnrollment(input: InsertTrialEnrollment): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [r] = await db.insert(trialEnrollments).values({
+    ...input,
+    ...(input.email ? { email: input.email.toLowerCase().trim() } : {}),
+  });
+  return (r as unknown as { insertId: number }).insertId ?? 0;
+}
+
+export async function getTrialByPaymentIntent(piId: string): Promise<TrialEnrollment | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(trialEnrollments).where(eq(trialEnrollments.stripePaymentIntentId, piId)).limit(1);
+  return rows[0] ?? null;
+}
+
+// Flip a pending trial to active once Stripe confirms the $99 payment.
+export async function activateTrial(piId: string, paymentStatus: string): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(trialEnrollments)
+    .set({ status: "active", stripePaymentStatus: paymentStatus, paidAt: new Date() })
+    .where(eq(trialEnrollments.stripePaymentIntentId, piId));
+}
+
+export async function updateTrialStatus(id: number, status: "active" | "converted" | "expired" | "canceled"): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(trialEnrollments).set({ status }).where(eq(trialEnrollments.id, id));
+}
+
+export async function listTrialEnrollments(): Promise<TrialEnrollment[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(trialEnrollments).orderBy(desc(trialEnrollments.createdAt));
+}
+
+// Active trials whose endDate falls within the next `withinDays` and that haven't
+// been reminded yet. Drives the end-of-trial Telegram nudge.
+export async function getTrialsEndingSoon(withinDays: number): Promise<TrialEnrollment[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const now = new Date();
+  const limit = new Date(now.getTime() + withinDays * 86400000);
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  const limitStr = `${limit.getFullYear()}-${String(limit.getMonth() + 1).padStart(2, "0")}-${String(limit.getDate()).padStart(2, "0")}`;
+  return db.select().from(trialEnrollments).where(
+    and(
+      eq(trialEnrollments.status, "active"),
+      isNotNull(trialEnrollments.endDate),
+      gte(trialEnrollments.endDate, todayStr),
+      sql`${trialEnrollments.endDate} <= ${limitStr}`,
+      sql`${trialEnrollments.reminderSentAt} IS NULL`,
+    )
+  );
+}
+
+export async function markTrialReminded(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(trialEnrollments).set({ reminderSentAt: new Date() }).where(eq(trialEnrollments.id, id));
 }
 
 // Submit a signed waiver: match-or-create the lead so they enter the SAME

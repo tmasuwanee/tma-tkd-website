@@ -294,6 +294,53 @@ export async function sendCampRegistrationConfirmation(params: {
 }
 
 /**
+ * Payment receipt for the $99 3-week trial, sent to the email on file right after
+ * the Stripe charge succeeds.
+ */
+export async function sendTrialReceipt(params: {
+  email: string;
+  studentName: string;
+  amountCents: number;
+  startDate: string;
+  endDate: string;
+}) {
+  try {
+    const amountFormatted = `$${(params.amountCents / 100).toFixed(2)}`;
+    const fmt = (d: string) => {
+      try { return new Date(d + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" }); }
+      catch { return d; }
+    };
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: #1a2d5a; padding: 24px; text-align: center;">
+          <h1 style="color: white; margin: 0; font-size: 24px;">🥋 You're enrolled!</h1>
+          <p style="color: #a0b4d6; margin: 8px 0 0;">TMA 3-Week Trial</p>
+        </div>
+        <div style="padding: 24px; background: #ffffff;">
+          <p style="font-size: 16px;">Hi ${params.studentName},</p>
+          <p>Welcome to Top Martial Arts! This confirms your 3-week trial payment. We can't wait to get started.</p>
+          <div style="background: #f0f4ff; border-left: 4px solid #1a2d5a; padding: 16px; margin: 20px 0; border-radius: 4px;">
+            <h3 style="margin: 0 0 12px; color: #1a2d5a;">Payment Receipt</h3>
+            <p style="margin: 4px 0;"><strong>Program:</strong> 3-Week Trial</p>
+            <p style="margin: 4px 0;"><strong>Amount Paid:</strong> ${amountFormatted}</p>
+            <p style="margin: 4px 0;"><strong>Trial starts:</strong> ${fmt(params.startDate)}</p>
+            <p style="margin: 4px 0;"><strong>Trial ends:</strong> ${fmt(params.endDate)}</p>
+          </div>
+          <p>Questions? Call us at <strong>(770) 277-3009</strong> or email <a href="mailto:tmasuwanee@gmail.com">tmasuwanee@gmail.com</a></p>
+        </div>
+        <div style="background: #1a2d5a; padding: 16px; text-align: center;">
+          <p style="color: white; margin: 0; font-size: 12px;">Top Martial Arts Suwanee &bull; 2005 Lawrenceville Suwanee Rd, Suwanee, GA 30024 &bull; (770) 277-3009</p>
+        </div>
+      </div>
+    `;
+    await sendEmail(params.email, "Your TMA 3-Week Trial Payment Receipt", html);
+    console.log('[Email] Trial receipt sent to:', params.email);
+  } catch (error) {
+    console.error('[Email] Error sending trial receipt:', error);
+  }
+}
+
+/**
  * Send a dedicated waiver email to the parent right after camp registration.
  * Separate from the confirmation so the required action does not get lost.
  */
