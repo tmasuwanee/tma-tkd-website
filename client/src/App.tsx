@@ -12,6 +12,7 @@ import Afterschool from "./pages/Afterschool";
 import SummerCamps from "./pages/SummerCamps";
 import CampRegistration from "./pages/CampRegistration";
 import FreeClass from "./pages/FreeClass";
+import StudentWaiver from "./pages/StudentWaiver";
 import SpringBreakCamp from "./pages/SpringBreakCamp";
 import SpringBreakRegistration from "./pages/SpringBreakRegistration";
 import AttendanceKiosk from "./pages/AttendanceKiosk";
@@ -32,6 +33,9 @@ function Router() {
       <Route path={"/summer-camps"} component={SummerCamps} />
       <Route path={"/camp-registration"} component={CampRegistration} />
       <Route path={"/free-class"} component={FreeClass} />
+      {/* In-person sign-up + waiver (QR / iPad / link). /waiver is an alias. */}
+      <Route path={"/enroll"} component={StudentWaiver} />
+      <Route path={"/waiver"} component={StudentWaiver} />
       <Route path={"/spring-break-camp"} component={SpringBreakCamp} />
       <Route path={"/spring-break-registration"} component={SpringBreakRegistration} />
       <Route path={"/attendance"} component={AttendanceKiosk} />

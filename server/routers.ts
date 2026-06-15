@@ -39,7 +39,10 @@ import {
   getLeadsByStagesAndTrialDate,
   setLeadFollowUp,
   listAdminTasks, addAdminTask, updateAdminTask, deleteAdminTask,
+  // Waivers / in-person sign-up (2026-06-15)
+  submitWaiver, getAllWaivers, getWaiversByLead,
 } from "./db";
+import { sendTelegramMessage } from "./telegram";
 import { storagePut, storageGet } from "./storage";
 import { sendToGoogleSheets, sendToSlack, sendEmailNotification, sendCampRegistrationConfirmation, sendCampWaiverEmail } from "./integrations";
 import { fireLeadEvent, firePurchaseEvent } from "./meta-capi";
@@ -1477,6 +1480,57 @@ export const appRouter = router({
         await deleteAdminTask(input.id);
         return { success: true };
       }),
+  }),
+
+  // ─── Waivers / in-person sign-up (2026-06-15) ─────────────────────────────
+  // Public submit: a walk-in (QR / iPad / link) signs the guest waiver. It
+  // matches or creates a lead so they land in the SAME pipeline as web leads,
+  // and stores the signed waiver on file. list/byLead are the admin "on file" view.
+  waiver: router({
+    submit: publicProcedure
+      .input(z.object({
+        parentName: z.string().min(1).max(255),
+        address: z.string().max(500).nullable().optional(),
+        email: z.string().email(),
+        phone: z.string().min(7).max(20),
+        students: z.array(z.object({
+          name: z.string().min(1).max(255),
+          dob: z.string().max(20),   // YYYY-MM-DD
+        })).min(1).max(3),
+        interests: z.array(z.string()).max(12).default([]),
+        signatureData: z.string().nullable().optional(),   // PNG data URL
+        signedName: z.string().max(255).nullable().optional(),
+        signedDate: z.string().min(1).max(20),   // YYYY-MM-DD
+        disclaimerText: z.string().max(8000).nullable().optional(),
+        source: z.enum(["walk_in", "online", "ipad"]).default("walk_in"),
+        smsConsent: z.boolean().optional(),
+        smsConsentText: z.string().nullable().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const ip = (ctx?.req as any)?.ip
+          || (ctx?.req as any)?.headers?.["cf-connecting-ip"]
+          || (ctx?.req as any)?.headers?.["x-forwarded-for"]
+          || null;
+        try {
+          const result = await submitWaiver({ ...input, ip: ip ? String(ip) : null });
+          const kids = input.students.map(s => s.name).filter(Boolean).join(", ");
+          void sendTelegramMessage(
+            `📝 New in-person sign-up\n${input.parentName} signed the waiver` +
+            (kids ? ` for ${kids}` : "") +
+            (result.matchedExisting ? `\n(matched an existing lead)` : "") +
+            `\nhttps://tmatkd.com/admin/waivers`
+          ).catch(() => {});
+          return { success: true, leadId: result.leadId, matchedExisting: result.matchedExisting };
+        } catch (error) {
+          console.error("Waiver submission error:", error);
+          throw new Error("Failed to submit waiver. Please try again.");
+        }
+      }),
+
+    list: publicProcedure.query(async () => getAllWaivers()),
+    byLead: publicProcedure
+      .input(z.object({ leadId: z.number().int().positive() }))
+      .query(async ({ input }) => getWaiversByLead(input.leadId)),
   }),
 
   // ─── Call Log (2026-06-11) ────────────────────────────────────────────────

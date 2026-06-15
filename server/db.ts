@@ -19,6 +19,7 @@ import {
   automationControls, AutomationControl,
   callLogs, InsertCallLog, CallLog,
   adminTasks, AdminTask,
+  waivers, InsertWaiver, Waiver,
 } from "../drizzle/schema";
 import { lte } from "drizzle-orm";
 import { ENV } from './_core/env';
@@ -263,6 +264,109 @@ export async function deleteAdminTask(id: number): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   await db.delete(adminTasks).where(eq(adminTasks.id, id));
+}
+
+// ── Waivers / in-person sign-up ──────────────────────────────────────────────
+// Derive a whole-number age string from a YYYY-MM-DD DOB. leads.kidAge is a
+// notNull varchar, so we store "" when the DOB is missing or unparseable rather
+// than guessing. Server-side date math is deterministic (unlike the voice agent,
+// the rule there is the LLM must not compute dates — this is plain Node).
+function ageFromDob(dob?: string | null): string {
+  if (!dob) return "";
+  const d = new Date(dob);
+  if (isNaN(d.getTime())) return "";
+  const now = new Date();
+  let age = now.getFullYear() - d.getFullYear();
+  const m = now.getMonth() - d.getMonth();
+  if (m < 0 || (m === 0 && now.getDate() < d.getDate())) age--;
+  return age >= 0 && age < 120 ? String(age) : "";
+}
+
+export async function createWaiver(input: InsertWaiver): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [r] = await db.insert(waivers).values({
+    ...input,
+    email: input.email ? input.email.toLowerCase().trim() : input.email,
+  });
+  return (r as unknown as { insertId: number }).insertId ?? 0;
+}
+
+export async function getAllWaivers(): Promise<Waiver[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(waivers).orderBy(desc(waivers.createdAt));
+}
+
+export async function getWaiversByLead(leadId: number): Promise<Waiver[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(waivers).where(eq(waivers.leadId, leadId)).orderBy(desc(waivers.createdAt));
+}
+
+// Submit a signed waiver: match-or-create the lead so they enter the SAME
+// pipeline as web leads, then store the signed waiver on file linked to that
+// lead. Match-by-email (not blind insert) is what stops the unique-email crash
+// that bites returning families — the exact failure a walk-in hits when their
+// email is already in the system.
+export async function submitWaiver(input: {
+  parentName: string;
+  address?: string | null;
+  email: string;
+  phone: string;
+  students: { name: string; dob: string }[];
+  interests: string[];
+  signatureData?: string | null;
+  signedName?: string | null;
+  signedDate: string;
+  disclaimerText?: string | null;
+  source?: string;
+  ip?: string | null;
+  smsConsent?: boolean;
+  smsConsentText?: string | null;
+}): Promise<{ leadId: number; waiverId: number; matchedExisting: boolean }> {
+  const primary = input.students[0];
+  const existing = await getLeadByEmail(input.email);
+  let leadId: number;
+  let matchedExisting = false;
+
+  if (existing) {
+    leadId = existing.id;
+    matchedExisting = true;
+  } else {
+    const interestTags = input.interests.map(i => `interest_${i}`);
+    leadId = await createLead({
+      parentName: input.parentName,
+      kidName: primary?.name || input.parentName,
+      kidAge: ageFromDob(primary?.dob),
+      programInterest: "In-person sign-up",
+      email: input.email,
+      phone: input.phone,
+      additionalNotes: input.address ? `Address: ${input.address}` : undefined,
+      tags: JSON.stringify(["walk_in_waiver", ...interestTags]),
+      ...(input.smsConsent
+        ? { smsConsent: 1, smsConsentAt: new Date(), smsConsentText: input.smsConsentText ?? null, smsConsentIp: input.ip ? String(input.ip).slice(0, 64) : null }
+        : {}),
+    });
+  }
+
+  const waiverId = await createWaiver({
+    leadId,
+    parentName: input.parentName,
+    address: input.address ?? null,
+    email: input.email,
+    phone: input.phone,
+    students: JSON.stringify(input.students),
+    interests: JSON.stringify(input.interests),
+    signatureData: input.signatureData ?? null,
+    signedName: input.signedName ?? null,
+    signedDate: input.signedDate,
+    disclaimerText: input.disclaimerText ?? null,
+    source: input.source ?? "walk_in",
+    ipAddress: input.ip ? String(input.ip).slice(0, 64) : null,
+  });
+
+  return { leadId, waiverId, matchedExisting };
 }
 
 // Upsert a lead from Facebook Lead Ads — matches by email.

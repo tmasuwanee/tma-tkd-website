@@ -603,3 +603,41 @@ export const adminTasks = mysqlTable("adminTasks", {
 
 export type AdminTask = typeof adminTasks.$inferSelect;
 export type InsertAdminTask = typeof adminTasks.$inferInsert;
+
+// ─── Waivers / in-person sign-up (2026-06-15) ─────────────────────────────────
+// The digital version of the JotForm guest waiver. A walk-in (or anyone with the
+// QR / iPad link) fills this out, which (a) creates or matches a lead so they land
+// in the same pipeline as web leads, and (b) stores the signed waiver on file here.
+// One row per submission. students/interests are JSON arrays. signatureData is the
+// drawn signature as a PNG data URL. disclaimerText snapshots the exact waiver
+// wording they agreed to, so the signed record stands on its own as a legal record.
+export const waivers = mysqlTable("waivers", {
+  id: int("id").autoincrement().primaryKey(),
+  // Nullable so a waiver is never lost even if the lead match/create hiccups.
+  leadId: int("leadId"),
+  parentName: varchar("parentName", { length: 255 }).notNull(),
+  address: text("address"),
+  email: varchar("email", { length: 320 }).notNull(),
+  phone: varchar("phone", { length: 20 }).notNull(),
+  // JSON: [{ "name": "...", "dob": "YYYY-MM-DD" }, ...] up to 3
+  students: text("students").notNull(),
+  // JSON: ["self_defense","confidence",...]
+  interests: text("interests"),
+  // Drawn signature, stored as a PNG data URL (mediumtext → up to 16MB).
+  signatureData: mediumtext("signatureData"),
+  // Printed/typed name on the signature line.
+  signedName: varchar("signedName", { length: 255 }),
+  signedDate: varchar("signedDate", { length: 20 }).notNull(),  // YYYY-MM-DD
+  // Snapshot of the exact disclaimer wording they agreed to.
+  disclaimerText: text("disclaimerText"),
+  // walk_in | online | ipad — where the signature was captured.
+  source: varchar("source", { length: 64 }).default("walk_in").notNull(),
+  ipAddress: varchar("ipAddress", { length: 64 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  leadIdx: index("waivers_lead_idx").on(table.leadId),
+  createdIdx: index("waivers_created_idx").on(table.createdAt),
+}));
+
+export type Waiver = typeof waivers.$inferSelect;
+export type InsertWaiver = typeof waivers.$inferInsert;

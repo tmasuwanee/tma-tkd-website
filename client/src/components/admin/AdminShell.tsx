@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import {
   Kanban, ClipboardCheck, Phone, PhoneOutgoing, Mail, Route as RouteIcon,
   BarChart2, GraduationCap, CalendarCheck, ShieldAlert, Camera, LogOut,
-  Menu, PhoneCall, CalendarDays, CheckSquare,
+  Menu, PhoneCall, CalendarDays, CheckSquare, FileSignature,
 } from "lucide-react";
 import { CallsApp } from "@/pages/AdminTodaysCalls";
 import { CallLogApp } from "@/pages/AdminCallLog";
@@ -21,12 +21,13 @@ import SequencesEditor from "@/components/admin/SequencesEditor";
 import IntakeRulesEditor from "@/components/admin/IntakeRulesEditor";
 import CalendarView from "@/components/admin/CalendarView";
 import MyTasks from "@/components/admin/MyTasks";
+import WaiversView from "@/components/admin/WaiversView";
 
 // Keys double as URL segments (/admin/<key>). They match the old standalone
 // routes where possible (/admin/calls, /admin/checkin, /admin/call-log,
 // /admin/voice-test, /admin/controls) so those URLs still land in the shell.
 type ViewKey =
-  | "calls" | "calendar" | "leads" | "checkin" | "call-log" | "voice-test"
+  | "calls" | "calendar" | "leads" | "checkin" | "waivers" | "call-log" | "voice-test"
   | "sequences" | "rules" | "ads" | "students" | "camp" | "controls" | "studio" | "tasks";
 
 const NAV: { group: string; items: { key: ViewKey; label: string; icon: any }[] }[] = [
@@ -35,6 +36,7 @@ const NAV: { group: string; items: { key: ViewKey; label: string; icon: any }[] 
     { key: "calendar", label: "Calendar", icon: CalendarDays },
     { key: "leads", label: "Leads", icon: Kanban },
     { key: "checkin", label: "Trial Check-in", icon: ClipboardCheck },
+    { key: "waivers", label: "Waivers", icon: FileSignature },
   ]},
   { group: "Calls", items: [
     { key: "call-log", label: "Call Log", icon: Phone },
@@ -64,6 +66,7 @@ function renderView(key: ViewKey, email: string) {
     case "calendar": return <CalendarView />;
     case "leads": return <LeadsPipeline />;
     case "checkin": return <CheckinApp email={email} embedded />;
+    case "waivers": return <WaiversView />;
     case "call-log": return <CallLogApp email={email} embedded />;
     case "voice-test": return <AdminVoiceTest embedded />;
     case "sequences": return <SequencesEditor />;
