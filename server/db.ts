@@ -207,6 +207,16 @@ export async function updateLeadTags(id: number, tags: string[]): Promise<void> 
 export async function deleteLead(id: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  // `leads` is referenced by FK from several child tables, so a bare delete
+  // fails (FK violation) for any lead that has history. Remove the children
+  // first, then the lead. systemAuditLog.leadId has no FK and is an immutable
+  // audit trail, so we leave it. callLogs.leadId has no FK either; we keep the
+  // call record but null the dangling link.
+  await db.delete(leadActivities).where(eq(leadActivities.leadId, id));
+  await db.delete(leadSequenceQueue).where(eq(leadSequenceQueue.leadId, id));
+  await db.delete(leadLifecycleEvents).where(eq(leadLifecycleEvents.leadId, id));
+  await db.delete(dailyCallQueue).where(eq(dailyCallQueue.leadId, id));
+  await db.update(callLogs).set({ leadId: null }).where(eq(callLogs.leadId, id));
   await db.delete(leads).where(eq(leads.id, id));
 }
 
@@ -1777,15 +1787,19 @@ export async function generateDailyCallQueue(opts: {
 
     if ((l as any).noOutboundCalls === 1) {
       s += 45;
-      reasons.push("ASKED FOR A HUMAN — call them");
+      reasons.push("asked for a human, call them");
     }
     if (stage === "trial_scheduled") {
       s += 40;
-      reasons.push("trial coming up — confirm");
+      reasons.push("trial coming up, confirm");
+    }
+    if (stage === "trial_attended") {
+      s += 38;
+      reasons.push("came in but did not enroll, follow up to close");
     }
     if (stage === "no_show") {
       s += 35;
-      reasons.push("no-showed trial — rebook");
+      reasons.push("no-showed trial, rebook");
     }
     if (stage === "contacted" && ageDays >= 5) {
       s += 30;
@@ -1793,7 +1807,7 @@ export async function generateDailyCallQueue(opts: {
     }
     if (stage === "new_lead" && ageDays < 1) {
       s += 25;
-      reasons.push("new lead — speed-to-lead");
+      reasons.push("new lead, speed-to-lead");
     }
     // Match on the NORMALIZED vertical so "Summer Camp 2026" and "summer_camp"
     // both match an activeVertical of "summer_camp" or "Summer Camp".

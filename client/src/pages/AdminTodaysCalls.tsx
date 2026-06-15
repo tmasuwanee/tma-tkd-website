@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -302,7 +302,7 @@ function CallDetailModal({ row, email, onClose, onSaved }: {
 export function CallsApp({ email, onLogout, embedded }: { email: string; onLogout?: () => void; embedded?: boolean }) {
   const [date, setDate] = useState(todayString());
   const [activeRow, setActiveRow] = useState<any | null>(null);
-  const [activeVertical, setActiveVertical] = useState("Summer Camp");
+  const autoGen = useRef(false);
   const listQuery = trpc.calls.listToday.useQuery({ date }, { refetchOnWindowFocus: false });
   const generate = trpc.calls.generateToday.useMutation();
   const utils = trpc.useUtils();
@@ -313,16 +313,26 @@ export function CallsApp({ email, onLogout, embedded }: { email: string; onLogou
 
   async function regenerate() {
     try {
-      const inserted = await generate.mutateAsync({
-        limit: 5,
-        activeVertical: activeVertical || undefined,
-      });
-      toast.success(`Queued ${inserted.length} call(s) for today`);
+      const inserted = await generate.mutateAsync({ limit: 25 });
+      toast.success(`Refreshed: ${inserted.length} call(s) queued for today`);
       await utils.calls.listToday.invalidate();
     } catch (err: any) {
-      toast.error(err?.message ?? "Failed to generate");
+      toast.error(err?.message ?? "Failed to refresh");
     }
   }
+
+  // Auto-build today's list when it's empty (the 8am cron normally fills it;
+  // this covers a day it hasn't run). Fires once, only while viewing today.
+  useEffect(() => {
+    if (date === todayString() && !listQuery.isLoading && items.length === 0
+        && !autoGen.current && !generate.isPending) {
+      autoGen.current = true;
+      generate.mutateAsync({ limit: 25 })
+        .then(() => utils.calls.listToday.invalidate())
+        .catch(() => {});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [date, listQuery.isLoading, items.length]);
 
   return (
     <div className={embedded ? "pb-12" : "min-h-screen bg-gray-50 pb-24"}>
@@ -342,25 +352,20 @@ export function CallsApp({ email, onLogout, embedded }: { email: string; onLogou
       )}
 
       <div className="max-w-2xl mx-auto px-4 py-4 space-y-4">
-        {/* Date + regen controls */}
+        {/* Date + refresh */}
         <Card>
-          <CardContent className="pt-4 space-y-3">
+          <CardContent className="pt-4">
             <div className="flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-gray-500" />
+              <Calendar className="w-4 h-4 text-gray-500 shrink-0" />
               <Input type="date" value={date} onChange={e => setDate(e.target.value)} className="text-sm" />
+              <Button variant="ghost" size="sm" onClick={regenerate} disabled={generate.isPending}
+                className="ml-auto text-[#1a2d5a] shrink-0">
+                {generate.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                <span className="ml-1.5 text-xs">Refresh</span>
+              </Button>
             </div>
-            <div className="flex items-center gap-2">
-              <Label className="text-xs whitespace-nowrap">Active campaign</Label>
-              <Input value={activeVertical} onChange={e => setActiveVertical(e.target.value)}
-                placeholder="Summer Camp" className="text-sm" />
-            </div>
-            <Button onClick={regenerate} disabled={generate.isPending}
-              className="w-full bg-[#c41e3a] hover:bg-[#a31931]">
-              {generate.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <RefreshCw className="w-4 h-4 mr-2" />}
-              Generate top 5 for today
-            </Button>
-            <p className="text-[10px] text-gray-400 text-center">
-              The 8am cron will eventually do this. For now, hit the button.
+            <p className="text-[10px] text-gray-400 mt-2">
+              Ranked by urgency: trials to confirm, no-shows to rebook, anyone who came in but hasn't signed up, then fresh leads. Updates automatically each morning.
             </p>
           </CardContent>
         </Card>
@@ -377,7 +382,7 @@ export function CallsApp({ email, onLogout, embedded }: { email: string; onLogou
             </div>
           ) : pending.length === 0 ? (
             <div className="text-center py-8 text-gray-400 text-sm bg-white rounded border border-dashed">
-              No pending calls. Hit "Generate" above.
+              No calls to make right now. Hit Refresh if you think someone is missing.
             </div>
           ) : (
             <div className="space-y-2">
