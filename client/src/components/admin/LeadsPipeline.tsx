@@ -29,7 +29,7 @@ const STAGES = [
   { value: "new_lead",        label: "New Lead",         color: "bg-gray-100 border-gray-300",       badge: "bg-gray-200 text-gray-800" },
   { value: "contacted",       label: "Contacted",        color: "bg-blue-50 border-blue-200",         badge: "bg-blue-100 text-blue-800" },
   { value: "trial_scheduled", label: "Trial Scheduled",  color: "bg-yellow-50 border-yellow-200",     badge: "bg-yellow-100 text-yellow-800" },
-  { value: "trial_paid",      label: "Trial Paid ($30)", color: "bg-orange-50 border-orange-200",     badge: "bg-orange-100 text-orange-800" },
+  { value: "trial_paid",      label: "3 Week Trial Paid ($99)", color: "bg-orange-50 border-orange-200",     badge: "bg-orange-100 text-orange-800" },
   { value: "trial_attended",  label: "Trial Attended",   color: "bg-purple-50 border-purple-200",     badge: "bg-purple-100 text-purple-800" },
   { value: "enrolled",        label: "Enrolled",         color: "bg-green-50 border-green-200",       badge: "bg-green-100 text-green-800" },
   { value: "lost",            label: "Lost",             color: "bg-red-50 border-red-200",           badge: "bg-red-100 text-red-800" },
