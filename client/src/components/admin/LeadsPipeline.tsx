@@ -62,7 +62,7 @@ function getTagColor(tag: string): string {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Lead = {
+export type Lead = {
   id: number;
   parentName: string;
   kidName: string;
@@ -380,7 +380,7 @@ function ActivityTimeline({ leadId, lead }: { leadId: number; lead?: Lead | null
   );
 }
 
-function LeadDetailDialog({ lead, open, onClose, onRefresh }: {
+export function LeadDetailDialog({ lead, open, onClose, onRefresh }: {
   lead: Lead | null;
   open: boolean;
   onClose: () => void;

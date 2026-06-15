@@ -10,21 +10,11 @@ import {
   startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval,
   format, isSameMonth, isToday, addMonths, subMonths,
 } from "date-fns";
+import { LeadDetailDialog, type Lead } from "@/components/admin/LeadsPipeline";
 
 // Booked trials live on the leads table (trialClassDate). We read them straight
-// from leads.getAll so the calendar is always in sync with the pipeline, there
-// is no separate calendar store to drift.
-type Lead = {
-  id: number;
-  parentName: string;
-  kidName: string;
-  kidAge: string;
-  programInterest: string;
-  phone: string;
-  pipelineStage: string;
-  trialClassDate: string | null;
-  trialClassTime: string | null;
-};
+// from leads.getAll so the calendar stays in sync with the pipeline. Clicking a
+// booking opens the Leads tab's own detail dialog (same Lead type, same view).
 
 // trialClassDate is a "YYYY-MM-DD" string. Parse at local noon so it never
 // shifts a day across time zones (same trick formatDate uses).
@@ -46,6 +36,7 @@ const firstName = (full: string) => (full || "").trim().split(/\s+/)[0] || full;
 export default function CalendarView() {
   const [month, setMonth] = useState(() => startOfMonth(new Date()));
   const [selected, setSelected] = useState<{ date: Date; items: Lead[] } | null>(null);
+  const [detailLead, setDetailLead] = useState<Lead | null>(null);
   const { data: leads = [], isLoading } = trpc.leads.getAll.useQuery();
 
   const booked = useMemo(
@@ -166,7 +157,8 @@ export default function CalendarView() {
               {upcoming.map(it => {
                 const st = styleFor(it.pipelineStage);
                 return (
-                  <div key={it.id} className="flex items-center gap-3 py-2.5">
+                  <div key={it.id} onClick={() => setDetailLead(it)} role="button" tabIndex={0}
+                    className="flex items-center gap-3 py-2.5 px-1 -mx-1 rounded-md cursor-pointer hover:bg-gray-50">
                     <div className="text-center w-12 shrink-0">
                       <div className="text-[10px] uppercase text-gray-400">{format(parseLocal(it.trialClassDate as string), "EEE")}</div>
                       <div className="text-lg font-bold text-[#1a2d5a] leading-none">{format(parseLocal(it.trialClassDate as string), "d")}</div>
@@ -179,7 +171,7 @@ export default function CalendarView() {
                       <div className="text-xs text-gray-500 truncate capitalize">{it.programInterest} · {it.parentName}</div>
                     </div>
                     <span className={`text-[10px] px-2 py-0.5 rounded-full border shrink-0 ${st.pill}`}>{st.label}</span>
-                    {it.phone && <a href={`tel:${it.phone}`} className="text-[#c41e3a] shrink-0" title={it.phone}><Phone className="w-4 h-4" /></a>}
+                    {it.phone && <a href={`tel:${it.phone}`} onClick={e => e.stopPropagation()} className="text-[#c41e3a] shrink-0" title={it.phone}><Phone className="w-4 h-4" /></a>}
                   </div>
                 );
               })}
@@ -200,7 +192,8 @@ export default function CalendarView() {
             {selected?.items.map(it => {
               const st = styleFor(it.pipelineStage);
               return (
-                <div key={it.id} className="border rounded-lg p-3">
+                <div key={it.id} onClick={() => { setSelected(null); setDetailLead(it); }} role="button" tabIndex={0}
+                  className="border rounded-lg p-3 cursor-pointer hover:border-[#1a2d5a] transition-colors">
                   <div className="flex items-center justify-between">
                     <div className="font-semibold text-gray-800 flex items-center gap-1.5">
                       <User className="w-3.5 h-3.5 text-gray-400" />
@@ -213,7 +206,7 @@ export default function CalendarView() {
                   </div>
                   <div className="text-sm text-gray-500 mt-1 flex items-center justify-between">
                     <span>{it.parentName}</span>
-                    {it.phone && <a href={`tel:${it.phone}`} className="text-[#c41e3a] inline-flex items-center gap-1"><Phone className="w-3.5 h-3.5" />{it.phone}</a>}
+                    {it.phone && <a href={`tel:${it.phone}`} onClick={e => e.stopPropagation()} className="text-[#c41e3a] inline-flex items-center gap-1"><Phone className="w-3.5 h-3.5" />{it.phone}</a>}
                   </div>
                 </div>
               );
@@ -221,6 +214,14 @@ export default function CalendarView() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Full lead detail, the exact same dialog the Leads tab uses */}
+      <LeadDetailDialog
+        lead={detailLead}
+        open={!!detailLead}
+        onClose={() => setDetailLead(null)}
+        onRefresh={() => {}}
+      />
     </div>
   );
 }
