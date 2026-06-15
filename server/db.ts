@@ -312,6 +312,70 @@ export async function deleteWaiver(id: number): Promise<void> {
   await db.delete(waivers).where(eq(waivers.id, id));
 }
 
+// Manually book a trial from the admin calendar (walk-ins, phone bookings). Either
+// attaches the trial to an existing lead (by id or matched email) or creates a new
+// one, and sets the stage to trial_scheduled so it shows on the calendar + call board.
+export async function manualBookTrial(input: {
+  leadId?: number | null;
+  parentName: string;
+  kidName: string;
+  kidAge?: string | null;
+  phone: string;
+  email?: string | null;
+  programInterest: string;
+  trialClassDate: string;            // YYYY-MM-DD
+  trialClassTime?: string | null;
+  trialClassDay?: string | null;
+  notes?: string | null;
+}): Promise<{ leadId: number; created: boolean }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const trial = {
+    trialClassDate: input.trialClassDate,
+    trialClassTime: input.trialClassTime ?? null,
+    trialClassDay: input.trialClassDay ?? null,
+    programInterest: input.programInterest,
+    pipelineStage: "trial_scheduled" as const,
+  };
+
+  // Attach to an explicitly chosen existing lead.
+  if (input.leadId) {
+    await db.update(leads).set(trial).where(eq(leads.id, input.leadId));
+    return { leadId: input.leadId, created: false };
+  }
+
+  // Walk-ins often have no email; synthesize a stable placeholder from the phone so
+  // the notNull/unique email column is satisfied without colliding (mirrors the
+  // existing voice "callback-<phone>@voice.tma" convention).
+  const email = (input.email && input.email.trim())
+    ? input.email.trim().toLowerCase()
+    : `walkin-${input.phone.replace(/\D/g, "")}@walkin.tma`;
+
+  // Reuse an existing lead with this email rather than tripping the unique index.
+  const existing = await getLeadByEmail(email);
+  if (existing) {
+    await db.update(leads).set(trial).where(eq(leads.id, existing.id));
+    return { leadId: existing.id, created: false };
+  }
+
+  const newId = await createLead({
+    parentName: input.parentName,
+    kidName: input.kidName,
+    kidAge: input.kidAge ?? "",
+    programInterest: input.programInterest,
+    email,
+    phone: input.phone,
+    additionalNotes: input.notes ?? null,
+    trialClassDate: input.trialClassDate,
+    trialClassTime: input.trialClassTime ?? null,
+    trialClassDay: input.trialClassDay ?? null,
+    pipelineStage: "trial_scheduled",
+    tags: JSON.stringify(["walk_in_manual"]),
+  });
+  return { leadId: newId, created: true };
+}
+
 // Submit a signed waiver: match-or-create the lead so they enter the SAME
 // pipeline as web leads, then store the signed waiver on file linked to that
 // lead. Match-by-email (not blind insert) is what stops the unique-email crash

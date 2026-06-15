@@ -41,6 +41,8 @@ import {
   listAdminTasks, addAdminTask, updateAdminTask, deleteAdminTask,
   // Waivers / in-person sign-up (2026-06-15)
   submitWaiver, getAllWaivers, getWaiversByLead, deleteWaiver,
+  // Manual calendar booking (2026-06-15)
+  manualBookTrial,
 } from "./db";
 import { sendTelegramMessage } from "./telegram";
 import { storagePut, storageGet } from "./storage";
@@ -654,6 +656,23 @@ export const appRouter = router({
         await setLeadFollowUp(input.id, input.nextFollowUpAt, input.note ?? null);
         return { success: true };
       }),
+
+    // Admin: manually book a trial (walk-in / phone) from the calendar.
+    bookManual: publicProcedure
+      .input(z.object({
+        leadId: z.number().int().positive().nullable().optional(),
+        parentName: z.string().min(1).max(255),
+        kidName: z.string().min(1).max(255),
+        kidAge: z.string().max(50).nullable().optional(),
+        phone: z.string().min(7).max(20),
+        email: z.string().email().nullable().optional(),
+        programInterest: z.string().min(1).max(255),
+        trialClassDate: z.string().min(1).max(20),    // YYYY-MM-DD
+        trialClassTime: z.string().max(20).nullable().optional(),
+        trialClassDay: z.string().max(20).nullable().optional(),
+        notes: z.string().max(2000).nullable().optional(),
+      }))
+      .mutation(async ({ input }) => manualBookTrial(input)),
   }),
 
   // ─── Lead Conductor: Sequence Queue (2026-05-19) ────────────────────────
