@@ -71,6 +71,17 @@ export function registerApiRoutes(app: Express): void {
     });
   });
 
+  // ─── Dashboard magic-link verification ─────────────────────────────────────
+  // Telegram staff messages link to /admin/...?key=<ADMIN_MAGIC_KEY>. The client
+  // posts that key here and we check it against the env secret (which never ships
+  // in the JS bundle), so a tap from Telegram logs staff in without a password.
+  // Fail-safe: if ADMIN_MAGIC_KEY is unset, this always returns { ok: false }.
+  app.post("/api/admin/verify-key", (req: Request, res: Response) => {
+    const key = String((req.body && req.body.key) ?? "");
+    const expected = process.env.ADMIN_MAGIC_KEY ?? "";
+    res.json({ ok: !!expected && key.length > 0 && key === expected });
+  });
+
   // ─── Stage update endpoint ─────────────────────────────────────────────────
   // Used by the n8n no-show recovery workflow to mark leads as no_show / no_show_final.
   // PATCH /api/leads/:leadId/stage  body: { stage: "no_show" }

@@ -30,8 +30,11 @@ import { createLead, recordOutboundCall, getLeadContextForCall, setNoOutboundCal
   recordLifecycleTransition } from "./db";
 import { sendTelegramMessage } from "./telegram";
 
-const CALLS_URL = "https://tmatkd.com/admin/calls";
-const CALL_LOG_URL = "https://tmatkd.com/admin/call-log";
+// One-tap dashboard login from Telegram: append ?key=<ADMIN_MAGIC_KEY> (verified
+// server-side). No key set = plain links.
+const DASH_KEY = process.env.ADMIN_MAGIC_KEY ? `?key=${encodeURIComponent(process.env.ADMIN_MAGIC_KEY)}` : "";
+const CALLS_URL = `https://tmatkd.com/admin/calls${DASH_KEY}`;
+const CALL_LOG_URL = `https://tmatkd.com/admin/call-log${DASH_KEY}`;
 
 const WEEKDAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
 const MONTHS = ["january", "february", "march", "april", "may", "june", "july",

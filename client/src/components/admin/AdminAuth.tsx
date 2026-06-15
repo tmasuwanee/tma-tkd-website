@@ -21,8 +21,37 @@ export function useAdminAuth() {
   const [ready, setReady] = useState(false);
   useEffect(() => {
     const saved = sessionStorage.getItem(ADMIN_SESSION_KEY);
-    if (saved && ADMIN_ALLOWED_EMAILS.includes(saved.toLowerCase())) setEmail(saved.toLowerCase());
-    setReady(true);
+    if (saved && ADMIN_ALLOWED_EMAILS.includes(saved.toLowerCase())) {
+      setEmail(saved.toLowerCase());
+      setReady(true);
+      return;
+    }
+    // One-tap login from a Telegram link: ?key=<secret>. The key is verified
+    // server-side (the secret never ships in the JS bundle), then stripped from
+    // the URL so it does not linger in history.
+    const params = new URLSearchParams(window.location.search);
+    const key = params.get("key");
+    if (!key) { setReady(true); return; }
+    fetch("/api/admin/verify-key", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key }),
+    })
+      .then(r => r.json())
+      .then(j => {
+        if (j?.ok) {
+          const v = ADMIN_ALLOWED_EMAILS[0];
+          sessionStorage.setItem(ADMIN_SESSION_KEY, v);
+          setEmail(v);
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        params.delete("key");
+        const qs = params.toString();
+        window.history.replaceState({}, "", window.location.pathname + (qs ? `?${qs}` : "") + window.location.hash);
+        setReady(true);
+      });
   }, []);
   const login = (e: string) => {
     const v = e.trim().toLowerCase();

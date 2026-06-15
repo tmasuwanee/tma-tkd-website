@@ -17,8 +17,12 @@ import type { Request, Response } from "express";
 import { getLeadsByStagesAndTrialDate, generateDailyCallQueue, listTodaysCalls, isAutomationEnabled } from "./db";
 import { sendTelegramMessage } from "./telegram";
 
-const ADMIN_URL = "https://tmatkd.com/admin/checkin";
-const CALLS_URL = "https://tmatkd.com/admin/calls";
+// One-tap dashboard login from Telegram: append ?key=<ADMIN_MAGIC_KEY> so a tap
+// logs staff in without a password (verified server-side). No key set = plain
+// links (staff just log in normally).
+const DASH_KEY = process.env.ADMIN_MAGIC_KEY ? `?key=${encodeURIComponent(process.env.ADMIN_MAGIC_KEY)}` : "";
+const ADMIN_URL = `https://tmatkd.com/admin/checkin${DASH_KEY}`;
+const CALLS_URL = `https://tmatkd.com/admin/calls${DASH_KEY}`;
 
 /** Today's date in America/New_York as YYYY-MM-DD (matches stored trialClassDate). */
 function todayET(): string {
