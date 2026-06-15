@@ -1,9 +1,0 @@
-{
-  "query": "DELETE r1 FROM sequenceTriggerRules r1\nINNER JOIN sequenceTriggerRules r2\n  ON r1.ruleName = r2.ruleName\n  AND r1.id > r2.id;",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3SwZhQGwFybjoYh.root --database cXp7keMiYsMkePUngpTNmV --execute DELETE r1 FROM sequenceTriggerRules r1\nINNER JOIN sequenceTriggerRules r2\n  ON r1.ruleName = r2.ruleName\n  AND r1.id > r2.id;",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 267
-}

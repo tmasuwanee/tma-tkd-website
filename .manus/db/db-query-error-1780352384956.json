@@ -1,8 +1,0 @@
-{
-  "query": "SELECT * FROM camp_registrations WHERE (parent_first_name LIKE '%Thuy%' OR parent_last_name LIKE '%Nguyen%' OR email LIKE '%nguyen%') AND is_deleted = 0 ORDER BY created_at DESC LIMIT 5;",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3SwZhQGwFybjoYh.root --database cXp7keMiYsMkePUngpTNmV --execute SELECT * FROM camp_registrations WHERE (parent_first_name LIKE '%Thuy%' OR parent_last_name LIKE '%Nguyen%' OR email LIKE '%nguyen%') AND is_deleted = 0 ORDER BY created_at DESC LIMIT 5;",
-  "returncode": 1,
-  "logs": [
-    "ERROR 1146 (42S02) at line 1: Table 'cxp7kemiysmkepungptnmv.camp_registrations' doesn't exist"
-  ]
-}

@@ -1,9 +1,0 @@
-{
-  "query": "\n-- Count day_0 activities created today\nSELECT status, COUNT(*) as cnt\nFROM leadActivities\nWHERE sentBy LIKE 'n8n_dispatcher:summer_camp_nurture'\n  AND subject LIKE '%day_0%'\nGROUP BY status;\n",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3SwZhQGwFybjoYh.root --database cXp7keMiYsMkePUngpTNmV --execute \n-- Count day_0 activities created today\nSELECT status, COUNT(*) as cnt\nFROM leadActivities\nWHERE sentBy LIKE 'n8n_dispatcher:summer_camp_nurture'\n  AND subject LIKE '%day_0%'\nGROUP BY status;\n",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 275
-}

@@ -112,3 +112,7 @@ temp/
 # Manus version file (auto-generated, not part of source)
 client/public/__manus__/version.json
 .project-config.json
+
+# Manus sandbox cache (DB query dumps, checkpoints). NEVER commit: contains
+# customer data and the production DB connection string.
+.manus/

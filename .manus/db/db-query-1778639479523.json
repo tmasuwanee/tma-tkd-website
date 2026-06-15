@@ -1,9 +1,0 @@
-{
-  "query": "ALTER TABLE leads MODIFY COLUMN pipelineStage ENUM('new_lead','contacted','trial_scheduled','trial_paid','trial_attended','enrolled','no_show','no_show_final','lost') NOT NULL DEFAULT 'new_lead';",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3SwZhQGwFybjoYh.root --database cXp7keMiYsMkePUngpTNmV --execute ALTER TABLE leads MODIFY COLUMN pipelineStage ENUM('new_lead','contacted','trial_scheduled','trial_paid','trial_attended','enrolled','no_show','no_show_final','lost') NOT NULL DEFAULT 'new_lead';",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 496
-}

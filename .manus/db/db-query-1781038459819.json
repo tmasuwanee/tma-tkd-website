@@ -1,9 +1,0 @@
-{
-  "query": "\nSELECT touchKey, status, COUNT(*) as cnt, MIN(scheduledFor) as earliest_scheduled\nFROM leadSequenceQueue\nWHERE sequenceKey = 'summer_camp_nurture'\n  AND touchKey IN ('day_13', 'day_20', 'day_31', 'day_42', 'day_48')\nGROUP BY touchKey, status\nORDER BY touchKey, status;\n",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3SwZhQGwFybjoYh.root --database cXp7keMiYsMkePUngpTNmV --execute \nSELECT touchKey, status, COUNT(*) as cnt, MIN(scheduledFor) as earliest_scheduled\nFROM leadSequenceQueue\nWHERE sequenceKey = 'summer_camp_nurture'\n  AND touchKey IN ('day_13', 'day_20', 'day_31', 'day_42', 'day_48')\nGROUP BY touchKey, status\nORDER BY touchKey, status;\n",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 267
-}

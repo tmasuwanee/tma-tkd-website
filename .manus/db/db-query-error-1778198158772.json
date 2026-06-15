@@ -1,8 +1,0 @@
-{
-  "query": "ALTER TABLE `campRegistrations` MODIFY COLUMN `programType` enum('3day','5day','daily') NOT NULL;",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3SwZhQGwFybjoYh.root --database cXp7keMiYsMkePUngpTNmV --execute ALTER TABLE `campRegistrations` MODIFY COLUMN `programType` enum('3day','5day','daily') NOT NULL;",
-  "returncode": 1,
-  "logs": [
-    "ERROR 1265 (01000) at line 1: Data truncated for column 'programType', value is 'test'"
-  ]
-}

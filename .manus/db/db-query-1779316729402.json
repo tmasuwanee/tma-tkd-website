@@ -1,9 +1,0 @@
-{
-  "query": "ALTER TABLE systemAuditLog\n  ADD COLUMN `level` enum('info','warn','error','critical') NOT NULL DEFAULT 'info' AFTER `id`;\n\nALTER TABLE systemAuditLog\n  ADD COLUMN `source` varchar(100) NOT NULL DEFAULT 'system' AFTER `level`;\n\nALTER TABLE systemAuditLog\n  ADD COLUMN `event` varchar(255) NOT NULL DEFAULT '' AFTER `source`;\n\nALTER TABLE systemAuditLog\n  ADD COLUMN `details` text AFTER `event`;\n\nALTER TABLE systemAuditLog\n  ADD COLUMN `leadId` int AFTER `details`;",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3SwZhQGwFybjoYh.root --database cXp7keMiYsMkePUngpTNmV --execute ALTER TABLE systemAuditLog\n  ADD COLUMN `level` enum('info','warn','error','critical') NOT NULL DEFAULT 'info' AFTER `id`;\n\nALTER TABLE systemAuditLog\n  ADD COLUMN `source` varchar(100) NOT NULL DEFAULT 'system' AFTER `level`;\n\nALTER TABLE systemAuditLog\n  ADD COLUMN `event` varchar(255) NOT NULL DEFAULT '' AFTER `source`;\n\nALTER TABLE systemAuditLog\n  ADD COLUMN `details` text AFTER `event`;\n\nALTER TABLE systemAuditLog\n  ADD COLUMN `leadId` int AFTER `details`;",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 1094
-}

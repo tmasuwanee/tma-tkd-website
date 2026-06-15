@@ -1,8 +1,0 @@
-{
-  "query": "SELECT id, sequenceKey, touchKey, version,\n  CASE WHEN bodyText LIKE '%3945 Peachtree%' THEN 'bodyText' ELSE '' END AS in_text,\n  CASE WHEN bodyHtml LIKE '%3945 Peachtree%' THEN 'bodyHtml' ELSE '' END AS in_html\nFROM sequenceTemplates\nWHERE bodyText LIKE '%3945 Peachtree%' OR bodyHtml LIKE '%3945 Peachtree%'\nORDER BY sequenceKey, touchKey;",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3SwZhQGwFybjoYh.root --database cXp7keMiYsMkePUngpTNmV --execute SELECT id, sequenceKey, touchKey, version,\n  CASE WHEN bodyText LIKE '%3945 Peachtree%' THEN 'bodyText' ELSE '' END AS in_text,\n  CASE WHEN bodyHtml LIKE '%3945 Peachtree%' THEN 'bodyHtml' ELSE '' END AS in_html\nFROM sequenceTemplates\nWHERE bodyText LIKE '%3945 Peachtree%' OR bodyHtml LIKE '%3945 Peachtree%'\nORDER BY sequenceKey, touchKey;",
-  "returncode": 1,
-  "logs": [
-    "ERROR 1054 (42S22) at line 1: Unknown column 'version' in 'field list'"
-  ]
-}

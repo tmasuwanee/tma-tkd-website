@@ -1,8 +1,0 @@
-{
-  "query": "ALTER TABLE `campRegistrations` ADD `fieldTripWeeks` text; ALTER TABLE `campRegistrations` ADD `extendedCareWeeks` text;",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3SwZhQGwFybjoYh.root --database cXp7keMiYsMkePUngpTNmV --execute ALTER TABLE `campRegistrations` ADD `fieldTripWeeks` text; ALTER TABLE `campRegistrations` ADD `extendedCareWeeks` text;",
-  "returncode": 1,
-  "logs": [
-    "ERROR 1146 (42S02) at line 1: Table 'cxp7kemiysmkepungptnmv.campRegistrations' doesn't exist"
-  ]
-}

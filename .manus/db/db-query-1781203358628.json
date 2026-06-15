@@ -1,9 +1,0 @@
-{
-  "query": "-- Delete all associated records first, then the lead\nDELETE FROM leadActivities WHERE leadId = 1590002;\nDELETE FROM leadSequenceQueue WHERE leadId = 1590002;\nDELETE FROM dailyCallQueue WHERE leadId = 1590002;\nDELETE FROM leads WHERE id = 1590002;",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3SwZhQGwFybjoYh.root --database cXp7keMiYsMkePUngpTNmV --execute -- Delete all associated records first, then the lead\nDELETE FROM leadActivities WHERE leadId = 1590002;\nDELETE FROM leadSequenceQueue WHERE leadId = 1590002;\nDELETE FROM dailyCallQueue WHERE leadId = 1590002;\nDELETE FROM leads WHERE id = 1590002;",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 295
-}

@@ -1,8 +1,0 @@
-{
-  "query": "\nSELECT id, name, version, subject, \n  SUBSTRING(bodyText, 1, 200) AS bodyText_preview,\n  (CASE WHEN bodyText LIKE '%tmatkd.com/camp%' OR bodyHtml LIKE '%tmatkd.com/camp%' THEN 'HAS_BAD_URL' ELSE 'ok' END) AS url_status\nFROM sequenceTemplates\nWHERE sequenceName = 'summer_camp_nurture'\nORDER BY id;\n",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3SwZhQGwFybjoYh.root --database cXp7keMiYsMkePUngpTNmV --execute \nSELECT id, name, version, subject, \n  SUBSTRING(bodyText, 1, 200) AS bodyText_preview,\n  (CASE WHEN bodyText LIKE '%tmatkd.com/camp%' OR bodyHtml LIKE '%tmatkd.com/camp%' THEN 'HAS_BAD_URL' ELSE 'ok' END) AS url_status\nFROM sequenceTemplates\nWHERE sequenceName = 'summer_camp_nurture'\nORDER BY id;\n",
-  "returncode": 1,
-  "logs": [
-    "ERROR 1054 (42S22) at line 2: Unknown column 'sequencename' in 'where clause'"
-  ]
-}

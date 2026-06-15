@@ -1,9 +1,0 @@
-{
-  "query": "DELETE FROM leadActivities WHERE leadId IN (780002, 840002, 900002, 900003, 900004, 900005, 900006);\nDELETE FROM leadSequenceQueue WHERE leadId IN (780002, 840002, 900002, 900003, 900004, 900005, 900006);\nDELETE FROM leadLifecycleEvents WHERE leadId IN (780002, 840002, 900002, 900003, 900004, 900005, 900006);",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3SwZhQGwFybjoYh.root --database cXp7keMiYsMkePUngpTNmV --execute DELETE FROM leadActivities WHERE leadId IN (780002, 840002, 900002, 900003, 900004, 900005, 900006);\nDELETE FROM leadSequenceQueue WHERE leadId IN (780002, 840002, 900002, 900003, 900004, 900005, 900006);\nDELETE FROM leadLifecycleEvents WHERE leadId IN (780002, 840002, 900002, 900003, 900004, 900005, 900006);",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 382
-}
