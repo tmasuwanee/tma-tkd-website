@@ -1760,6 +1760,71 @@ function todayDateString(): string {
 }
 
 /**
+ * Live call board, computed from the current state of every lead (no stored
+ * snapshot, so it always matches the calendar). Two buckets:
+ *   today    — call now: trials today/tomorrow (confirm), past trials still
+ *              unmarked (did they show?), no-shows, came-in-not-enrolled,
+ *              follow-ups due, fresh leads, anyone who asked for a human.
+ *   thisWeek — coming up: trials 2-7 days out, follow-ups scheduled this week.
+ *              These auto-promote to `today` as their day arrives.
+ * A lead stays until its state changes (you mark it, snooze it with a follow-up
+ * date, or advance the stage), so nobody gets lost. Snoozing past today removes
+ * it until the follow-up date.
+ */
+export type CallBoardItem = { lead: Lead; reason: string; sort: number };
+export async function getCallBoard(): Promise<{ today: CallBoardItem[]; thisWeek: CallBoardItem[] }> {
+  const db = await getDb();
+  if (!db) return { today: [], thisWeek: [] };
+  const candidates = await db.select().from(leads).where(
+    sql`pipelineStage NOT IN ('enrolled','lost','no_show_final')
+        AND (automationPaused IS NULL OR automationPaused = 0)`
+  );
+  // "Today" in America/New_York, matching the calendar and check-in pages.
+  const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+  const todayMs = new Date(todayStr + "T12:00:00").getTime();
+  const diff = (s: string | null | undefined) =>
+    s ? Math.round((new Date(s + "T12:00:00").getTime() - todayMs) / 86400000) : null;
+  const now = Date.now();
+  const today: CallBoardItem[] = [];
+  const thisWeek: CallBoardItem[] = [];
+
+  for (const l of candidates) {
+    const stage = l.pipelineStage;
+    const fu = diff((l as any).nextFollowUpAt);
+    // A scheduled follow-up date controls timing: future = snooze, due = call.
+    if (fu !== null && fu > 0) {
+      if (fu <= 7) thisWeek.push({ lead: l, reason: `follow-up scheduled for ${(l as any).nextFollowUpAt}`, sort: 200 + fu });
+      continue; // more than a week out: hidden until it gets closer
+    }
+    if (fu !== null && fu <= 0) {
+      today.push({ lead: l, reason: fu < 0 ? "follow-up overdue" : "follow-up due today", sort: fu < 0 ? 0 : 5 });
+      continue;
+    }
+    // No follow-up set: route by stage + trial date.
+    const td = diff(l.trialClassDate);
+    if (stage === "trial_scheduled") {
+      if (td === null) today.push({ lead: l, reason: "trial booked, confirm the time", sort: 22 });
+      else if (td < 0) today.push({ lead: l, reason: `trial was ${l.trialClassDate}, did they show? mark it`, sort: 1 });
+      else if (td === 0) today.push({ lead: l, reason: "trial is TODAY, confirm", sort: 10 });
+      else if (td === 1) today.push({ lead: l, reason: "trial tomorrow, confirm", sort: 11 });
+      else if (td <= 7) thisWeek.push({ lead: l, reason: `trial ${l.trialClassDate}, confirm closer`, sort: 100 + td });
+      continue;
+    }
+    if (stage === "no_show") { today.push({ lead: l, reason: "no-showed trial, rebook", sort: 30 }); continue; }
+    if (stage === "trial_attended") { today.push({ lead: l, reason: "came in but didn't enroll, follow up to close", sort: 31 }); continue; }
+    if (stage === "trial_paid") { today.push({ lead: l, reason: "paid trial, follow up to enroll", sort: 32 }); continue; }
+    if ((l as any).noOutboundCalls === 1) { today.push({ lead: l, reason: "asked for a human, call them", sort: 2 }); continue; }
+    const ageDays = (now - (l.createdAt ? new Date(l.createdAt).getTime() : now)) / 86400000;
+    if (stage === "new_lead" && ageDays <= 3) { today.push({ lead: l, reason: "new lead, call fast", sort: 12 }); continue; }
+    if (stage === "contacted" && ageDays >= 5) { today.push({ lead: l, reason: `contacted ${Math.floor(ageDays)}d ago, follow up`, sort: 40 }); continue; }
+    // older new_lead / recently-contacted: worked through bulk lists, not the daily board
+  }
+  today.sort((a, b) => a.sort - b.sort);
+  thisWeek.sort((a, b) => a.sort - b.sort);
+  return { today, thisWeek };
+}
+
+/**
  * Pick the top N leads to call today, by score, and write to dailyCallQueue.
  *
  * Scoring (initial heuristic — refine after we have email open/click data):

@@ -28,6 +28,7 @@ export function FollowUpControl({ leadId, nextFollowUpAt, followUpNote }: {
       utils.leads.getAll.invalidate();
       utils.checkin.listForDate.invalidate();
       utils.calls.listToday.invalidate();
+      utils.calls.board.invalidate();
       toast.success("Follow-up saved");
     },
     onError: (e: any) => toast.error(e?.message ?? "Failed to save follow-up"),

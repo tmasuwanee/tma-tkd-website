@@ -18,6 +18,7 @@ import {
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { FollowUpControl } from "@/components/admin/FollowUpControl";
+import { LeadDetailDialog, type Lead } from "@/components/admin/LeadsPipeline";
 
 // ─── Auth (matches the rest of /admin) ───────────────────────────────────────
 const ALLOWED_EMAILS = ["tmasuwanee@gmail.com", "coacharfasc@gmail.com"];
@@ -105,42 +106,30 @@ const STATUS_COLORS: Record<string, string> = {
   skipped: "bg-gray-100 text-gray-500",
 };
 
-function CallCard({ row, onClick }: { row: any; onClick: () => void }) {
-  const lead = row.lead;
+function CallCard({ item, onClick }: { item: { lead: any; reason: string }; onClick: () => void }) {
+  const { lead, reason } = item;
   if (!lead) return null;
   return (
     <button onClick={onClick}
       className="w-full text-left bg-white border border-gray-200 hover:border-[#1a2d5a] rounded-lg p-4 transition-colors shadow-sm">
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className="font-semibold text-[#1a2d5a]">{lead.parentName}</div>
-            <Badge variant="outline" className={`text-[10px] ${STATUS_COLORS[row.status]}`}>
-              {row.status}
-            </Badge>
+          {/* Kid name on top (that's who the call is about), parent under it */}
+          <div className="font-semibold text-[#1a2d5a]">
+            {lead.kidName || lead.parentName}{lead.kidAge ? ` (${lead.kidAge})` : ""}
           </div>
-          <div className="text-xs text-gray-600 mt-0.5">
-            Kid: <strong>{lead.kidName}</strong> ({lead.kidAge})
+          <div className="text-xs text-gray-500 mt-0.5">
+            {lead.parentName}{lead.programInterest ? ` · ${lead.programInterest}` : ""}{lead.trialClassTime ? ` · ${lead.trialClassTime}` : ""}
           </div>
-          {row.vertical && (
-            <div className="text-xs text-gray-500 mt-0.5">
-              Interest: {row.vertical}
-            </div>
-          )}
           <div className="text-xs text-gray-400 mt-1.5 flex items-center gap-1">
-            <Clock className="w-3 h-3" />
-            {row.reason || "general follow-up"}
+            <Clock className="w-3 h-3 shrink-0" />
+            {reason}
           </div>
         </div>
-        <div className="flex flex-col items-end gap-1">
-          <div className="text-[10px] font-mono bg-gray-100 px-1.5 py-0.5 rounded">
-            score {row.score}
-          </div>
-          <a href={`tel:${lead.phone}`} onClick={e => e.stopPropagation()}
-            className="text-xs bg-[#c41e3a] text-white px-2 py-1 rounded flex items-center gap-1">
-            <Phone className="w-3 h-3" /> {lead.phone}
-          </a>
-        </div>
+        <a href={`tel:${lead.phone}`} onClick={e => e.stopPropagation()}
+          className="text-xs bg-[#c41e3a] text-white px-2 py-1 rounded flex items-center gap-1 shrink-0 self-start">
+          <Phone className="w-3 h-3" /> {lead.phone}
+        </a>
       </div>
       <div className="mt-2 pt-2 border-t border-gray-100 flex items-center justify-between text-xs">
         <span className="text-gray-500">Stage: <strong>{lead.pipelineStage}</strong></span>
@@ -303,39 +292,9 @@ function CallDetailModal({ row, email, onClose, onSaved }: {
 }
 
 export function CallsApp({ email, onLogout, embedded }: { email: string; onLogout?: () => void; embedded?: boolean }) {
-  const [date, setDate] = useState(todayString());
-  const [activeRow, setActiveRow] = useState<any | null>(null);
-  const autoGen = useRef(false);
-  const listQuery = trpc.calls.listToday.useQuery({ date }, { refetchOnWindowFocus: false });
-  const generate = trpc.calls.generateToday.useMutation();
-  const utils = trpc.useUtils();
-
-  const items = listQuery.data ?? [];
-  const pending = items.filter((r: any) => r.status === "pending");
-  const completed = items.filter((r: any) => r.status !== "pending");
-
-  async function regenerate() {
-    try {
-      const inserted = await generate.mutateAsync({ limit: 25 });
-      toast.success(`Refreshed: ${inserted.length} call(s) queued for today`);
-      await utils.calls.listToday.invalidate();
-    } catch (err: any) {
-      toast.error(err?.message ?? "Failed to refresh");
-    }
-  }
-
-  // Auto-build today's list when it's empty (the 8am cron normally fills it;
-  // this covers a day it hasn't run). Fires once, only while viewing today.
-  useEffect(() => {
-    if (date === todayString() && !listQuery.isLoading && items.length === 0
-        && !autoGen.current && !generate.isPending) {
-      autoGen.current = true;
-      generate.mutateAsync({ limit: 25 })
-        .then(() => utils.calls.listToday.invalidate())
-        .catch(() => {});
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [date, listQuery.isLoading, items.length]);
+  const [detailLead, setDetailLead] = useState<Lead | null>(null);
+  const boardQuery = trpc.calls.board.useQuery(undefined, { refetchOnWindowFocus: true });
+  const board = boardQuery.data ?? { today: [], thisWeek: [] };
 
   return (
     <div className={embedded ? "pb-12" : "min-h-screen bg-gray-50 pb-24"}>
@@ -354,67 +313,55 @@ export function CallsApp({ email, onLogout, embedded }: { email: string; onLogou
       </div>
       )}
 
-      <div className="max-w-2xl mx-auto px-4 py-4 space-y-4">
-        {/* Date + refresh */}
-        <Card>
-          <CardContent className="pt-4">
-            <div className="flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-gray-500 shrink-0" />
-              <Input type="date" value={date} onChange={e => setDate(e.target.value)} className="text-sm" />
-              <Button variant="ghost" size="sm" onClick={regenerate} disabled={generate.isPending}
-                className="ml-auto text-[#1a2d5a] shrink-0">
-                {generate.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-                <span className="ml-1.5 text-xs">Refresh</span>
-              </Button>
-            </div>
-            <p className="text-[10px] text-gray-400 mt-2">
-              Ranked by urgency: trials to confirm, no-shows to rebook, anyone who came in but hasn't signed up, then fresh leads. Updates automatically each morning.
-            </p>
-          </CardContent>
-        </Card>
+      <div className="max-w-2xl mx-auto px-4 py-4 space-y-5">
+        <p className="text-[11px] text-gray-400">
+          Live list, ranked by urgency. It updates itself as days pass and as you set follow-ups. Tap anyone to mark what happened or set a follow-up date. Nobody drops off until you do.
+        </p>
 
-        {/* Pending */}
-        <div>
-          <h2 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 text-red-500" />
-            To call ({pending.length})
-          </h2>
-          {listQuery.isLoading ? (
-            <div className="text-center py-8 text-gray-400">
-              <Loader2 className="w-5 h-5 animate-spin mx-auto" />
-            </div>
-          ) : pending.length === 0 ? (
-            <div className="text-center py-8 text-gray-400 text-sm bg-white rounded border border-dashed">
-              No calls to make right now. Hit Refresh if you think someone is missing.
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {pending.map((row: any) => (
-                <CallCard key={row.id} row={row} onClick={() => setActiveRow(row)} />
-              ))}
-            </div>
-          )}
-        </div>
+        {boardQuery.isLoading ? (
+          <div className="text-center py-10 text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></div>
+        ) : (
+          <>
+            <section>
+              <h2 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-red-500" /> Call today ({board.today.length})
+              </h2>
+              {board.today.length === 0 ? (
+                <div className="text-center py-8 text-gray-400 text-sm bg-white rounded border border-dashed">
+                  Nobody to call right now. Nice.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {board.today.map((it: any) => (
+                    <CallCard key={it.lead.id} item={it} onClick={() => setDetailLead(it.lead)} />
+                  ))}
+                </div>
+              )}
+            </section>
 
-        {/* Done */}
-        {completed.length > 0 && (
-          <div>
-            <h2 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-              <Check className="w-4 h-4 text-green-500" />
-              Completed ({completed.length})
-            </h2>
-            <div className="space-y-2">
-              {completed.map((row: any) => (
-                <CallCard key={row.id} row={row} onClick={() => setActiveRow(row)} />
-              ))}
-            </div>
-          </div>
+            <section>
+              <h2 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-blue-500" /> Later this week ({board.thisWeek.length})
+              </h2>
+              {board.thisWeek.length === 0 ? (
+                <div className="text-center py-6 text-gray-400 text-sm bg-white rounded border border-dashed">
+                  Nothing coming up later this week yet.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {board.thisWeek.map((it: any) => (
+                    <CallCard key={it.lead.id} item={it} onClick={() => setDetailLead(it.lead)} />
+                  ))}
+                </div>
+              )}
+            </section>
+          </>
         )}
       </div>
 
-      <CallDetailModal row={activeRow} email={email}
-        onClose={() => setActiveRow(null)}
-        onSaved={() => utils.calls.listToday.invalidate()} />
+      <LeadDetailDialog lead={detailLead} open={!!detailLead}
+        onClose={() => setDetailLead(null)}
+        onRefresh={() => boardQuery.refetch()} />
     </div>
   );
 }

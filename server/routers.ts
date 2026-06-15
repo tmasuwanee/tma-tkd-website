@@ -30,7 +30,7 @@ import {
   // Studio multi-tag (2026-06-04)
   setStudioAssetTags,
   // Call queue + inbound replies (2026-06-06)
-  generateDailyCallQueue, listTodaysCalls, markCallOutcome, recordInboundEmailReply,
+  generateDailyCallQueue, listTodaysCalls, markCallOutcome, recordInboundEmailReply, getCallBoard,
   // Call log from the Retell webhook (2026-06-11)
   listCallLogs, getCallLog,
   // Automation controls / kill switch (2026-06-11)
@@ -1326,6 +1326,9 @@ export const appRouter = router({
         date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
       }))
       .query(async ({ input }) => listTodaysCalls(input.date)),
+
+    // Live, date-aware call board (today + later this week), computed from leads.
+    board: publicProcedure.query(async () => getCallBoard()),
 
     generateToday: publicProcedure
       .input(z.object({
