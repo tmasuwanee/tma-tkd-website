@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2, ClipboardCheck, Eye, EyeOff, LogOut, Check, X, Phone, Calendar } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { FollowUpControl } from "@/components/admin/FollowUpControl";
 
 const ALLOWED_EMAILS = ["tmasuwanee@gmail.com", "coacharfasc@gmail.com"];
 const PASSWORD = "Keep9oing!";
@@ -93,6 +94,11 @@ function LeadRow({ lead, onMark, busy }: { lead: any; onMark: (showed: boolean) 
           <X className="w-4 h-4 mr-1" /> No-show
         </Button>
       </div>
+      {marked && (
+        <div className="mt-3">
+          <FollowUpControl leadId={lead.id} nextFollowUpAt={lead.nextFollowUpAt} followUpNote={lead.followUpNote} />
+        </div>
+      )}
     </div>
   );
 }

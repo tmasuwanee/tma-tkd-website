@@ -37,6 +37,7 @@ import {
   getAutomationControls, setAutomationControl, setAllAutomations,
   // Trial check-in (2026-06-11)
   getLeadsByStagesAndTrialDate,
+  setLeadFollowUp,
 } from "./db";
 import { storagePut, storageGet } from "./storage";
 import { sendToGoogleSheets, sendToSlack, sendEmailNotification, sendCampRegistrationConfirmation, sendCampWaiverEmail } from "./integrations";
@@ -395,6 +396,8 @@ export const appRouter = router({
             trialClassDate: input.trialClassDate ?? null,
             trialClassTime: input.trialClassTime ?? null,
             trialClassDay: input.trialClassDay ?? null,
+            nextFollowUpAt: null,
+            followUpNote: null,
             tags: input.tags ? JSON.stringify(input.tags) : null,
             automationPaused: 0,
             automationPausedAt: null,
@@ -634,6 +637,17 @@ export const appRouter = router({
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input }) => {
         await deleteLead(input.id);
+        return { success: true };
+      }),
+
+    setFollowUp: publicProcedure
+      .input(z.object({
+        id: z.number(),
+        nextFollowUpAt: z.string().nullable(),   // "YYYY-MM-DD", or null to clear
+        note: z.string().nullable().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        await setLeadFollowUp(input.id, input.nextFollowUpAt, input.note ?? null);
         return { success: true };
       }),
   }),

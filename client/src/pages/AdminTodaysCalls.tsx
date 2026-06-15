@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { FollowUpControl } from "@/components/admin/FollowUpControl";
 
 // ─── Auth (matches the rest of /admin) ───────────────────────────────────────
 const ALLOWED_EMAILS = ["tmasuwanee@gmail.com", "coacharfasc@gmail.com"];
@@ -285,6 +286,8 @@ function CallDetailModal({ row, email, onClose, onSaved }: {
             <Label className="text-xs">Notes</Label>
             <Textarea value={notes} onChange={e => setNotes(e.target.value)}
               placeholder="Anything to remember for next time..." rows={3} />
+
+            {lead && <FollowUpControl leadId={lead.id} nextFollowUpAt={lead.nextFollowUpAt} followUpNote={lead.followUpNote} />}
           </div>
         </div>
 

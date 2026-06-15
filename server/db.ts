@@ -220,6 +220,20 @@ export async function deleteLead(id: number) {
   await db.delete(leads).where(eq(leads.id, id));
 }
 
+/**
+ * Set (or clear) a lead's scheduled follow-up. A future date snoozes the lead
+ * out of the daily call queue until then; null clears it so the lead follows
+ * the normal urgency ranking again and keeps showing in the morning reminders.
+ */
+export async function setLeadFollowUp(leadId: number, nextFollowUpAt: string | null, note: string | null) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(leads).set({
+    nextFollowUpAt: nextFollowUpAt || null,
+    followUpNote: note ?? null,
+  } as any).where(eq(leads.id, leadId));
+}
+
 // Upsert a lead from Facebook Lead Ads — matches by email.
 // Existing leads: merges tags, fills blank UTM fields. Never overwrites notes, stage, or existing tags.
 // New leads: inserts with utmSource=facebook and provided tags.
@@ -1784,6 +1798,17 @@ export async function generateDailyCallQueue(opts: {
     const ageMs = now - (l.createdAt ? new Date(l.createdAt).getTime() : now);
     const ageDays = ageMs / (1000 * 60 * 60 * 24);
     const reasons: string[] = [];
+
+    // Scheduled follow-up: a future date snoozes the lead (do not nag before
+    // then); once the date has arrived it jumps to the top of the list.
+    const followUp = (l as any).nextFollowUpAt as string | null;
+    if (followUp && followUp > date) {
+      return { lead: l, score: 0, reason: "snoozed until " + followUp };
+    }
+    if (followUp && followUp <= date) {
+      s += 50;
+      reasons.push("scheduled follow-up due");
+    }
 
     if ((l as any).noOutboundCalls === 1) {
       s += 45;

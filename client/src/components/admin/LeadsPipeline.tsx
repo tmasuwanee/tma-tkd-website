@@ -1,4 +1,5 @@
 import { trpc } from "@/lib/trpc";
+import { FollowUpControl } from "@/components/admin/FollowUpControl";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -82,6 +83,8 @@ export type Lead = {
   trialClassDate: string | null;
   trialClassTime: string | null;
   trialClassDay: string | null;
+  nextFollowUpAt: string | null;
+  followUpNote: string | null;
   tags: string[];
   createdAt: Date;
   updatedAt: Date;
@@ -560,6 +563,9 @@ export function LeadDetailDialog({ lead, open, onClose, onRefresh }: {
               </Button>
             </div>
           </div>
+
+          {/* Follow-up scheduling */}
+          <FollowUpControl leadId={lead.id} nextFollowUpAt={lead.nextFollowUpAt} followUpNote={lead.followUpNote} />
 
           {/* Motivation / Notes from lead */}
           {(lead.motivation || lead.additionalNotes) && (

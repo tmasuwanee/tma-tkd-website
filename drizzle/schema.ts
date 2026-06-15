@@ -67,6 +67,12 @@ export const leads = mysqlTable("leads", {
   // are prioritized in the daily call queue.
   noOutboundCalls: tinyint("noOutboundCalls").default(0).notNull(),
   noOutboundCallsAt: timestamp("noOutboundCallsAt"),
+  // 2026-06-15: manual follow-up scheduling. When staff pick a date, the lead is
+  // snoozed out of the daily call queue until that date, then resurfaces. Null
+  // means no scheduled follow-up, so the lead follows the normal urgency ranking
+  // and keeps appearing in the 8am reminders until someone acts on it.
+  nextFollowUpAt: varchar("nextFollowUpAt", { length: 20 }),  // YYYY-MM-DD
+  followUpNote: text("followUpNote"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
