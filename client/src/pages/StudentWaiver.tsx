@@ -16,21 +16,23 @@ import { SMS_CONSENT_TEXT } from "../../../shared/smsConsent";
  * guest waiver. QR code / iPad / link → this page. On submit it lands the family
  * in the SAME lead pipeline as web leads AND stores the signed waiver on file.
  *
- * ⚠️ WAIVER_DISCLAIMER below is a reasonable standard placeholder so the form is
- * usable today. Replace it with TMA's exact JotForm liability wording before
- * relying on it as the legal record. The exact text is snapshotted onto every
- * signed submission, so swapping it here only affects waivers signed afterward.
+ * WAIVER_DISCLAIMER is TMA's own waiver wording (provided 2026-06-15), strengthened
+ * with standard assumption-of-risk, hold-harmless, emergency-care, and minor-guardian
+ * elements. The exact text is snapshotted onto every signed submission, so editing it
+ * here only affects waivers signed afterward. This is not legal advice. A liability
+ * waiver that covers minors in Georgia is worth a quick attorney review for enforceability.
  */
 const WAIVER_DISCLAIMER =
-  "In consideration of being permitted to participate in classes, training, and " +
-  "activities at Top Martial Arts Suwanee (\"TMA\"), I acknowledge that martial arts " +
-  "and physical activity involve inherent risks, including the risk of injury. On " +
-  "behalf of myself and the minor child(ren) named above, I assume those risks and " +
-  "agree to release, waive, and hold harmless Top Martial Arts Suwanee, its " +
-  "instructors, staff, and owners from any claims, liabilities, or damages arising " +
-  "from participation, except where caused by gross negligence or willful misconduct. " +
-  "I confirm the participant(s) are physically able to take part, and I authorize TMA " +
-  "staff to seek emergency medical care if needed. I have read this waiver and sign it voluntarily.";
+  "I, for myself, my child(ren) named above, and our heirs, executors, and assigns, " +
+  "acknowledge and fully understand that martial arts training and physical activity " +
+  "involve inherent risks, including the risk of personal injury. I agree that the " +
+  "instructors, staff, and owners of Top Martial Arts will not be held liable for any " +
+  "damages arising from personal injury and/or loss sustained by the student in or about " +
+  "the premises of the school. I confirm that the student is physically fit and able to " +
+  "participate in all class activities to the best of their ability, and I authorize Top " +
+  "Martial Arts staff to seek emergency medical care if it becomes necessary. As the parent " +
+  "or legal guardian of any minor named above, I accept these terms on their behalf. I have " +
+  "read this waiver and sign it voluntarily.";
 
 const INTERESTS: { key: string; label: string }[] = [
   { key: "better_listening", label: "Better listening" },
