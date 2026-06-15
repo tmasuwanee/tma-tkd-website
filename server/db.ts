@@ -18,6 +18,7 @@ import {
   dailyCallQueue, InsertDailyCallQueueRow, DailyCallQueueRow,
   automationControls, AutomationControl,
   callLogs, InsertCallLog, CallLog,
+  adminTasks, AdminTask,
 } from "../drizzle/schema";
 import { lte } from "drizzle-orm";
 import { ENV } from './_core/env';
@@ -232,6 +233,36 @@ export async function setLeadFollowUp(leadId: number, nextFollowUpAt: string | n
     nextFollowUpAt: nextFollowUpAt || null,
     followUpNote: note ?? null,
   } as any).where(eq(leads.id, leadId));
+}
+
+// ── Admin tasks (the personal "My Tasks" to-do list) ─────────────────────────
+export async function listAdminTasks(): Promise<AdminTask[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(adminTasks).orderBy(adminTasks.done, desc(adminTasks.createdAt));
+}
+export async function addAdminTask(input: { title: string; notes?: string | null; dueDate?: string | null; createdBy?: string | null }): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [r] = await db.insert(adminTasks).values({
+    title: input.title, notes: input.notes ?? null, dueDate: input.dueDate ?? null, createdBy: input.createdBy ?? null,
+  } as any);
+  return (r as unknown as { insertId: number }).insertId ?? 0;
+}
+export async function updateAdminTask(id: number, patch: { title?: string; notes?: string | null; done?: boolean; dueDate?: string | null }): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const set: Record<string, unknown> = {};
+  if (patch.title !== undefined) set.title = patch.title;
+  if (patch.notes !== undefined) set.notes = patch.notes;
+  if (patch.dueDate !== undefined) set.dueDate = patch.dueDate;
+  if (patch.done !== undefined) set.done = patch.done ? 1 : 0;
+  if (Object.keys(set).length) await db.update(adminTasks).set(set as any).where(eq(adminTasks.id, id));
+}
+export async function deleteAdminTask(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(adminTasks).where(eq(adminTasks.id, id));
 }
 
 // Upsert a lead from Facebook Lead Ads — matches by email.

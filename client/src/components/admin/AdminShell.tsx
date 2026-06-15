@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import {
   Kanban, ClipboardCheck, Phone, PhoneOutgoing, Mail, Route as RouteIcon,
   BarChart2, GraduationCap, CalendarCheck, ShieldAlert, Camera, LogOut,
-  Menu, PhoneCall, CalendarDays,
+  Menu, PhoneCall, CalendarDays, CheckSquare,
 } from "lucide-react";
 import { CallsApp } from "@/pages/AdminTodaysCalls";
 import { CallLogApp } from "@/pages/AdminCallLog";
@@ -20,13 +20,14 @@ import AdsInsightsDashboard from "@/components/admin/AdsInsightsDashboard";
 import SequencesEditor from "@/components/admin/SequencesEditor";
 import IntakeRulesEditor from "@/components/admin/IntakeRulesEditor";
 import CalendarView from "@/components/admin/CalendarView";
+import MyTasks from "@/components/admin/MyTasks";
 
 // Keys double as URL segments (/admin/<key>). They match the old standalone
 // routes where possible (/admin/calls, /admin/checkin, /admin/call-log,
 // /admin/voice-test, /admin/controls) so those URLs still land in the shell.
 type ViewKey =
   | "calls" | "calendar" | "leads" | "checkin" | "call-log" | "voice-test"
-  | "sequences" | "rules" | "ads" | "students" | "camp" | "controls" | "studio";
+  | "sequences" | "rules" | "ads" | "students" | "camp" | "controls" | "studio" | "tasks";
 
 const NAV: { group: string; items: { key: ViewKey; label: string; icon: any }[] }[] = [
   { group: "Leads", items: [
@@ -49,6 +50,7 @@ const NAV: { group: string; items: { key: ViewKey; label: string; icon: any }[] 
     { key: "camp", label: "Camp Registrations", icon: CalendarCheck },
   ]},
   { group: "System", items: [
+    { key: "tasks", label: "My Tasks", icon: CheckSquare },
     { key: "controls", label: "Automation", icon: ShieldAlert },
     { key: "studio", label: "Studio", icon: Camera },
   ]},
@@ -71,6 +73,7 @@ function renderView(key: ViewKey, email: string) {
     case "camp": return <CampRegistrationsTab />;
     case "controls": return <ControlsApp email={email} embedded />;
     case "studio": return <StudioApp email={email} embedded />;
+    case "tasks": return <MyTasks />;
   }
 }
 

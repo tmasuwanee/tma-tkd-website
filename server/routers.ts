@@ -38,6 +38,7 @@ import {
   // Trial check-in (2026-06-11)
   getLeadsByStagesAndTrialDate,
   setLeadFollowUp,
+  listAdminTasks, addAdminTask, updateAdminTask, deleteAdminTask,
 } from "./db";
 import { storagePut, storageGet } from "./storage";
 import { sendToGoogleSheets, sendToSlack, sendEmailNotification, sendCampRegistrationConfirmation, sendCampWaiverEmail } from "./integrations";
@@ -1443,6 +1444,38 @@ export const appRouter = router({
       .mutation(async ({ input }) => {
         await updateLeadStage(input.leadId, input.showed ? "trial_attended" : "no_show");
         return { success: true, stage: input.showed ? "trial_attended" : "no_show" } as const;
+      }),
+  }),
+
+  // Personal admin to-do list (the "My Tasks" dashboard tab).
+  tasks: router({
+    list: publicProcedure.query(async () => listAdminTasks()),
+    add: publicProcedure
+      .input(z.object({
+        title: z.string().min(1).max(500),
+        notes: z.string().nullable().optional(),
+        dueDate: z.string().nullable().optional(),
+        createdBy: z.string().nullable().optional(),
+      }))
+      .mutation(async ({ input }) => ({ id: await addAdminTask(input) })),
+    update: publicProcedure
+      .input(z.object({
+        id: z.number(),
+        title: z.string().optional(),
+        notes: z.string().nullable().optional(),
+        done: z.boolean().optional(),
+        dueDate: z.string().nullable().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { id, ...patch } = input;
+        await updateAdminTask(id, patch);
+        return { success: true };
+      }),
+    delete: publicProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await deleteAdminTask(input.id);
+        return { success: true };
       }),
   }),
 

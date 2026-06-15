@@ -586,3 +586,20 @@ export const callLogs = mysqlTable("callLogs", {
 
 export type CallLog = typeof callLogs.$inferSelect;
 export type InsertCallLog = typeof callLogs.$inferInsert;
+
+// Personal admin to-do list (the dashboard "My Tasks" tab). Not tied to a lead.
+export const adminTasks = mysqlTable("adminTasks", {
+  id: int("id").autoincrement().primaryKey(),
+  title: varchar("title", { length: 500 }).notNull(),
+  notes: text("notes"),
+  done: tinyint("done").default(0).notNull(),
+  dueDate: varchar("dueDate", { length: 20 }),  // YYYY-MM-DD, optional
+  createdBy: varchar("createdBy", { length: 100 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  doneIdx: index("admin_tasks_done_idx").on(table.done, table.createdAt),
+}));
+
+export type AdminTask = typeof adminTasks.$inferSelect;
+export type InsertAdminTask = typeof adminTasks.$inferInsert;
