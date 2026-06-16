@@ -1523,7 +1523,7 @@ export const appRouter = router({
         signedName: z.string().max(255).nullable().optional(),
         signedDate: z.string().min(1).max(20),   // YYYY-MM-DD
         disclaimerText: z.string().max(8000).nullable().optional(),
-        source: z.enum(["walk_in", "online", "ipad"]).default("walk_in"),
+        source: z.enum(["walk_in", "online", "ipad", "trial"]).default("walk_in"),
         smsConsent: z.boolean().optional(),
         smsConsentText: z.string().nullable().optional(),
       }))

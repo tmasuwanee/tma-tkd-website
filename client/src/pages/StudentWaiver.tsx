@@ -34,6 +34,22 @@ const WAIVER_DISCLAIMER =
   "or legal guardian of any minor named above, I accept these terms on their behalf. I have " +
   "read this waiver and sign it voluntarily.";
 
+// Trial-specific variant, shown when the page is opened with ?type=trial (the
+// "Open waiver" button from Add Trial Student). Same protections, framed around the
+// paid 3-week trial enrollment.
+const TRIAL_WAIVER_DISCLAIMER =
+  "I am enrolling the student named above in the Top Martial Arts 3-Week Trial program. " +
+  "I, for myself, my child(ren) named above, and our heirs, executors, and assigns, " +
+  "acknowledge and fully understand that martial arts training and physical activity " +
+  "involve inherent risks, including the risk of personal injury. I agree that the " +
+  "instructors, staff, and owners of Top Martial Arts will not be held liable for any " +
+  "damages arising from personal injury and/or loss sustained by the student in or about " +
+  "the premises of the school. I confirm that the student is physically fit and able to " +
+  "participate in all class activities to the best of their ability, and I authorize Top " +
+  "Martial Arts staff to seek emergency medical care if it becomes necessary. I understand " +
+  "the 3-week trial is a paid enrollment. As the parent or legal guardian of any minor named " +
+  "above, I accept these terms on their behalf. I have read this waiver and sign it voluntarily.";
+
 const INTERESTS: { key: string; label: string }[] = [
   { key: "better_listening", label: "Better listening" },
   { key: "improved_behavior", label: "Improved behavior" },
@@ -49,6 +65,10 @@ export default function StudentWaiver() {
   const submit = trpc.waiver.submit.useMutation();
   const [submitted, setSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // ?type=trial → the 3-week-trial waiver variant (opened from Add Trial Student).
+  const isTrial = useMemo(() => new URLSearchParams(window.location.search).get("type") === "trial", []);
+  const disclaimer = isTrial ? TRIAL_WAIVER_DISCLAIMER : WAIVER_DISCLAIMER;
 
   // Local date (they're signing in GA) — used as the signed date and shown on the form.
   const today = useMemo(() => {
@@ -111,8 +131,8 @@ export default function StudentWaiver() {
         signatureData,
         signedName: (signedName.trim() || parentName.trim()),
         signedDate: today,
-        disclaimerText: WAIVER_DISCLAIMER,
-        source: "walk_in",
+        disclaimerText: disclaimer,
+        source: isTrial ? "trial" : "walk_in",
         ...(smsConsent ? { smsConsent: true, smsConsentText: SMS_CONSENT_TEXT } : {}),
       });
       setSubmitted(true);
@@ -141,7 +161,7 @@ export default function StudentWaiver() {
           </div>
           <div>
             <h1 className="text-white font-bold text-lg leading-tight">Top Martial Arts Suwanee</h1>
-            <p className="text-white/70 text-xs">Waiver</p>
+            <p className="text-white/70 text-xs">{isTrial ? "3-Week Trial Waiver" : "Waiver"}</p>
           </div>
         </div>
       </header>
@@ -248,7 +268,7 @@ export default function StudentWaiver() {
               <section className="space-y-4">
                 <h2 className="text-sm font-bold uppercase tracking-wider text-[#1a2d5a]">Liability Waiver</h2>
                 <div className="max-h-44 overflow-y-auto rounded-lg border border-gray-200 bg-gray-50 p-4 text-xs leading-relaxed text-gray-600">
-                  {WAIVER_DISCLAIMER}
+                  {disclaimer}
                 </div>
                 <label className="flex items-start gap-3 cursor-pointer">
                   <Checkbox checked={agreed} onCheckedChange={v => setAgreed(v === true)} className="mt-0.5" />

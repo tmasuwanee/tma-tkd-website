@@ -1108,8 +1108,8 @@ function TrialStudentDialog({ onClose, onDone }: { onClose: () => void; onDone: 
                     ? (hasWaiver ? <span className="text-green-700 font-medium">Waiver on file</span> : <span className="text-amber-700">No waiver on file yet</span>)
                     : <span className="text-gray-500">Enter email to check for a waiver</span>}
                 </div>
-                <Button type="button" variant="outline" size="sm" onClick={() => window.open("/enroll", "_blank")}>
-                  Open waiver <ExternalLink className="w-3.5 h-3.5 ml-1" />
+                <Button type="button" variant="outline" size="sm" onClick={() => window.open("/enroll?type=trial", "_blank")}>
+                  Open trial waiver <ExternalLink className="w-3.5 h-3.5 ml-1" />
                 </Button>
               </div>
 
