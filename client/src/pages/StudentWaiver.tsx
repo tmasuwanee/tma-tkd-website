@@ -70,7 +70,7 @@ export default function StudentWaiver() {
   const isTrial = useMemo(() => new URLSearchParams(window.location.search).get("type") === "trial", []);
   const disclaimer = isTrial ? TRIAL_WAIVER_DISCLAIMER : WAIVER_DISCLAIMER;
 
-  // Local date (they're signing in GA) — used as the signed date and shown on the form.
+  // Local date (they're signing in GA). Used as the signed date and shown on the form.
   const today = useMemo(() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -253,9 +253,9 @@ export default function StudentWaiver() {
                       <button type="button" key={opt.key} onClick={() => toggleInterest(opt.key)}
                         className={`flex items-center gap-2.5 rounded-lg border px-3 py-2.5 text-left text-sm transition-colors ${
                           on ? "border-[#1a2d5a] bg-[#1a2d5a]/5 text-[#1a2d5a] font-medium" : "border-gray-200 text-gray-600 hover:border-gray-300"}`}>
-                        <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
-                          on ? "bg-[#1a2d5a] border-[#1a2d5a]" : "border-gray-300"}`}>
-                          {on ? <CheckCircle2 className="w-3 h-3 text-white" /> : null}
+                        <span className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 ${
+                          on ? "bg-[#1a2d5a] border-[#1a2d5a]" : "border-gray-400"}`}>
+                          {on ? <CheckCircle2 className="w-3.5 h-3.5 text-white" /> : null}
                         </span>
                         {opt.label}
                       </button>
@@ -270,9 +270,10 @@ export default function StudentWaiver() {
                 <div className="max-h-44 overflow-y-auto rounded-lg border border-gray-200 bg-gray-50 p-4 text-xs leading-relaxed text-gray-600">
                   {disclaimer}
                 </div>
-                <label className="flex items-start gap-3 cursor-pointer">
-                  <Checkbox checked={agreed} onCheckedChange={v => setAgreed(v === true)} className="mt-0.5" />
-                  <span className="text-sm text-gray-700">I have read and agree to the waiver above.</span>
+                <label className="flex items-start gap-3 cursor-pointer bg-[#1a2d5a]/5 border-2 border-[#1a2d5a]/30 rounded-lg p-3 hover:bg-[#1a2d5a]/10 transition-colors">
+                  <Checkbox checked={agreed} onCheckedChange={v => setAgreed(v === true)}
+                    className="mt-0.5 h-6 w-6 border-2 border-[#1a2d5a]/60 data-[state=checked]:bg-[#1a2d5a] data-[state=checked]:border-[#1a2d5a]" />
+                  <span className="text-sm font-medium text-gray-800">I have read and agree to the waiver above.</span>
                 </label>
 
                 <div className="grid sm:grid-cols-2 gap-4 pt-1">
@@ -292,7 +293,7 @@ export default function StudentWaiver() {
                 </div>
               </section>
 
-              {/* Optional SMS consent — made prominent so it actually gets checked */}
+              {/* Optional SMS consent, made prominent so it actually gets checked */}
               <label htmlFor="smsConsent" className="flex items-start gap-3.5 p-4 bg-[#1a2d5a]/5 border-2 border-[#1a2d5a]/30 rounded-lg cursor-pointer hover:bg-[#1a2d5a]/10 transition-colors">
                 <Checkbox id="smsConsent" checked={smsConsent} onCheckedChange={v => setSmsConsent(v === true)}
                   className="mt-0.5 h-6 w-6 border-2 border-[#1a2d5a]/60 data-[state=checked]:bg-[#1a2d5a] data-[state=checked]:border-[#1a2d5a]" />
