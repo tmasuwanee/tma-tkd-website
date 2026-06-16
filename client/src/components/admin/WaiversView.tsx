@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
-import { Loader2, FileSignature, X, Trash2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Loader2, FileSignature, X, Trash2, Search } from "lucide-react";
 
 const INTEREST_LABELS: Record<string, string> = {
   better_listening: "Better listening",
@@ -21,7 +22,15 @@ export default function WaiversView() {
   const list = trpc.waiver.list.useQuery();
   const del = trpc.waiver.delete.useMutation({ onSuccess: () => utils.waiver.list.invalidate() });
   const [open, setOpen] = useState<any | null>(null);
+  const [search, setSearch] = useState("");
   const waivers = (list.data ?? []) as any[];
+  const q = search.trim().toLowerCase();
+  const filtered = q
+    ? waivers.filter(w => {
+        const kids = parseArr(w.students).map((k: any) => k.name).join(" ");
+        return `${w.parentName} ${w.email ?? ""} ${w.phone ?? ""} ${kids}`.toLowerCase().includes(q);
+      })
+    : waivers;
 
   const remove = (w: any) => {
     const who = parseArr(w.students).map((k: any) => k.name).filter(Boolean).join(", ") || w.parentName;
@@ -41,7 +50,15 @@ export default function WaiversView() {
           No signed waivers yet. Share <span className="font-mono">tmatkd.com/enroll</span> or the QR code.
         </div>
       ) : (
-        waivers.map(w => {
+        <>
+          <div className="relative">
+            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name, child, email, or phone" className="pl-9" />
+            {search ? <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button> : null}
+          </div>
+          {filtered.length === 0 ? (
+            <div className="text-center py-8 text-gray-400 text-sm">No waivers match your search.</div>
+          ) : filtered.map(w => {
           const kids = parseArr(w.students);
           return (
             <div key={w.id}
@@ -59,7 +76,8 @@ export default function WaiversView() {
               </button>
             </div>
           );
-        })
+        })}
+        </>
       )}
 
       {open ? <WaiverModal w={open} onClose={() => setOpen(null)} /> : null}
@@ -86,7 +104,7 @@ function WaiverModal({ w, onClose }: { w: any; onClose: () => void }) {
             <div className="text-[11px] uppercase tracking-wider text-gray-400 mb-1">Students</div>
             {kids.length ? kids.map((k: any, i: number) => (
               <div key={i} className="text-gray-800">{k.name}{k.dob ? <span className="text-gray-400"> · DOB {k.dob}</span> : null}</div>
-            )) : <div className="text-gray-400">—</div>}
+            )) : <div className="text-gray-400">-</div>}
           </div>
           {interests.length ? (
             <div>

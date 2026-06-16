@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Loader2, ClipboardCheck, Eye, EyeOff, LogOut, Check, X, Phone, Calendar } from "lucide-react";
+import { Loader2, ClipboardCheck, Eye, EyeOff, LogOut, Check, X, Phone, Calendar, ChevronDown, ChevronUp, GraduationCap } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { FollowUpControl } from "@/components/admin/FollowUpControl";
@@ -62,14 +62,46 @@ function todayET() {
   return new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 }
 
-function LeadRow({ lead, onMark, busy }: { lead: any; onMark: (showed: boolean) => void; busy: boolean }) {
-  const marked = lead.pipelineStage === "trial_attended" ? "showed"
-    : lead.pipelineStage === "no_show" ? "noshow" : null;
+function LeadRow({ lead, open, onSetOpen, onMark, onSignedUp, busy }: {
+  lead: any;
+  open: boolean;
+  onSetOpen: (o: boolean) => void;
+  onMark: (showed: boolean) => void;
+  onSignedUp: () => void;
+  busy: boolean;
+}) {
+  const stage = lead.pipelineStage;
+  const marked = stage === "trial_attended" ? "showed"
+    : stage === "no_show" ? "noshow"
+    : stage === "enrolled" ? "enrolled" : null;
+  const badge = marked === "showed" ? { t: "SHOWED", c: "bg-green-100 text-green-700" }
+    : marked === "noshow" ? { t: "NO-SHOW", c: "bg-red-100 text-red-700" }
+    : marked === "enrolled" ? { t: "SIGNED UP", c: "bg-emerald-100 text-emerald-700" } : null;
+  const title = `${lead.parentName}${lead.kidName ? ` (${lead.kidName})` : ""}`;
+
+  // Collapsed: compact, tappable summary so the page stays tidy once a card is handled.
+  if (!open) {
+    return (
+      <button onClick={() => onSetOpen(true)}
+        className="w-full text-left border rounded-lg p-3 bg-white hover:border-[#1a2d5a]/40 transition-colors flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <div className="font-semibold text-[#1a2d5a] text-sm truncate">{title}</div>
+          <div className="text-xs text-gray-500 truncate">{lead.programInterest || ""}{lead.trialClassTime ? ` · ${lead.trialClassTime}` : ""}</div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {badge && <span className={`text-[10px] font-semibold px-2 py-1 rounded ${badge.c}`}>{badge.t}</span>}
+          <ChevronDown className="w-4 h-4 text-gray-400" />
+        </div>
+      </button>
+    );
+  }
+
+  // Expanded: full card with actions.
   return (
     <div className="border rounded-lg p-3 bg-white">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <div className="font-semibold text-[#1a2d5a]">{lead.parentName}{lead.kidName ? ` — ${lead.kidName}` : ""}</div>
+          <div className="font-semibold text-[#1a2d5a]">{title}</div>
           <div className="text-xs text-gray-500 mt-0.5">
             {lead.kidAge ? `age ${lead.kidAge} · ` : ""}{lead.programInterest || ""}
             {lead.trialClassTime ? ` · ${lead.trialClassTime}` : ""}
@@ -78,27 +110,32 @@ function LeadRow({ lead, onMark, busy }: { lead: any; onMark: (showed: boolean) 
             <Phone className="w-3 h-3" /> {lead.phone}
           </a>
         </div>
-        {marked && (
-          <span className={`text-[10px] font-semibold px-2 py-1 rounded ${marked === "showed" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
-            {marked === "showed" ? "SHOWED" : "NO-SHOW"}
-          </span>
-        )}
+        <div className="flex items-center gap-2 shrink-0">
+          {badge && <span className={`text-[10px] font-semibold px-2 py-1 rounded ${badge.c}`}>{badge.t}</span>}
+          <button onClick={() => onSetOpen(false)} className="text-gray-400 hover:text-gray-600" title="Collapse">
+            <ChevronUp className="w-4 h-4" />
+          </button>
+        </div>
       </div>
+
       <div className="flex gap-2 mt-3">
         <Button size="sm" disabled={busy} onClick={() => onMark(true)}
-          className={`flex-1 ${marked === "showed" ? "bg-green-600 hover:bg-green-700" : "bg-white border border-green-600 text-green-700 hover:bg-green-50"}`}>
+          className={`flex-1 ${marked === "showed" ? "bg-green-600 hover:bg-green-700 text-white" : "bg-white border border-green-600 text-green-700 hover:bg-green-50"}`}>
           <Check className="w-4 h-4 mr-1" /> Showed up
         </Button>
         <Button size="sm" disabled={busy} onClick={() => onMark(false)}
-          className={`flex-1 ${marked === "noshow" ? "bg-red-600 hover:bg-red-700" : "bg-white border border-red-500 text-red-600 hover:bg-red-50"}`}>
+          className={`flex-1 ${marked === "noshow" ? "bg-red-600 hover:bg-red-700 text-white" : "bg-white border border-red-500 text-red-600 hover:bg-red-50"}`}>
           <X className="w-4 h-4 mr-1" /> No-show
         </Button>
       </div>
-      {marked && (
-        <div className="mt-3">
-          <FollowUpControl leadId={lead.id} nextFollowUpAt={lead.nextFollowUpAt} followUpNote={lead.followUpNote} />
-        </div>
-      )}
+
+      <div className="mt-3 space-y-2">
+        <FollowUpControl leadId={lead.id} nextFollowUpAt={lead.nextFollowUpAt} followUpNote={lead.followUpNote} onSaved={() => onSetOpen(false)} />
+        <Button size="sm" disabled={busy} onClick={onSignedUp}
+          className={`w-full ${marked === "enrolled" ? "bg-emerald-600 hover:bg-emerald-700 text-white" : "bg-white border border-emerald-600 text-emerald-700 hover:bg-emerald-50"}`}>
+          <GraduationCap className="w-4 h-4 mr-1" /> {marked === "enrolled" ? "Signed up (enrolled)" : "Student signed up"}
+        </Button>
+      </div>
     </div>
   );
 }
@@ -108,7 +145,15 @@ export function CheckinApp({ email, onLogout, embedded }: { email: string; onLog
   const [busyId, setBusyId] = useState<number | null>(null);
   const listQuery = trpc.checkin.listForDate.useQuery({ date }, { refetchOnWindowFocus: false });
   const mark = trpc.checkin.mark.useMutation();
+  const signUp = trpc.leads.updateStage.useMutation();
   const utils = trpc.useUtils();
+
+  // Per-card open/closed override. Default: unmarked cards open (need action),
+  // marked cards closed. Marking keeps a card open (to set a follow-up / signed-up);
+  // saving the follow-up or marking signed-up collapses it; tapping a card reopens it.
+  const [override, setOverride] = useState<Record<number, boolean>>({});
+  const isOpen = (l: any) => override[l.id] ?? (l.pipelineStage === "trial_scheduled");
+  const setOpen = (id: number, o: boolean) => setOverride(prev => ({ ...prev, [id]: o }));
 
   const leads = listQuery.data?.leads ?? [];
   const unmarked = leads.filter((l: any) => l.pipelineStage === "trial_scheduled");
@@ -119,6 +164,22 @@ export function CheckinApp({ email, onLogout, embedded }: { email: string; onLog
     try {
       await mark.mutateAsync({ leadId, showed });
       await utils.checkin.listForDate.invalidate();
+      setOpen(leadId, true); // keep the card open so staff can set a follow-up / signed-up
+    } catch (err: any) {
+      toast.error(err?.message ?? "Failed");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function onSignedUp(leadId: number) {
+    setBusyId(leadId);
+    try {
+      await signUp.mutateAsync({ id: leadId, stage: "enrolled" });
+      await utils.checkin.listForDate.invalidate();
+      await utils.leads.getAll.invalidate();
+      setOpen(leadId, false);
+      toast.success("Marked as enrolled");
     } catch (err: any) {
       toast.error(err?.message ?? "Failed");
     } finally {
@@ -160,7 +221,7 @@ export function CheckinApp({ email, onLogout, embedded }: { email: string; onLog
                 <h2 className="text-sm font-semibold text-gray-700 mb-2">Need marking ({unmarked.length})</h2>
                 <div className="space-y-2">
                   {unmarked.map((l: any) => (
-                    <LeadRow key={l.id} lead={l} busy={busyId === l.id} onMark={(s) => onMark(l.id, s)} />
+                    <LeadRow key={l.id} lead={l} open={isOpen(l)} onSetOpen={(o) => setOpen(l.id, o)} onMark={(s) => onMark(l.id, s)} onSignedUp={() => onSignedUp(l.id)} busy={busyId === l.id} />
                   ))}
                 </div>
               </div>
@@ -170,7 +231,7 @@ export function CheckinApp({ email, onLogout, embedded }: { email: string; onLog
                 <h2 className="text-sm font-semibold text-gray-700 mb-2">Marked ({done.length})</h2>
                 <div className="space-y-2">
                   {done.map((l: any) => (
-                    <LeadRow key={l.id} lead={l} busy={busyId === l.id} onMark={(s) => onMark(l.id, s)} />
+                    <LeadRow key={l.id} lead={l} open={isOpen(l)} onSetOpen={(o) => setOpen(l.id, o)} onMark={(s) => onMark(l.id, s)} onSignedUp={() => onSignedUp(l.id)} busy={busyId === l.id} />
                   ))}
                 </div>
               </div>

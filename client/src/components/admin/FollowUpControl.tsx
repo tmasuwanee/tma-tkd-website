@@ -13,10 +13,11 @@ import { toast } from "sonner";
 // the lead out of the call list until then; clearing it lets the lead resurface
 // in the daily reminders. Saving invalidates the three lists that show leads so
 // every view stays in sync.
-export function FollowUpControl({ leadId, nextFollowUpAt, followUpNote }: {
+export function FollowUpControl({ leadId, nextFollowUpAt, followUpNote, onSaved }: {
   leadId: number;
   nextFollowUpAt?: string | null;
   followUpNote?: string | null;
+  onSaved?: () => void;
 }) {
   const [date, setDate] = useState<string | null>(nextFollowUpAt ?? null);
   const [note, setNote] = useState(followUpNote ?? "");
@@ -30,6 +31,7 @@ export function FollowUpControl({ leadId, nextFollowUpAt, followUpNote }: {
       utils.calls.listToday.invalidate();
       utils.calls.board.invalidate();
       toast.success("Follow-up saved");
+      onSaved?.();
     },
     onError: (e: any) => toast.error(e?.message ?? "Failed to save follow-up"),
   });

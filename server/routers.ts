@@ -1462,7 +1462,7 @@ export const appRouter = router({
       .query(async ({ input }) => {
         const date = input.date ?? new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
         const leads = await getLeadsByStagesAndTrialDate(
-          ["trial_scheduled", "trial_attended", "no_show"], date
+          ["trial_scheduled", "trial_attended", "no_show", "enrolled"], date
         );
         return { date, leads };
       }),
