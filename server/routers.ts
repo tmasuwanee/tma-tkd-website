@@ -1577,9 +1577,10 @@ export const appRouter = router({
         programInterest: z.string().max(100).nullable().optional(),
         emergencyContact: z.string().max(255).nullable().optional(),
         startDate: z.string().min(1).max(20),   // YYYY-MM-DD
+        testMode: z.boolean().optional(),        // charge 50 cents for a live test instead of $99
       }))
       .mutation(async ({ input }) => {
-        const AMOUNT = 9900;
+        const AMOUNT = input.testMode ? 50 : 9900;
         const start = new Date(input.startDate + "T12:00:00");
         const end = new Date(start.getTime() + 21 * 86400000);
         const endDate = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}-${String(end.getDate()).padStart(2, "0")}`;

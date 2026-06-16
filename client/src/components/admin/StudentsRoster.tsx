@@ -392,7 +392,7 @@ export default function StudentsRoster() {
                 <p className="text-2xl font-bold text-gray-900">{eligibleCount}</p>
               </div>
             </div>
-            <p className="text-xs text-gray-400 mt-2">{eligibleFilter ? "Showing eligible only — click to clear" : "Click to filter"}</p>
+            <p className="text-xs text-gray-400 mt-2">{eligibleFilter ? "Showing eligible only - click to clear" : "Click to filter"}</p>
           </CardContent>
         </Card>
 
@@ -414,7 +414,7 @@ export default function StudentsRoster() {
                 <Upload className="w-6 h-6 text-gray-400 mb-1.5" />
                 <p className="text-sm font-medium text-gray-700">Upload ZenPlanner CSV</p>
                 <p className="text-xs text-gray-400 mt-0.5">Drag & drop or click to browse</p>
-                <p className="text-xs text-gray-400">Re-uploading a CSV adds new students and updates existing ones by name — no data is deleted.</p>
+                <p className="text-xs text-gray-400">Re-uploading a CSV adds new students and updates existing ones by name - no data is deleted.</p>
               </>
             )}
           </CardContent>
@@ -432,7 +432,7 @@ export default function StudentsRoster() {
       <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
         <p className="text-xs font-semibold text-amber-800 mb-1">Expected CSV columns (from ZenPlanner export):</p>
         <p className="text-xs text-amber-700 font-mono">Name, Email, Phone, Program, Enrollment Date, Belt Rank, Status, Emergency Contact</p>
-        <p className="text-xs text-amber-600 mt-1">Column names are flexible — partial matches work. Re-uploading a CSV adds new students and updates existing ones by name — no data is deleted.</p>
+        <p className="text-xs text-amber-600 mt-1">Column names are flexible - partial matches work. Re-uploading a CSV adds new students and updates existing ones by name - no data is deleted.</p>
       </div>
 
       {/* Search + Belt Filter */}
@@ -655,9 +655,9 @@ function TrialSection() {
                       <p className="font-medium text-gray-900">{t.studentName}</p>
                       {t.phone && <p className="text-xs text-gray-500">{t.phone}</p>}
                     </TableCell>
-                    <TableCell className="text-sm capitalize">{t.programInterest || "—"}</TableCell>
+                    <TableCell className="text-sm capitalize">{t.programInterest || "-"}</TableCell>
                     <TableCell>
-                      <div className="text-sm text-gray-700">{t.endDate || "—"}</div>
+                      <div className="text-sm text-gray-700">{t.endDate || "-"}</div>
                       {left !== null && (
                         <div className={`text-xs flex items-center gap-1 ${left <= 3 ? "text-[#c41e3a] font-medium" : "text-gray-400"}`}>
                           <Clock className="w-3 h-3" />{left < 0 ? "ended" : left === 0 ? "ends today" : `${left} days left`}
@@ -738,12 +738,12 @@ function StudentRow({
             {student.programs}
           </Badge>
         ) : (
-          <span className="text-xs text-gray-400">—</span>
+          <span className="text-xs text-gray-400">-</span>
         )}
       </TableCell>
       <TableCell>
         <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-700">{student.beltRank || "—"}</span>
+          <span className="text-sm text-gray-700">{student.beltRank || "-"}</span>
           {isEligible && (
             <Badge className="bg-green-100 text-green-800 text-xs">Eligible</Badge>
           )}
@@ -772,11 +772,11 @@ function StudentRow({
             {student.status}
           </Badge>
         ) : (
-          <span className="text-xs text-gray-400">—</span>
+          <span className="text-xs text-gray-400">-</span>
         )}
       </TableCell>
       <TableCell>
-        <span className="text-xs text-gray-500">{student.enrollmentDate || "—"}</span>
+        <span className="text-xs text-gray-500">{student.enrollmentDate || "-"}</span>
       </TableCell>
     </TableRow>
   );
@@ -1018,6 +1018,7 @@ function TrialStudentDialog({ onClose, onDone }: { onClose: () => void; onDone: 
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [paymentIntentId, setPaymentIntentId] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [testMode, setTestMode] = useState(false);
 
   const { data: waivers = [] } = trpc.waiver.list.useQuery();
   const hasWaiver = !!email.trim() && (waivers as any[]).some(w => (w.email || "").toLowerCase() === email.trim().toLowerCase());
@@ -1043,6 +1044,7 @@ function TrialStudentDialog({ onClose, onDone }: { onClose: () => void; onDone: 
       programInterest: program,
       emergencyContact: emergencyContact.trim() || undefined,
       startDate,
+      testMode,
     });
   };
 
@@ -1122,15 +1124,25 @@ function TrialStudentDialog({ onClose, onDone }: { onClose: () => void; onDone: 
               <div className="bg-[#1a2d5a]/5 border border-[#1a2d5a]/15 rounded-lg p-4 text-sm">
                 <div className="flex justify-between items-center">
                   <span className="text-gray-600">3-Week Trial</span>
-                  <span className="font-bold text-[#1a2d5a] text-lg">$99.00</span>
+                  <span className="font-bold text-[#1a2d5a] text-lg">{testMode ? "$0.50" : "$99.00"}</span>
                 </div>
                 <div className="text-xs text-gray-500 mt-1">{studentName || "Student"} · starts {startDate} · ends {endDate}</div>
               </div>
 
               {!clientSecret ? (
-                <Button className="w-full bg-[#c41e3a] hover:bg-[#a81830] text-white" onClick={startPayment} disabled={createIntent.isPending}>
-                  {createIntent.isPending ? "Starting..." : "Charge $99"}
-                </Button>
+                <>
+                  <label className="flex items-start gap-2.5 cursor-pointer bg-amber-50 border border-amber-200 rounded-lg p-3">
+                    <Checkbox checked={testMode} onCheckedChange={v => setTestMode(v === true)}
+                      className="mt-0.5 border-2 border-amber-500 data-[state=checked]:bg-amber-500 data-[state=checked]:border-amber-500" />
+                    <span className="text-xs text-amber-800">
+                      <span className="font-semibold block">Test mode: charge $0.50 instead of $99</span>
+                      Use this to verify the card flow, then refund the 50&cent; in Stripe. Leave OFF for real signups.
+                    </span>
+                  </label>
+                  <Button className="w-full bg-[#c41e3a] hover:bg-[#a81830] text-white" onClick={startPayment} disabled={createIntent.isPending}>
+                    {createIntent.isPending ? "Starting..." : (testMode ? "Charge $0.50 (test)" : "Charge $99")}
+                  </Button>
+                </>
               ) : (
                 <Elements stripe={stripePromise} options={{ clientSecret, appearance: { theme: "stripe" } }}>
                   <TrialPaymentForm paymentIntentId={paymentIntentId!} onSuccess={() => setSuccess(true)} />
