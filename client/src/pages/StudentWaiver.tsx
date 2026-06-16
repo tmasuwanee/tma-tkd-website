@@ -270,10 +270,10 @@ export default function StudentWaiver() {
                 <div className="max-h-44 overflow-y-auto rounded-lg border border-gray-200 bg-gray-50 p-4 text-xs leading-relaxed text-gray-600">
                   {disclaimer}
                 </div>
-                <label className="flex items-start gap-3 cursor-pointer bg-[#1a2d5a]/5 border-2 border-[#1a2d5a]/30 rounded-lg p-3 hover:bg-[#1a2d5a]/10 transition-colors">
+                <label className="flex items-center gap-3.5 cursor-pointer bg-white border-2 border-[#c41e3a]/60 rounded-lg p-4 hover:border-[#c41e3a] transition-colors shadow-sm">
                   <Checkbox checked={agreed} onCheckedChange={v => setAgreed(v === true)}
-                    className="mt-0.5 h-6 w-6 border-2 border-[#1a2d5a]/60 data-[state=checked]:bg-[#1a2d5a] data-[state=checked]:border-[#1a2d5a]" />
-                  <span className="text-sm font-medium text-gray-800">I have read and agree to the waiver above.</span>
+                    className="h-7 w-7 border-2 border-gray-500 data-[state=checked]:bg-[#1a2d5a] data-[state=checked]:border-[#1a2d5a] shrink-0" />
+                  <span className="text-base font-bold text-gray-900">I have read and agree to the waiver above. <span className="text-[#c41e3a]">*</span></span>
                 </label>
 
                 <div className="grid sm:grid-cols-2 gap-4 pt-1">

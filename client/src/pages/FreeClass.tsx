@@ -165,7 +165,7 @@ export default function FreeClass() {
             Try a Free Class
           </h1>
           <p className="text-xl text-white/80 max-w-2xl mx-auto">
-            Experience Top Martial Arts firsthand. Fill out the form below and we'll reach out within 24 hours to schedule your complimentary class.
+            Experience Top Martial Arts firsthand. Fill out the form below and we'll reach out to schedule your complimentary class.
           </p>
         </div>
       </section>
@@ -185,7 +185,7 @@ export default function FreeClass() {
                     Thank you for your interest in Top Martial Arts Suwanee!
                   </p>
                   <p className="text-gray-500 text-sm mb-8">
-                    We'll contact you within 24 hours to confirm your free class time.
+                    Someone will reach out to you before your class to confirm the details.
                   </p>
                   <div className="flex flex-col sm:flex-row gap-3 justify-center">
                     <Button
@@ -301,7 +301,7 @@ export default function FreeClass() {
                       </Select>
                     </div>
 
-                    {/* Trial class calendar — shown when program + age are filled */}
+                    {/* Trial class calendar, shown when program + age are filled */}
                     {formData.programInterest && formData.kidAge && parseInt(formData.kidAge) >= 4 && (
                       <div>
                         <Label className="text-primary font-semibold mb-2 block">
@@ -399,7 +399,7 @@ export default function FreeClass() {
                     </Button>
 
                     <p className="text-sm text-muted-foreground text-center">
-                      We'll contact you within 24 hours to confirm your free class time.
+                      Someone will reach out to you before your class to confirm the details.
                     </p>
                   </form>
                 </div>
@@ -427,7 +427,7 @@ export default function FreeClass() {
             </div>
             <div className="flex flex-col items-center gap-2">
               <Clock className="w-6 h-6 text-accent" />
-              <p className="text-white text-sm font-medium">Mon–Fri: 4PM–8PM<br />Sat: 9AM–12PM</p>
+              <p className="text-white text-sm font-medium">Mon-Fri: 4PM-8PM<br />Sat: 9AM-12PM</p>
             </div>
           </div>
         </div>
