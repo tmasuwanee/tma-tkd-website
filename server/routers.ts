@@ -58,6 +58,13 @@ function getStripe() {
   return new Stripe(ENV.tmaStripeSecretKey);
 }
 
+// Build an admin dashboard link with the one-tap login key appended (when set), so
+// Telegram links open the dashboard without a password. Mirrors the 8am cron's DASH_KEY.
+function adminLink(path: string): string {
+  const key = process.env.ADMIN_MAGIC_KEY;
+  return `https://tmatkd.com${path}${key ? `?key=${key}` : ""}`;
+}
+
 // ─── n8n Webhook ─────────────────────────────────────────────────────────────
 // Fires async (non-blocking) so a slow/offline n8n never delays lead submission.
 // Set N8N_WEBHOOK_URL in Secrets to activate. Payload matches what n8n needs
@@ -90,7 +97,7 @@ async function fireN8nWebhook(payload: {
       console.warn(`[n8n] Webhook responded with ${res.status}`);
     }
   } catch (err) {
-    // Never throw — n8n being down must not affect lead submission
+    // Never throw -n8n being down must not affect lead submission
     console.warn("[n8n] Webhook fire failed (non-fatal):", err);
   }
 }
@@ -182,7 +189,7 @@ export const appRouter = router({
         let serverAmount = programPrice * input.numCampers * numWeeks;
         if (input.addFieldTrip) serverAmount += FIELD_TRIP * input.numCampers * numWeeks;
         if (input.addExtendedCare) serverAmount += EXTENDED_CARE * numWeeks;
-        // Use server-calculated amount — ignore client-provided amountCents entirely
+        // Use server-calculated amount -ignore client-provided amountCents entirely
         const stripe = getStripe();
         const paymentIntent = await stripe.paymentIntents.create({
           amount: serverAmount,
@@ -433,7 +440,7 @@ export const appRouter = router({
             utmCampaign: input.utmCampaign,
             utmContent: input.utmContent,
           });
-          // Fire n8n webhook async (non-blocking) — does not delay lead submission
+          // Fire n8n webhook async (non-blocking) -does not delay lead submission
           void fireN8nWebhook({
             leadId: newLeadId,
             name: input.parentName,
@@ -520,7 +527,7 @@ export const appRouter = router({
         return { success: true };
       }),
 
-    // Admin: update tags (replaces full array — client merges before calling)
+    // Admin: update tags (replaces full array -client merges before calling)
     updateTags: publicProcedure
       .input(z.object({
         id: z.number(),
@@ -532,7 +539,7 @@ export const appRouter = router({
       }),
 
     // Internal: upsert a lead from Facebook Lead Ads (called by n8n sync workflow).
-    // Matches by email — safe to call repeatedly; never overwrites notes, stage, or existing tags.
+    // Matches by email -safe to call repeatedly; never overwrites notes, stage, or existing tags.
     upsertFromFacebook: publicProcedure
       .input(z.object({
         parentName: z.string(),
@@ -986,7 +993,7 @@ export const appRouter = router({
   }),
 
   // =====================================================================
-  // LIFECYCLE ARCHITECTURE v1 — tRPC ROUTERS (2026-05-20)
+  // LIFECYCLE ARCHITECTURE v1 -tRPC ROUTERS (2026-05-20)
   // See: TMA_LIFECYCLE_ARCHITECTURE.md
   // All admin-UI editing of email content, intake rules, and stage history
   // goes through these procedures. n8n workflows also call routeLeadToSequence
@@ -1253,11 +1260,11 @@ export const appRouter = router({
         ])).min(1).max(8).optional(),
         filename: z.string().min(1).max(255),
         contentType: z.string().min(1).max(100),
-        // base64-encoded file bytes — express.json limit is 150MB (covers ~100MB raw + base64 overhead)
+        // base64-encoded file bytes -express.json limit is 150MB (covers ~100MB raw + base64 overhead)
         dataBase64: z.string().min(1),
         caption: z.string().max(2000).optional(),
         minorReleaseOnFile: z.boolean().optional(),
-        // Loosened from z.string().email() to z.string() — iOS sessionStorage can hand us
+        // Loosened from z.string().email() to z.string() -iOS sessionStorage can hand us
         // a value that fails strict email validation (encoding edge cases), and we never
         // act on this field server-side beyond storing it.
         uploadedByEmail: z.string().max(320).optional(),
@@ -1539,7 +1546,7 @@ export const appRouter = router({
             `📝 New in-person sign-up\n${input.parentName} signed the waiver` +
             (kids ? ` for ${kids}` : "") +
             (result.matchedExisting ? `\n(matched an existing lead)` : "") +
-            `\nhttps://tmatkd.com/admin/waivers`
+            `\n${adminLink("/admin/waivers")}`
           ).catch(() => {});
           return { success: true, leadId: result.leadId, matchedExisting: result.matchedExisting };
         } catch (error) {
@@ -1624,7 +1631,7 @@ export const appRouter = router({
           void sendTelegramMessage(
             `💳 New $99 3-week trial\n${trial.studentName}${trial.programInterest ? ` · ${trial.programInterest}` : ""}` +
             (trial.endDate ? `\nTrial ends ${trial.endDate}` : "") +
-            `\nhttps://tmatkd.com/admin/students`
+            `\n${adminLink("/admin/students")}`
           ).catch(() => {});
         }
         return { status: pi.status, trialId: trial.id };
