@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
-import { CheckCircle2, MapPin, Phone, Mail, Clock, Facebook, Instagram } from "lucide-react";
+import { CheckCircle2, MapPin, Phone, Mail, Clock, Facebook, Instagram, FileSignature } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
@@ -180,31 +180,36 @@ export default function FreeClass() {
                   <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
                     <CheckCircle2 className="w-10 h-10 text-green-600" />
                   </div>
-                  <h2 className="text-3xl font-bold text-primary mb-3">You're All Set!</h2>
+                  <h2 className="text-3xl font-bold text-primary mb-3">You're Booked!</h2>
                   <p className="text-gray-600 mb-2">
                     Thank you for your interest in Top Martial Arts Suwanee!
                   </p>
-                  <p className="text-gray-500 text-sm mb-8">
-                    Someone will reach out to you before your class to confirm the details.
+                  <p className="text-gray-500 text-sm mb-6">
+                    One quick step left: sign your waiver now so you're ready to train the
+                    moment you walk in. It takes about a minute.
                   </p>
-                  <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                  <div className="flex flex-col gap-3 justify-center max-w-sm mx-auto">
                     <Button
-                      onClick={() => navigate("/")}
-                      className="bg-primary text-white hover:bg-primary/90"
+                      size="lg"
+                      onClick={() =>
+                        navigate(
+                          `/enroll?name=${encodeURIComponent(formData.parentName)}` +
+                            `&email=${encodeURIComponent(formData.email)}` +
+                            `&phone=${encodeURIComponent(formData.phone)}` +
+                            `&student=${encodeURIComponent(formData.kidName)}`
+                        )
+                      }
+                      className="bg-accent text-white hover:bg-accent/90 font-bold text-lg py-6 shadow-lg"
                     >
-                      Back to Home
+                      <FileSignature className="w-5 h-5 mr-2" />
+                      Sign your waiver
                     </Button>
                     <Button
-                      onClick={() => {
-                        setSubmitted(false);
-                        setFormData({ parentName: "", kidName: "", kidAge: "", programInterest: preselectedProgram, motivation: "", email: "", phone: "", additionalNotes: "" });
-                        setTrialSlot(null);
-                        setTrialDate("");
-                      }}
+                      onClick={() => navigate("/")}
                       variant="outline"
                       className="border-primary text-primary"
                     >
-                      Submit Another
+                      Back to Home
                     </Button>
                   </div>
                 </div>

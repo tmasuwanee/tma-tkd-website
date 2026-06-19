@@ -66,8 +66,12 @@ export default function StudentWaiver() {
   const [submitted, setSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Query params drive both the waiver variant and prefill. Online trial bookers
+  // land here from the FreeClass success screen with ?name=&email=&phone=&student=
+  // already filled in, so they only have to read, sign, and submit.
+  const sp = useMemo(() => new URLSearchParams(window.location.search), []);
   // ?type=trial → the 3-week-trial waiver variant (opened from Add Trial Student).
-  const isTrial = useMemo(() => new URLSearchParams(window.location.search).get("type") === "trial", []);
+  const isTrial = useMemo(() => sp.get("type") === "trial", [sp]);
   const disclaimer = isTrial ? TRIAL_WAIVER_DISCLAIMER : WAIVER_DISCLAIMER;
 
   // Local date (they're signing in GA). Used as the signed date and shown on the form.
@@ -80,11 +84,11 @@ export default function StudentWaiver() {
     [today]
   );
 
-  const [parentName, setParentName] = useState("");
+  const [parentName, setParentName] = useState(sp.get("name") ?? "");
   const [address, setAddress] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [students, setStudents] = useState<StudentRow[]>([{ name: "", dob: "" }]);
+  const [email, setEmail] = useState(sp.get("email") ?? "");
+  const [phone, setPhone] = useState(sp.get("phone") ?? "");
+  const [students, setStudents] = useState<StudentRow[]>([{ name: sp.get("student") ?? "", dob: "" }]);
   const [interests, setInterests] = useState<string[]>([]);
   const [signedName, setSignedName] = useState("");
   const [signatureData, setSignatureData] = useState<string | null>(null);

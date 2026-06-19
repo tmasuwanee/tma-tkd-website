@@ -667,8 +667,11 @@ export const trialEnrollments = mysqlTable("trialEnrollments", {
   paidAt: timestamp("paidAt"),
   // Link to a signed waiver on file, if any.
   waiverId: int("waiverId"),
-  // Stamped when the end-of-trial reminder fires, so the cron pings only once.
+  // Legacy single-reminder flag (kept for back-compat; superseded by remindersSent).
   reminderSentAt: timestamp("reminderSentAt"),
+  // Comma-list of end-of-trial reminder milestones already sent, e.g. "7,3,2".
+  // The 8am cron fires a ping at 7, 3, 2, and 1 days before endDate, once each.
+  remindersSent: varchar("remindersSent", { length: 50 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (table) => ({

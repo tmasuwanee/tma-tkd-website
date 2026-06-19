@@ -1,4 +1,4 @@
-﻿import { eq, desc, or, like, inArray, isNotNull, and, gte, sql } from "drizzle-orm";
+import { eq, desc, or, like, inArray, isNotNull, and, gte, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import mysql from "mysql2";
 import {
@@ -271,7 +271,7 @@ export async function deleteAdminTask(id: number): Promise<void> {
 // Derive a whole-number age string from a YYYY-MM-DD DOB. leads.kidAge is a
 // notNull varchar, so we store "" when the DOB is missing or unparseable rather
 // than guessing. Server-side date math is deterministic (unlike the voice agent,
-// the rule there is the LLM must not compute dates — this is plain Node).
+// the rule there is the LLM must not compute dates - this is plain Node).
 function ageFromDob(dob?: string | null): string {
   if (!dob) return "";
   const d = new Date(dob);
@@ -416,36 +416,29 @@ export async function listTrialEnrollments(): Promise<TrialEnrollment[]> {
   return db.select().from(trialEnrollments).orderBy(desc(trialEnrollments.createdAt));
 }
 
-// Active trials whose endDate falls within the next `withinDays` and that haven't
-// been reminded yet. Drives the end-of-trial Telegram nudge.
-export async function getTrialsEndingSoon(withinDays: number): Promise<TrialEnrollment[]> {
+// Active trials with an end date. The 8am cron computes daysLeft per trial and pings
+// at 7, 3, 2, and 1 days before endDate, tracking fired milestones in remindersSent.
+export async function getActiveTrialsForReminders(): Promise<TrialEnrollment[]> {
   const db = await getDb();
   if (!db) return [];
-  const now = new Date();
-  const limit = new Date(now.getTime() + withinDays * 86400000);
-  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-  const limitStr = `${limit.getFullYear()}-${String(limit.getMonth() + 1).padStart(2, "0")}-${String(limit.getDate()).padStart(2, "0")}`;
   return db.select().from(trialEnrollments).where(
-    and(
-      eq(trialEnrollments.status, "active"),
-      isNotNull(trialEnrollments.endDate),
-      gte(trialEnrollments.endDate, todayStr),
-      sql`${trialEnrollments.endDate} <= ${limitStr}`,
-      sql`${trialEnrollments.reminderSentAt} IS NULL`,
-    )
+    and(eq(trialEnrollments.status, "active"), isNotNull(trialEnrollments.endDate))
   );
 }
 
-export async function markTrialReminded(id: number): Promise<void> {
+// Append a fired milestone (7/3/2/1) to a trial's remindersSent list so each fires once.
+export async function markTrialReminderSent(id: number, milestone: number, remindersSent: string | null): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.update(trialEnrollments).set({ reminderSentAt: new Date() }).where(eq(trialEnrollments.id, id));
+  const list = (remindersSent || "").split(",").map(s => s.trim()).filter(Boolean);
+  if (!list.includes(String(milestone))) list.push(String(milestone));
+  await db.update(trialEnrollments).set({ remindersSent: list.join(",") }).where(eq(trialEnrollments.id, id));
 }
 
 // Submit a signed waiver: match-or-create the lead so they enter the SAME
 // pipeline as web leads, then store the signed waiver on file linked to that
 // lead. Match-by-email (not blind insert) is what stops the unique-email crash
-// that bites returning families — the exact failure a walk-in hits when their
+// that bites returning families - the exact failure a walk-in hits when their
 // email is already in the system.
 export async function submitWaiver(input: {
   parentName: string;
@@ -507,7 +500,7 @@ export async function submitWaiver(input: {
   return { leadId, waiverId, matchedExisting };
 }
 
-// Upsert a lead from Facebook Lead Ads — matches by email.
+// Upsert a lead from Facebook Lead Ads - matches by email.
 // Existing leads: merges tags, fills blank UTM fields. Never overwrites notes, stage, or existing tags.
 // New leads: inserts with utmSource=facebook and provided tags.
 export async function upsertLeadFromFacebook(input: {
@@ -891,7 +884,7 @@ export async function setAttendanceCount(studentId: number, targetCount: number)
 }
 
 // ============================================================================
-// Lead Conductor — automation pause + sequence queue (2026-05-19)
+// Lead Conductor - automation pause + sequence queue (2026-05-19)
 // ============================================================================
 
 export async function pauseLeadAutomation(
@@ -1043,7 +1036,7 @@ export async function getDueSequenceTouches(limit = 50): Promise<LeadSequenceQue
 }
 
 /**
- * Atomically mark a row as 'processing' — only succeeds if the row is still 'scheduled'.
+ * Atomically mark a row as 'processing' - only succeeds if the row is still 'scheduled'.
  * Returns true if the CAS succeeded (caller has exclusive ownership), false otherwise.
  *
  * v3 (2026-05-19): SELECT-UPDATE-SELECT pattern. Does not depend on drizzle's update()
@@ -1054,14 +1047,14 @@ export async function markTouchProcessing(id: number): Promise<boolean> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  // 1. Read current status — only proceed if row exists and is 'scheduled'
+  // 1. Read current status - only proceed if row exists and is 'scheduled'
   const before = await db.select().from(leadSequenceQueue).where(eq(leadSequenceQueue.id, id)).limit(1);
   console.log('[markTouchProcessing v3] id=' + id + ' beforeStatus=' + (before[0]?.status ?? 'NOT_FOUND'));
   if (!before[0] || before[0].status !== 'scheduled') {
     return false; // Already claimed, sent, cancelled, or doesn't exist
   }
 
-  // 2. Conditional UPDATE (WHERE status='scheduled') — atomic in MySQL even without
+  // 2. Conditional UPDATE (WHERE status='scheduled') - atomic in MySQL even without
   // looking at the return value. If another worker raced us, only one of us flips it.
   await db.update(leadSequenceQueue).set({ status: 'processing' })
     .where(and(eq(leadSequenceQueue.id, id), eq(leadSequenceQueue.status, 'scheduled')));
@@ -1116,7 +1109,7 @@ export async function hasTouchBeenSent(leadId: number, touchKey: string): Promis
 }
 
 // =====================================================================
-// LIFECYCLE ARCHITECTURE v1 — DB HELPERS (2026-05-20)
+// LIFECYCLE ARCHITECTURE v1 - DB HELPERS (2026-05-20)
 // See: TMA_LIFECYCLE_ARCHITECTURE.md
 // =====================================================================
 
@@ -1468,7 +1461,7 @@ export async function listAuditLog(args: {
  *
  * Skip reasons:
  *   - lead_opted_out: stage is 'lost' AND reason mentions opt-out (future: dedicated stage)
- *   - lead_enrolled: stage is 'enrolled' (terminal — nurture should have been cancelled)
+ *   - lead_enrolled: stage is 'enrolled' (terminal - nurture should have been cancelled)
  *   - automation_paused: lead.automationPaused = true
  *   - lead_not_found: leadId doesn't exist
  *   - template_inactive: template exists but isActive = false
@@ -1537,7 +1530,7 @@ export async function preSendGuard(args: {
 }
 
 // =====================================================================
-// PHASE 4 — TEMPLATE RENDERING + SEQUENCE FAN-OUT + DISPATCHER FETCH/CONFIRM
+// PHASE 4 - TEMPLATE RENDERING + SEQUENCE FAN-OUT + DISPATCHER FETCH/CONFIRM
 // Added 2026-05-21. Powers Lead Intake v3 (segment-aware) and the
 // template-driven Sequence Dispatcher refactor.
 // =====================================================================
@@ -1550,7 +1543,7 @@ export async function preSendGuard(args: {
  * Unknown fields are replaced with an empty string (NOT left as literal {{x}})
  * so we never leak template syntax to a customer.
  *
- * Pure function — no DB access — easy to unit test.
+ * Pure function - no DB access - easy to unit test.
  */
 export function renderTemplate(
   templateStr: string | null | undefined,
@@ -1671,7 +1664,7 @@ export async function enqueueSequenceForLead(args: {
       channel: t.channel,
       sequenceKey: args.sequenceKey,
       touchKey: t.touchKey,
-      // Don't snapshot body — dispatcher fetches from templates at send time
+      // Don't snapshot body - dispatcher fetches from templates at send time
       // so admin UI edits take effect on next dispatch cycle.
       touchSubject: null,
       touchBodyTemplate: null,
@@ -1716,7 +1709,7 @@ export async function fetchAndRenderForDispatch(args: {
 
   const leadRows = await db.select().from(leads).where(eq(leads.id, args.leadId)).limit(1);
   const lead = leadRows[0];
-  if (!lead) return { ok: false, reason: 'lead_not_found' };  // shouldn't happen — guard checked
+  if (!lead) return { ok: false, reason: 'lead_not_found' };  // shouldn't happen - guard checked
 
   const subject = renderTemplate(guard.template.subject ?? '', lead);
   const bodyHtml = renderTemplate(guard.template.bodyHtml ?? '', lead);
@@ -1740,7 +1733,7 @@ export async function fetchAndRenderForDispatch(args: {
  *
  * Renders the template against either:
  *  - A real lead by leadId (uses their actual data)
- *  - A synthetic sample lead (default — uses placeholder data)
+ *  - A synthetic sample lead (default - uses placeholder data)
  *
  * Recipient defaults to ADMIN_EMAIL env or `tmasuwanee@gmail.com`.
  * Resend API key is read from RESEND_API_KEY env.
@@ -2035,10 +2028,10 @@ function todayDateString(): string {
 /**
  * Live call board, computed from the current state of every lead (no stored
  * snapshot, so it always matches the calendar). Two buckets:
- *   today    — call now: trials today/tomorrow (confirm), past trials still
+ *   today    - call now: trials today/tomorrow (confirm), past trials still
  *              unmarked (did they show?), no-shows, came-in-not-enrolled,
  *              follow-ups due, fresh leads, anyone who asked for a human.
- *   thisWeek — coming up: trials 2-7 days out, follow-ups scheduled this week.
+ *   thisWeek - coming up: trials 2-7 days out, follow-ups scheduled this week.
  *              These auto-promote to `today` as their day arrives.
  * A lead stays until its state changes (you mark it, snooze it with a follow-up
  * date, or advance the stage), so nobody gets lost. Snoozing past today removes
@@ -2111,7 +2104,7 @@ export async function getCallBoard(): Promise<{ today: CallBoardItem[]; thisWeek
 /**
  * Pick the top N leads to call today, by score, and write to dailyCallQueue.
  *
- * Scoring (initial heuristic — refine after we have email open/click data):
+ * Scoring (initial heuristic - refine after we have email open/click data):
  *  +50  trial_no_show_final in last 7 days        (last shot)
  *  +40  trial_scheduled in next 3 days            (confirm)
  *  +35  no_show in last 3 days                    (rebook)
@@ -2121,12 +2114,12 @@ export async function getCallBoard(): Promise<{ today: CallBoardItem[]; thisWeek
  *  +10  has phone number
  *  -100 enrolled / lost / opted out               (excluded entirely)
  *
- * Returns the inserted rows. Idempotent for (leadId, queueDate) — repeated
+ * Returns the inserted rows. Idempotent for (leadId, queueDate) - repeated
  * calls in the same day are no-ops thanks to the unique index.
  */
 export async function generateDailyCallQueue(opts: {
   limit?: number;
-  activeVertical?: string;  // e.g. "Summer Camp" — boosts matching leads
+  activeVertical?: string;  // e.g. "Summer Camp" - boosts matching leads
 } = {}): Promise<DailyCallQueueRow[]> {
   const db = await getDb();
   if (!db) return [];
@@ -2219,7 +2212,7 @@ export async function generateDailyCallQueue(opts: {
       );
       if (row) inserted.push(row);
     } catch (e) {
-      // duplicate key — that lead already on today's list, fine
+      // duplicate key - that lead already on today's list, fine
     }
   }
   return inserted;
@@ -2232,7 +2225,7 @@ export async function listTodaysCalls(date?: string): Promise<Array<DailyCallQue
   const rows = await db.select().from(dailyCallQueue)
     .where(eq(dailyCallQueue.queueDate, d))
     .orderBy(desc(dailyCallQueue.score));
-  // Join leads in JS — small N
+  // Join leads in JS - small N
   const result = [];
   for (const r of rows) {
     const [lead] = await db.select().from(leads).where(eq(leads.id, r.leadId));
@@ -2331,7 +2324,7 @@ export async function recordInboundEmailReply(args: {
   }
 
   if (isStopRequest) {
-    // Flip automation off immediately — preSendGuard checks this flag before
+    // Flip automation off immediately - preSendGuard checks this flag before
     // every touch so no further sequence emails will be sent to this lead.
     await db.update(leads).set({
       automationPaused: 1,
@@ -2352,7 +2345,7 @@ export async function recordInboundEmailReply(args: {
   }
 
   // If lead is still in early stages, the fact that they replied is a strong
-  // signal — promote them to "contacted" if they were "new_lead".
+  // signal - promote them to "contacted" if they were "new_lead".
   if (lead.pipelineStage === "new_lead") {
     await db.update(leads).set({ pipelineStage: "contacted" } as any)
       .where(eq(leads.id, lead.id));
