@@ -92,11 +92,12 @@ export type Lead = {
 
 // ─── Tag Chips ────────────────────────────────────────────────────────────────
 
-function TagChips({ tags, onRemove }: { tags: string[]; onRemove?: (tag: string) => void }) {
-  if (!tags || tags.length === 0) return null;
+function TagChips({ tags, onRemove }: { tags: string[] | string | null | undefined; onRemove?: (tag: string) => void }) {
+  const list = Array.isArray(tags) ? tags : [];
+  if (list.length === 0) return null;
   return (
     <div className="flex flex-wrap gap-1">
-      {tags.map(tag => (
+      {list.map(tag => (
         <span
           key={tag}
           className={`inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded border font-medium ${getTagColor(tag)}`}

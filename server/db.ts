@@ -2044,6 +2044,16 @@ function todayDateString(): string {
  * date, or advance the stage), so nobody gets lost. Snoozing past today removes
  * it until the follow-up date.
  */
+// Tags are stored as a JSON string. The board feeds the same lead dialog the Leads
+// tab uses, which expects tags as an array, so normalize each lead's tags here.
+function parseTagArray(t: unknown): string[] {
+  if (Array.isArray(t)) return t as string[];
+  if (typeof t === "string" && t.trim()) {
+    try { const a = JSON.parse(t); return Array.isArray(a) ? a : []; } catch { return []; }
+  }
+  return [];
+}
+
 export type CallBoardItem = { lead: Lead; reason: string; sort: number };
 export async function getCallBoard(): Promise<{ today: CallBoardItem[]; thisWeek: CallBoardItem[] }> {
   const db = await getDb();
@@ -2061,7 +2071,8 @@ export async function getCallBoard(): Promise<{ today: CallBoardItem[]; thisWeek
   const today: CallBoardItem[] = [];
   const thisWeek: CallBoardItem[] = [];
 
-  for (const l of candidates) {
+  for (const raw of candidates) {
+    const l = { ...raw, tags: parseTagArray((raw as any).tags) } as unknown as Lead;
     const stage = l.pipelineStage;
     const fu = diff((l as any).nextFollowUpAt);
     // A scheduled follow-up date controls timing: future = snooze, due = call.
