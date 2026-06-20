@@ -16,6 +16,7 @@ import { handleMorningReport } from "../morning-report";
 import { registerVoiceRoutes } from "../voice-routes";
 import { handleTrialRemindersAM, handleTrialCheckinPM, handleDailyCallQueue } from "../staff-reminders";
 import { handleOutboundSpeedToLead, handleOutboundNoShow, handleOutboundPostTrial, handleOutboundAfterschoolTour } from "../outbound-voice";
+import { runStartupMigrations } from "../migrate";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -37,6 +38,10 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 }
 
 async function startServer() {
+  // Apply idempotent schema migrations (e.g. new columns) before serving traffic.
+  // Safe + non-blocking: skips if no DB, tolerates already-applied columns.
+  await runStartupMigrations();
+
   const app = express();
   const server = createServer(app);
   // Configure body parser with larger size limit for file uploads
