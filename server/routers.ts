@@ -1564,6 +1564,58 @@ export const appRouter = router({
       .mutation(async ({ input }) => { await deleteWaiver(input.id); return { success: true }; }),
   }),
 
+  // ─── Field-trip one-off payments (2026-06-22) ────────────────────────────
+  // Standalone Stripe checkout for camp field-trip fees ($25 per kid per week),
+  // billed outside the camp registration (e.g. a family who enrolled for camp
+  // but is paying the field-trip fee separately). The amount is computed
+  // server-side from a slot count (campers x weeks) so a tampered URL cannot set
+  // an arbitrary price. No DB row: the PaymentIntent metadata is the record
+  // (searchable in Stripe), and confirm pings staff on success.
+  fieldTrip: router({
+    createIntent: publicProcedure
+      .input(z.object({
+        payerName: z.string().min(1).max(255),
+        email: z.string().email().nullable().optional(),
+        detail: z.string().max(300).optional(),
+        slots: z.number().int().min(1).max(50),   // field-trip slots = campers x weeks, $25 each
+      }))
+      .mutation(async ({ input }) => {
+        const FIELD_TRIP = 25_00;
+        const amount = FIELD_TRIP * input.slots;
+        const stripe = getStripe();
+        const paymentIntent = await stripe.paymentIntents.create({
+          amount,
+          currency: "usd",
+          // Stripe emails the payer a receipt on success (live mode) when set.
+          ...(input.email ? { receipt_email: input.email } : {}),
+          metadata: {
+            product: "camp_field_trip",
+            payerName: input.payerName,
+            email: input.email ?? "",
+            detail: (input.detail ?? "").slice(0, 300),
+            slots: String(input.slots),
+          },
+        });
+        return { clientSecret: paymentIntent.client_secret, paymentIntentId: paymentIntent.id, amount };
+      }),
+
+    confirm: publicProcedure
+      .input(z.object({ paymentIntentId: z.string() }))
+      .mutation(async ({ input }) => {
+        const stripe = getStripe();
+        const pi = await stripe.paymentIntents.retrieve(input.paymentIntentId);
+        if (pi.status === "succeeded") {
+          const m = pi.metadata || {};
+          void sendTelegramMessage(
+            `🎟️ <b>Field trip paid</b>\n` +
+            `${m.payerName || "Camp family"} · $${(pi.amount / 100).toFixed(2)}\n` +
+            `${m.detail || ""}`
+          );
+        }
+        return { status: pi.status };
+      }),
+  }),
+
   // ─── $99 3-Week Trial enrollments (2026-06-15) ────────────────────────────
   // "Add Trial Student" in the Students tab. createIntent makes a $99 Stripe
   // PaymentIntent (same path as camp) + a pending enrollment; the client pays via
