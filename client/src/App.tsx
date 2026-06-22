@@ -11,6 +11,7 @@ import Kickboxing from "./pages/Kickboxing";
 import Afterschool from "./pages/Afterschool";
 import SummerCamps from "./pages/SummerCamps";
 import CampRegistration from "./pages/CampRegistration";
+import FieldTripPay from "./pages/FieldTripPay";
 import FreeClass from "./pages/FreeClass";
 import StudentWaiver from "./pages/StudentWaiver";
 import SpringBreakCamp from "./pages/SpringBreakCamp";
@@ -32,6 +33,7 @@ function Router() {
       <Route path={"/afterschool"} component={Afterschool} />
       <Route path={"/summer-camps"} component={SummerCamps} />
       <Route path={"/camp-registration"} component={CampRegistration} />
+      <Route path={"/field-trip"} component={FieldTripPay} />
       <Route path={"/free-class"} component={FreeClass} />
       {/* In-person sign-up + waiver (QR / iPad / link). /waiver is an alias. */}
       <Route path={"/enroll"} component={StudentWaiver} />
