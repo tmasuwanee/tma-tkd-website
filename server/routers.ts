@@ -1586,6 +1586,8 @@ export const appRouter = router({
         const paymentIntent = await stripe.paymentIntents.create({
           amount,
           currency: "usd",
+          // Stripe emails the payer a receipt on success (live mode) when set.
+          ...(input.email ? { receipt_email: input.email } : {}),
           metadata: {
             product: "camp_field_trip",
             payerName: input.payerName,
