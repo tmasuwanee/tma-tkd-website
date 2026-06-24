@@ -444,12 +444,15 @@ export function LeadDetailDialog({ lead, open, onClose, onRefresh }: {
 
   const currentTags = lead.tags ?? [];
 
-  // Reschedule: offer a fresh trial when the lead missed (no-show) or never enrolled.
+  // Reschedule: offer a fresh trial when the lead missed or never enrolled.
   // no_show / no_show_final are TAGS applied to a lead, not pipeline stages.
   const stageStr = String(lead.pipelineStage);
   const hasNoShowTag = currentTags.some(t => t === "no_show" || t === "no_show_final");
-  const isNoShow = stageStr === "no_show" || stageStr === "no_show_final" || hasNoShowTag;
-  const canReschedule = isNoShow || stageStr === "trial_attended" || stageStr === "lost";
+  const canReschedule =
+    hasNoShowTag ||
+    stageStr === "contacted" ||
+    stageStr === "trial_attended" ||
+    stageStr === "lost";
   // Map the lead's programInterest (any casing) to a classSchedule program key.
   const progKey = ({
     taekwondo: "taekwondo", "little tigers": "little_tigers", little_tigers: "little_tigers",
