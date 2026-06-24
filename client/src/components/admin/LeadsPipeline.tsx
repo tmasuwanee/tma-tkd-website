@@ -551,7 +551,7 @@ export function LeadDetailDialog({ lead, open, onClose, onRefresh }: {
                 <Clock className="w-3.5 h-3.5" /> Reschedule trial
               </p>
               <p className="text-xs text-amber-800 mb-2">
-                {isNoShow ? "Marked as a no-show." : "Has not enrolled yet."}{" "}
+                {hasNoShowTag ? "Marked as a no-show." : "Has not enrolled yet."}{" "}
                 Book them a new trial class.
               </p>
               {!rescheduling ? (
