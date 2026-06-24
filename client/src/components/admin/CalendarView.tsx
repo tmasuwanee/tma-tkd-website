@@ -120,7 +120,7 @@ export default function CalendarView() {
         </div>
       </div>
 
-      {/* Month grid — every day is clickable */}
+      {/* Month grid: every day is clickable */}
       <Card>
         <CardContent className="p-2 sm:p-3">
           <div className="grid grid-cols-7 text-center text-[11px] font-semibold uppercase tracking-wide text-gray-400 mb-1">
@@ -207,7 +207,7 @@ export default function CalendarView() {
         </CardContent>
       </Card>
 
-      {/* Day detail dialog — shows bookings (if any) + a Book walk-in action */}
+      {/* Day detail dialog: shows bookings (if any) + a Book walk-in action */}
       <Dialog open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -262,7 +262,7 @@ export default function CalendarView() {
         lead={detailLead}
         open={!!detailLead}
         onClose={() => setDetailLead(null)}
-        onRefresh={() => {}}
+        onRefresh={() => utils.leads.getAll.invalidate()}
       />
     </div>
   );
@@ -328,7 +328,7 @@ function BookWalkInDialog({ date, onClose, onBooked }: { date: Date; onClose: ()
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-[#1a2d5a]">Book a class — {format(date, "EEE, MMM d")}</DialogTitle>
+          <DialogTitle className="text-[#1a2d5a]">Book a class: {format(date, "EEE, MMM d")}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">

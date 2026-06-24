@@ -445,11 +445,13 @@ export function LeadDetailDialog({ lead, open, onClose, onRefresh }: {
   const currentTags = lead.tags ?? [];
 
   // Reschedule: offer a fresh trial when the lead missed or never enrolled.
-  // no_show / no_show_final are TAGS applied to a lead, not pipeline stages.
+  // no_show / no_show_final appear as both pipeline stage values (set by check-in)
+  // and as tags -- check both so the panel shows regardless of how staff marked them.
   const stageStr = String(lead.pipelineStage);
   const hasNoShowTag = currentTags.some(t => t === "no_show" || t === "no_show_final");
+  const isNoShow = hasNoShowTag || stageStr === "no_show" || stageStr === "no_show_final";
   const canReschedule =
-    hasNoShowTag ||
+    isNoShow ||
     stageStr === "contacted" ||
     stageStr === "trial_attended" ||
     stageStr === "lost";
@@ -551,7 +553,7 @@ export function LeadDetailDialog({ lead, open, onClose, onRefresh }: {
                 <Clock className="w-3.5 h-3.5" /> Reschedule trial
               </p>
               <p className="text-xs text-amber-800 mb-2">
-                {hasNoShowTag ? "Marked as a no-show." : "Has not enrolled yet."}{" "}
+                {isNoShow ? "Marked as a no-show." : "Has not enrolled yet."}{" "}
                 Book them a new trial class.
               </p>
               {!rescheduling ? (
