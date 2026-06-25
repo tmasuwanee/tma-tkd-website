@@ -17,6 +17,8 @@ import StudentWaiver from "./pages/StudentWaiver";
 import SpringBreakCamp from "./pages/SpringBreakCamp";
 import SpringBreakRegistration from "./pages/SpringBreakRegistration";
 import AttendanceKiosk from "./pages/AttendanceKiosk";
+import WalkIn from "./pages/WalkIn";
+import WalkInQR from "./pages/WalkInQR";
 import AdminShell from "./components/admin/AdminShell";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import Terms from "./pages/Terms";
@@ -41,6 +43,9 @@ function Router() {
       <Route path={"/spring-break-camp"} component={SpringBreakCamp} />
       <Route path={"/spring-break-registration"} component={SpringBreakRegistration} />
       <Route path={"/attendance"} component={AttendanceKiosk} />
+      {/* Walk-in QR flow: /walkin is the customer form; /walkin-qr is the staff QR display */}
+      <Route path={"/walkin"} component={WalkIn} />
+      <Route path={"/walkin-qr"} component={WalkInQR} />
       {/* Legacy URLs that don't map 1:1 to a view key get redirected. */}
       <Route path={"/admin/registrations"}><Redirect to="/admin/leads" /></Route>
       <Route path={"/studio"}><Redirect to="/admin/studio" /></Route>

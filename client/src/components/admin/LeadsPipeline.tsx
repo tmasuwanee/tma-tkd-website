@@ -22,6 +22,7 @@ import { Loader2, Phone, Mail, User, Tag, ChevronRight, ChevronLeft, Trash2, Sti
 import { useState, useMemo } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
+import TrialClassPicker from "@/components/TrialClassPicker";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -428,9 +429,40 @@ export function LeadDetailDialog({ lead, open, onClose, onRefresh }: {
     onError: () => toast.error("Failed to delete lead"),
   });
 
+  const [rescheduling, setRescheduling] = useState(false);
+  const bookManual = trpc.leads.bookManual.useMutation({
+    onSuccess: () => {
+      utils.leads.getAll.invalidate();
+      onRefresh();
+      setRescheduling(false);
+      toast.success("Trial rescheduled");
+    },
+    onError: () => toast.error("Failed to reschedule. Check the contact info and try again."),
+  });
+
   if (!lead) return null;
 
   const currentTags = lead.tags ?? [];
+
+  // Reschedule: offer a fresh trial when the lead missed or never enrolled.
+  // no_show / no_show_final appear as both pipeline stage values (set by check-in)
+  // and as tags -- check both so the panel shows regardless of how staff marked them.
+  const stageStr = String(lead.pipelineStage);
+  const hasNoShowTag = currentTags.some(t => t === "no_show" || t === "no_show_final");
+  const isNoShow = hasNoShowTag || stageStr === "no_show" || stageStr === "no_show_final";
+  const canReschedule =
+    isNoShow ||
+    stageStr === "contacted" ||
+    stageStr === "trial_attended" ||
+    stageStr === "lost";
+  // Map the lead's programInterest (any casing) to a classSchedule program key.
+  const progKey = ({
+    taekwondo: "taekwondo", "little tigers": "little_tigers", little_tigers: "little_tigers",
+    bjj: "bjj", "brazilian jiu-jitsu": "bjj", kickboxing: "kickboxing",
+    afterschool: "afterschool", "after school": "afterschool",
+  } as Record<string, string>)[String(lead.programInterest || "").toLowerCase()]
+    ?? String(lead.programInterest || "").toLowerCase();
+  const kidAgeNum = parseInt(String(lead.kidAge || "").replace(/[^0-9]/g, ""), 10) || 8;
 
   const handleAddTag = () => {
     const tag = newTag.trim().toLowerCase().replace(/\s+/g, "_");
@@ -452,7 +484,7 @@ export function LeadDetailDialog({ lead, open, onClose, onRefresh }: {
           <DialogTitle className="flex items-center gap-2">
             <User className="w-5 h-5 text-[#1a2d5a]" />
             {lead.kidName}
-            <span className="text-sm font-normal text-gray-500">— age {lead.kidAge}</span>
+            <span className="text-sm font-normal text-gray-500">- age {lead.kidAge}</span>
           </DialogTitle>
         </DialogHeader>
 
@@ -492,7 +524,7 @@ export function LeadDetailDialog({ lead, open, onClose, onRefresh }: {
               </div>
             )}
             <p className="text-xs text-gray-400 mt-1">
-              Submitted {daysAgo === 0 ? "today" : `${daysAgo} day${daysAgo > 1 ? "s" : ""} ago`} — {new Date(lead.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+              Submitted {daysAgo === 0 ? "today" : `${daysAgo} day${daysAgo > 1 ? "s" : ""} ago`} - {new Date(lead.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
             </p>
           </div>
 
@@ -513,6 +545,60 @@ export function LeadDetailDialog({ lead, open, onClose, onRefresh }: {
               </SelectContent>
             </Select>
           </div>
+
+          {/* Reschedule trial (shown for no-show / not-enrolled leads) */}
+          {canReschedule && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+              <p className="text-sm font-medium text-amber-900 mb-1 flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5" /> Reschedule trial
+              </p>
+              <p className="text-xs text-amber-800 mb-2">
+                {isNoShow ? "Marked as a no-show." : "Has not enrolled yet."}{" "}
+                Book them a new trial class.
+              </p>
+              {!rescheduling ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 gap-1 border-amber-300 text-amber-900 hover:bg-amber-100"
+                  onClick={() => setRescheduling(true)}
+                >
+                  <Clock className="w-3.5 h-3.5" /> Reschedule for a trial
+                </Button>
+              ) : (
+                <div className="space-y-2">
+                  <TrialClassPicker
+                    program={progKey}
+                    age={kidAgeNum}
+                    onSelect={(slot, date) =>
+                      bookManual.mutate({
+                        leadId: lead.id,
+                        parentName: lead.parentName,
+                        kidName: lead.kidName,
+                        kidAge: lead.kidAge ?? null,
+                        phone: lead.phone,
+                        email: lead.email || null,
+                        programInterest: lead.programInterest || "Taekwondo",
+                        trialClassDate: date,
+                        trialClassTime: slot.startTime,
+                        trialClassDay: slot.day,
+                        notes: "Rescheduled from the admin dashboard",
+                      })
+                    }
+                  />
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 text-xs text-gray-500"
+                    onClick={() => setRescheduling(false)}
+                    disabled={bookManual.isPending}
+                  >
+                    {bookManual.isPending ? "Saving..." : "Cancel"}
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Program Interest */}
           <div>

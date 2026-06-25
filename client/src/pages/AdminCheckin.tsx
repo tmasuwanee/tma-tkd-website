@@ -3,12 +3,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Loader2, ClipboardCheck, Eye, EyeOff, LogOut, Check, X, Phone, Calendar, ChevronDown, ChevronUp, GraduationCap } from "lucide-react";
+import { Loader2, ClipboardCheck, Eye, EyeOff, LogOut, Check, X, Phone, Calendar, ChevronDown, ChevronUp, GraduationCap, Clock } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { FollowUpControl } from "@/components/admin/FollowUpControl";
+import TrialClassPicker from "@/components/TrialClassPicker";
 
-const ALLOWED_EMAILS = ["tmasuwanee@gmail.com", "coacharfasc@gmail.com"];
+const ALLOWED_EMAILS = ["tmasuwanee@gmail.com", "info@arfaconsults.com"];
 const PASSWORD = "Keep9oing!";
 const SESSION_KEY = "tma_admin_session";
 
@@ -74,6 +75,24 @@ function LeadRow({ lead, open, onSetOpen, onMark, onSignedUp, busy }: {
   const marked = stage === "trial_attended" ? "showed"
     : stage === "no_show" ? "noshow"
     : stage === "enrolled" ? "enrolled" : null;
+
+  const [rescheduling, setRescheduling] = useState(false);
+  const utils = trpc.useUtils();
+  const bookManual = trpc.leads.bookManual.useMutation({
+    onSuccess: () => {
+      utils.checkin.listForDate.invalidate();
+      setRescheduling(false);
+      toast.success("Trial rescheduled");
+    },
+    onError: () => toast.error("Failed to reschedule"),
+  });
+  const progKey = ({
+    taekwondo: "taekwondo", "little tigers": "little_tigers", little_tigers: "little_tigers",
+    bjj: "bjj", "brazilian jiu-jitsu": "bjj", kickboxing: "kickboxing",
+    afterschool: "afterschool", "after school": "afterschool",
+  } as Record<string, string>)[String(lead.programInterest || "").toLowerCase()]
+    ?? String(lead.programInterest || "").toLowerCase();
+  const kidAgeNum = parseInt(String(lead.kidAge || "").replace(/[^0-9]/g, ""), 10) || 8;
   const badge = marked === "showed" ? { t: "SHOWED", c: "bg-green-100 text-green-700" }
     : marked === "noshow" ? { t: "NO-SHOW", c: "bg-red-100 text-red-700" }
     : marked === "enrolled" ? { t: "SIGNED UP", c: "bg-emerald-100 text-emerald-700" } : null;
@@ -136,6 +155,44 @@ function LeadRow({ lead, open, onSetOpen, onMark, onSignedUp, busy }: {
           <GraduationCap className="w-4 h-4 mr-1" /> {marked === "enrolled" ? "Signed up (enrolled)" : "Student signed up"}
         </Button>
       </div>
+
+      {marked === "noshow" && (
+        <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-2.5">
+          <p className="text-xs font-medium text-amber-900 mb-1.5 flex items-center gap-1">
+            <Clock className="w-3 h-3" /> Reschedule their trial
+          </p>
+          {!rescheduling ? (
+            <Button size="sm" variant="outline" onClick={() => setRescheduling(true)}
+              className="h-7 text-xs border-amber-300 text-amber-900 hover:bg-amber-100">
+              Pick a new class time
+            </Button>
+          ) : (
+            <div className="space-y-2">
+              <TrialClassPicker
+                program={progKey}
+                age={kidAgeNum}
+                onSelect={(slot, date) => bookManual.mutate({
+                  leadId: lead.id,
+                  parentName: lead.parentName,
+                  kidName: lead.kidName,
+                  kidAge: lead.kidAge ?? null,
+                  phone: lead.phone,
+                  email: lead.email || null,
+                  programInterest: lead.programInterest || "Taekwondo",
+                  trialClassDate: date,
+                  trialClassTime: slot.startTime,
+                  trialClassDay: slot.day,
+                  notes: "Rescheduled from the check-in view",
+                })}
+              />
+              <Button size="sm" variant="ghost" className="h-7 text-xs text-gray-500"
+                onClick={() => setRescheduling(false)} disabled={bookManual.isPending}>
+                {bookManual.isPending ? "Saving..." : "Cancel"}
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
