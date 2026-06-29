@@ -63,7 +63,7 @@ export default function AfterschoolTour() {
         kidName:         kidName.trim(),
         kidAge:          grade.trim(),
         programInterest: "Afterschool",
-        email:           email.trim() || undefined,
+        email:           email.trim() || "",
         phone:           phone.trim(),
         additionalNotes: `Tour request - afterschool program. ${preferredDays} We will call to confirm tour time (M-F 2pm-4pm window, flexible upon speaking with staff).`,
         tags:            ["tour_request"],
