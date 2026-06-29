@@ -258,7 +258,7 @@ export default function AfterschoolTour() {
         </Button>
 
         <p className="text-center text-xs text-gray-400">
-          Early enrollment ends July 17. Free uniform + registration fee waived. K-5 only.
+          Enroll before school starts. Free uniform + registration fee waived. K-5 only.
         </p>
       </form>
     </div>
