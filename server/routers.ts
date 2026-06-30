@@ -335,10 +335,10 @@ export const appRouter = router({
       .input(z.object({
         parentName: z.string().min(1),
         kidName: z.string().min(1),
-        kidAge: z.string().min(1),
+        kidAge: z.string(),
         programInterest: z.string().min(1),
         motivation: z.string().optional(),
-        email: z.string().email(),
+        email: z.string().email().optional(),
         phone: z.string().min(1),
         additionalNotes: z.string().optional(),
         // UTM tracking
@@ -366,6 +366,7 @@ export const appRouter = router({
           // Phase 1b (Lead Conductor): auto-progress stage to trial_scheduled when a booking is present.
           // Otherwise leave default 'new_lead'.
           const initialStage = input.trialClassDate ? 'trial_scheduled' as const : undefined;
+          const email = input.email?.trim() || `no-email-${input.phone.replace(/\D/g, "") || "unknown"}-${Date.now()}@no-email.tma`;
 
           const newLeadId = await createLead({
             parentName: input.parentName,
@@ -373,7 +374,7 @@ export const appRouter = router({
             kidAge: input.kidAge,
             programInterest: input.programInterest,
             motivation: input.motivation,
-            email: input.email,
+            email,
             phone: input.phone,
             additionalNotes: input.additionalNotes,
             ...(initialStage ? { pipelineStage: initialStage } : {}),
@@ -398,7 +399,7 @@ export const appRouter = router({
             kidAge: input.kidAge,
             programInterest: input.programInterest,
             motivation: input.motivation ?? null,
-            email: input.email,
+            email,
             phone: input.phone,
             additionalNotes: input.additionalNotes ?? null,
             pipelineStage: "new_lead" as const,
@@ -432,7 +433,7 @@ export const appRouter = router({
           void fireLeadEvent({
             leadId: newLeadId,
             name: input.parentName,
-            email: input.email,
+            email,
             phone: input.phone,
             programInterest: input.programInterest,
             utmSource: input.utmSource,
@@ -444,7 +445,7 @@ export const appRouter = router({
           void fireN8nWebhook({
             leadId: newLeadId,
             name: input.parentName,
-            email: input.email,
+            email,
             phone: input.phone,
             programInterest: input.programInterest,
             utmSource: input.utmSource ?? null,
@@ -1714,4 +1715,3 @@ export const appRouter = router({
   }),
 });
 export type AppRouter = typeof appRouter;
-
