@@ -217,6 +217,38 @@ export default function Home() {
         </div>
       </section>
 
+      {/* After School Care Banner */}
+      <section className="bg-[#1a2d5a] text-white py-4">
+        <div className="container mx-auto px-4">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 text-center sm:text-left">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">🎒</span>
+              <div>
+                <span className="font-bold text-lg">After School Care 2026–27</span>
+                <span className="mx-3 text-white/70">|</span>
+                <span className="text-white/90">4–5 Days $500/mo &bull; 2–3 Days $400/mo &bull; Register by Jul 31 for 50% off first month</span>
+              </div>
+            </div>
+            <div className="flex gap-2 shrink-0">
+              <Button
+                onClick={() => navigate('/afterschool-register')}
+                size="sm"
+                className="bg-[#c41e3a] hover:bg-[#c41e3a]/90 text-white font-bold"
+              >
+                Register Now
+              </Button>
+              <Button
+                onClick={() => navigate('/afterschooltour')}
+                size="sm"
+                variant="outline"
+                className="border-white text-white hover:bg-white hover:text-[#1a2d5a] font-bold bg-transparent"
+              >
+                Schedule Tour
+              </Button>
+            </div>
+          </div>
+        </div>
+      </section>
       {/* About Section */}
       <section id="about" className="py-20 bg-white">
         <div className="container mx-auto px-4">

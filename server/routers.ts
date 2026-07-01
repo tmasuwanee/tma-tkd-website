@@ -1697,6 +1697,73 @@ export const appRouter = router({
       .mutation(async ({ input }) => { await updateTrialStatus(input.id, input.status); return { success: true }; }),
   }),
 
+    // ─── After School Care registrations (2026-07-01) ─────────────────────────
+  // Standalone Stripe checkout for After School Care one-time fees.
+  // Families choose their plan (4-5 day or 2-3 day) and pay registration ($99),
+  // uniform ($50), and supply fee ($65) upfront. No DB row needed — Stripe
+  // metadata is the record. Staff is pinged on success via Telegram.
+  afterschool: router({
+    createIntent: publicProcedure
+      .input(z.object({
+        parentName: z.string().min(1).max(255),
+        studentName: z.string().min(1).max(255),
+        email: z.string().email().nullable().optional(),
+        phone: z.string().max(20).nullable().optional(),
+        plan: z.enum(["4_5_day", "2_3_day"]),
+        includeUniform: z.boolean().default(true),
+        includeSupplyFee: z.boolean().default(true),
+        earlyBird: z.boolean().default(false),
+        startDate: z.string().max(20).optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const REGISTRATION = 99_00;
+        const UNIFORM = 50_00;
+        const SUPPLY_FEE = 65_00;
+        let amount = REGISTRATION;
+        if (input.includeUniform) amount += UNIFORM;
+        if (input.includeSupplyFee) amount += SUPPLY_FEE;
+        const stripe = getStripe();
+        const paymentIntent = await stripe.paymentIntents.create({
+          amount,
+          currency: "usd",
+          ...(input.email ? { receipt_email: input.email } : {}),
+          metadata: {
+            product: "afterschool_registration",
+            parentName: input.parentName,
+            studentName: input.studentName,
+            email: input.email ?? "",
+            phone: input.phone ?? "",
+            plan: input.plan,
+            includeUniform: String(input.includeUniform),
+            includeSupplyFee: String(input.includeSupplyFee),
+            earlyBird: String(input.earlyBird),
+            startDate: input.startDate ?? "",
+          },
+        });
+        return { clientSecret: paymentIntent.client_secret, paymentIntentId: paymentIntent.id, amount };
+      }),
+    confirm: publicProcedure
+      .input(z.object({ paymentIntentId: z.string() }))
+      .mutation(async ({ input }) => {
+        const stripe = getStripe();
+        const pi = await stripe.paymentIntents.retrieve(input.paymentIntentId);
+        if (pi.status === "succeeded") {
+          const m = pi.metadata || {};
+          const planLabel = m.plan === "4_5_day" ? "4–5 Day/Week" : "2–3 Day/Week";
+          void sendTelegramMessage(
+            `🏫 <b>After School Care registration paid</b>\n` +
+            `Parent: ${m.parentName || "—"}\n` +
+            `Student: ${m.studentName || "—"}\n` +
+            `Plan: ${planLabel}\n` +
+            `Amount: $${(pi.amount / 100).toFixed(2)}\n` +
+            `Email: ${m.email || "—"} · Phone: ${m.phone || "—"}` +
+            (m.earlyBird === "true" ? "\n🎉 Early Bird (July 31 deadline)" : "")
+          );
+        }
+        return { status: pi.status };
+      }),
+  }),
+
   // ─── Call Log (2026-06-11) ────────────────────────────────────────────────
   // Read-only view of Retell voice calls (inbound + outbound) captured by
   // /api/voice/retell-webhook. Powers /admin/call-log (Gmail-style list +

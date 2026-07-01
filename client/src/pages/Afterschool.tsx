@@ -33,10 +33,10 @@ export default function Afterschool() {
           </div>
 
           <Button 
-            onClick={() => navigate('/free-class?program=afterschool')}
-            className="bg-accent text-accent-foreground hover:bg-accent/90"
+            onClick={() => navigate('/afterschool-register')}
+            className="bg-[#c41e3a] hover:bg-[#c41e3a]/90 text-white"
           >
-            Schedule a Tour
+            Register Now
           </Button>
         </div>
       </nav>
@@ -56,13 +56,23 @@ export default function Afterschool() {
             <p className="text-xl text-white/90 mb-8 max-w-xl">
               We pick up your kids after school and bring them to TMA for martial arts training, homework completion, and supervised care.
             </p>
-            <Button 
-              size="lg"
-              className="bg-accent text-accent-foreground hover:bg-accent/90 text-lg"
-              onClick={() => navigate('/free-class?program=afterschool')}
-            >
-              Schedule a Tour <ChevronRight className="ml-2 w-5 h-5" />
-            </Button>
+            <div className="flex flex-wrap gap-3">
+              <Button 
+                size="lg"
+                className="bg-[#c41e3a] hover:bg-[#c41e3a]/90 text-white text-lg"
+                onClick={() => navigate('/afterschool-register')}
+              >
+                Register Now <ChevronRight className="ml-2 w-5 h-5" />
+              </Button>
+              <Button 
+                size="lg"
+                variant="outline"
+                className="border-white text-white hover:bg-white hover:text-[#1a2d5a] text-lg bg-transparent"
+                onClick={() => navigate('/afterschooltour')}
+              >
+                Schedule a Tour
+              </Button>
+            </div>
           </div>
         </div>
       </section>
@@ -157,21 +167,89 @@ export default function Afterschool() {
       </section>
 
 
+      {/* Pricing Section */}
+      <section className="py-20 bg-white">
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-12">
+            <h2 className="text-4xl font-bold text-[#1a2d5a] mb-4">Tuition & Fees</h2>
+            <p className="text-lg text-gray-600">Transparent pricing — no hidden costs.</p>
+          </div>
+          <div className="max-w-4xl mx-auto grid md:grid-cols-2 gap-6 mb-10">
+            {/* 4-5 Day Plan */}
+            <Card className="border-2 border-[#c41e3a] shadow-lg p-6">
+              <div className="inline-block mb-3 px-3 py-1 bg-[#c41e3a]/10 rounded-full">
+                <span className="text-[#c41e3a] font-semibold text-xs uppercase tracking-wide">Most Popular</span>
+              </div>
+              <h3 className="text-xl font-bold text-[#1a2d5a] mb-1">4–5 Day/Week</h3>
+              <p className="text-sm text-gray-500 mb-4">$100 After School Care + $25 TKD/Kickboxing</p>
+              <div className="flex gap-6 mb-4">
+                <div>
+                  <p className="text-3xl font-extrabold text-[#1a2d5a]">$125<span className="text-base font-normal text-gray-500">/wk</span></p>
+                </div>
+                <div>
+                  <p className="text-3xl font-extrabold text-[#1a2d5a]">$500<span className="text-base font-normal text-gray-500">/mo</span></p>
+                </div>
+              </div>
+            </Card>
+            {/* 2-3 Day Plan */}
+            <Card className="border border-gray-200 shadow-sm p-6">
+              <div className="inline-block mb-3 px-3 py-1 bg-gray-100 rounded-full">
+                <span className="text-gray-600 font-semibold text-xs uppercase tracking-wide">Flexible</span>
+              </div>
+              <h3 className="text-xl font-bold text-[#1a2d5a] mb-1">2–3 Day/Week</h3>
+              <p className="text-sm text-gray-500 mb-4">$75 After School Care + $25 TKD</p>
+              <div className="flex gap-6 mb-4">
+                <div>
+                  <p className="text-3xl font-extrabold text-[#1a2d5a]">$100<span className="text-base font-normal text-gray-500">/wk</span></p>
+                </div>
+                <div>
+                  <p className="text-3xl font-extrabold text-[#1a2d5a]">$400<span className="text-base font-normal text-gray-500">/mo</span></p>
+                </div>
+              </div>
+            </Card>
+          </div>
+          {/* One-time fees */}
+          <div className="max-w-4xl mx-auto bg-gray-50 border border-gray-200 rounded-xl p-6 mb-8">
+            <h4 className="font-bold text-[#1a2d5a] mb-4">One-Time Enrollment Fees</h4>
+            <div className="grid grid-cols-3 gap-4 text-center">
+              <div><p className="text-2xl font-bold text-[#c41e3a]">$99</p><p className="text-sm text-gray-600">Registration</p></div>
+              <div><p className="text-2xl font-bold text-[#c41e3a]">$50</p><p className="text-sm text-gray-600">Uniform</p></div>
+              <div><p className="text-2xl font-bold text-[#c41e3a]">$65</p><p className="text-sm text-gray-600">Supply Fee (annual)</p></div>
+            </div>
+            <p className="text-xs text-gray-500 mt-3 text-center">Late pick-up after 6:30 PM: $25/week</p>
+          </div>
+          {/* Early bird */}
+          <div className="max-w-4xl mx-auto bg-yellow-50 border border-yellow-200 rounded-xl p-5 mb-10 text-center">
+            <p className="text-yellow-800 font-semibold">⭐ Early Bird Special — Register by July 31 and get <strong>50% off your first month's tuition!</strong></p>
+          </div>
+        </div>
+      </section>
+
       {/* Enrollment Section */}
-      <section className="py-20 bg-primary">
+      <section className="py-20 bg-[#1a2d5a]">
         <div className="container mx-auto px-4">
           <div className="max-w-2xl mx-auto text-center">
-            <h2 className="text-4xl font-bold text-white mb-4">Enroll Today</h2>
+            <h2 className="text-4xl font-bold text-white mb-4">Ready to Enroll?</h2>
             <p className="text-xl text-white/80 mb-8">
-              Give your child a safe place to learn, grow, and thrive after school. Contact us to learn more about enrollment and pricing.
+              Secure your child's spot today. One-time fees are paid online; monthly tuition is billed separately.
             </p>
-            <Button 
-              size="lg"
-              className="bg-accent text-accent-foreground hover:bg-accent/90 text-lg"
-              onClick={() => navigate('/free-class?program=afterschool')}
-            >
-              Schedule a Tour
-            </Button>
+            <div className="flex flex-wrap gap-4 justify-center">
+              <Button 
+                size="lg"
+                className="bg-[#c41e3a] hover:bg-[#c41e3a]/90 text-white text-lg"
+                onClick={() => navigate('/afterschool-register')}
+              >
+                Register &amp; Pay Now <ChevronRight className="ml-2 w-5 h-5" />
+              </Button>
+              <Button 
+                size="lg"
+                variant="outline"
+                className="border-white text-white hover:bg-white hover:text-[#1a2d5a] text-lg bg-transparent"
+                onClick={() => navigate('/afterschooltour')}
+              >
+                Schedule a Tour
+              </Button>
+            </div>
           </div>
         </div>
       </section>

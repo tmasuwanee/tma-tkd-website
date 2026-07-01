@@ -21,6 +21,7 @@ import WalkIn from "./pages/WalkIn";
 import WalkInQR from "./pages/WalkInQR";
 import AfterschoolTour from "./pages/AfterschoolTour";
 import ChristmasInJuly from "./pages/ChristmasInJuly";
+import AfterschoolRegister from "./pages/AfterschoolRegister";
 import AdminShell from "./components/admin/AdminShell";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import Terms from "./pages/Terms";
@@ -50,6 +51,7 @@ function Router() {
       <Route path={"/walkin-qr"} component={WalkInQR} />
       <Route path={"/afterschooltour"} component={AfterschoolTour} />
       <Route path={"/christmas-in-july"} component={ChristmasInJuly} />
+      <Route path={"/afterschool-register"} component={AfterschoolRegister} />
       {/* Legacy URLs that don't map 1:1 to a view key get redirected. */}
       <Route path={"/admin/registrations"}><Redirect to="/admin/leads" /></Route>
       <Route path={"/studio"}><Redirect to="/admin/studio" /></Route>
