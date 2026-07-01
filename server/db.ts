@@ -2662,3 +2662,37 @@ export async function recordReturningParentTrial(args: {
     internalNotes,
   }).where(eq(leads.id, args.leadId));
 }
+
+// ─── After School Care Registrations ──────────────────────────────────────────
+/** Insert a new afterschool registration row after Stripe payment succeeds. */
+export async function insertAfterschoolRegistration(params: {
+  parentName: string;
+  childName: string;
+  childAge?: number | null;
+  email: string;
+  phone: string;
+  planType: '4_5_day' | '2_3_day';
+  registrationFee: number;
+  uniformFee: number;
+  supplyFee: number;
+  earlyBird: boolean;
+  totalAmountCents: number;
+  stripePaymentIntentId: string;
+  stripePaymentStatus: string;
+}): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+  const [result] = await db.execute(
+    sql`INSERT INTO afterschoolRegistrations
+      (parentName, childName, childAge, email, phone, planType, registrationFee, uniformFee, supplyFee,
+       earlyBird, totalAmountCents, stripePaymentIntentId, stripePaymentStatus, paidAt)
+     VALUES (
+       ${params.parentName}, ${params.childName}, ${params.childAge ?? null},
+       ${params.email}, ${params.phone}, ${params.planType},
+       ${params.registrationFee}, ${params.uniformFee}, ${params.supplyFee},
+       ${params.earlyBird ? 1 : 0}, ${params.totalAmountCents},
+       ${params.stripePaymentIntentId}, ${params.stripePaymentStatus}, NOW()
+     )`
+  ) as unknown as [{ insertId: number }];
+  return result?.insertId ?? 0;
+}

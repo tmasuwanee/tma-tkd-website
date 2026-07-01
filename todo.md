@@ -210,3 +210,14 @@
 - [x] Deploy checkpoint with all changes (checkpoint d12bf481)
 - [x] Verify /admin/controls loads behind login (HTTP 200, SPA serves TMA app shell, auth handled client-side)
 - [x] Verify /admin/checkin loads behind login (HTTP 200, SPA serves TMA app shell, auth handled client-side)
+
+## After School Care Registration (Ms. Anna's Notes — Jul 1 2026)
+- [x] Add /afterschool-register page with Stripe payment (registration $99, uniform $50, supply fee $65)
+- [x] Update /afterschool info page with pricing section and early bird banner (50% off first month if registered by Jul 31)
+- [x] Add After School Care banner to homepage with Register Now + Schedule Tour buttons
+- [x] Update /afterschool CTA buttons to point to /afterschool-register
+- [x] Add afterschoolRegistrations table to DB schema and migrate
+- [x] Store registration records in DB after successful Stripe payment
+- [x] Send confirmation email to parent after payment
+- [x] Send Telegram notification to staff on new afterschool registration
+- [ ] Investigate PaySimple as alternative payment processor (owner request — on hold)

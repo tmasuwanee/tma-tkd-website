@@ -400,3 +400,69 @@ function createJWT(serviceAccount: any): string {
   // For now, this is a placeholder
   return `${header}.${payload}.signature`;
 }
+
+/**
+ * Confirmation email sent to the parent after a successful After School Care payment.
+ */
+export async function sendAfterschoolConfirmation(params: {
+  parentName: string;
+  childName: string;
+  email: string;
+  planType: '4_5_day' | '2_3_day';
+  registrationFee: number;
+  uniformFee: number;
+  supplyFee: number;
+  earlyBird: boolean;
+  totalAmountCents: number;
+}) {
+  try {
+    if (!params.email) {
+      console.warn('[Email] No email address provided for afterschool confirmation, skipping');
+      return;
+    }
+    const planLabel = params.planType === '4_5_day' ? '4–5 Days/Week ($500/mo)' : '2–3 Days/Week ($400/mo)';
+    const totalFormatted = `$${(params.totalAmountCents / 100).toFixed(2)}`;
+    const parentFirst = params.parentName.split(' ')[0] || params.parentName;
+
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: #1a2d5a; padding: 24px; text-align: center;">
+          <h1 style="color: white; margin: 0; font-size: 24px;">🏫 After School Care Confirmed!</h1>
+          <p style="color: #a0b4d6; margin: 8px 0 0;">Top Martial Arts Suwanee — 2026–27 School Year</p>
+        </div>
+        <div style="padding: 24px; background: #ffffff;">
+          <p style="font-size: 16px;">Hi ${parentFirst},</p>
+          <p>Thank you for registering <strong>${params.childName}</strong> for After School Care at Top Martial Arts Suwanee! We're excited to have them join our program.</p>
+          <div style="background: #f0f4ff; border-left: 4px solid #1a2d5a; padding: 16px; margin: 20px 0; border-radius: 4px;">
+            <h3 style="margin: 0 0 12px; color: #1a2d5a;">Registration Summary</h3>
+            <p style="margin: 4px 0;"><strong>Student:</strong> ${params.childName}</p>
+            <p style="margin: 4px 0;"><strong>Plan:</strong> ${planLabel}</p>
+            <p style="margin: 4px 0;"><strong>Registration Fee:</strong> $${(params.registrationFee / 100).toFixed(2)}</p>
+            ${params.uniformFee > 0 ? `<p style="margin: 4px 0;"><strong>Uniform:</strong> $${(params.uniformFee / 100).toFixed(2)}</p>` : ''}
+            ${params.supplyFee > 0 ? `<p style="margin: 4px 0;"><strong>Supply Fee:</strong> $${(params.supplyFee / 100).toFixed(2)}</p>` : ''}
+            ${params.earlyBird ? '<p style="margin: 4px 0; color: #c41e3a;"><strong>🎉 Early Bird Discount Applied!</strong> 50% off your first month (registered by July 31)</p>' : ''}
+            <p style="margin: 12px 0 0; font-weight: bold; font-size: 16px;"><strong>Total Paid Today:</strong> ${totalFormatted}</p>
+          </div>
+          <div style="background: #e8f5e9; border: 1px solid #a5d6a7; border-radius: 8px; padding: 16px; margin: 20px 0;">
+            <h3 style="margin: 0 0 8px; color: #2e7d32;">What's Next?</h3>
+            <ul style="margin: 0; padding-left: 20px; line-height: 1.8;">
+              <li>Program hours: <strong>3:00 PM – 6:30 PM</strong> (school days)</li>
+              <li>Drop-off at <strong>Top Martial Arts, 2005 Lawrenceville Suwanee Rd, Suwanee, GA 30024</strong></li>
+              <li>Monthly tuition will be billed separately each month</li>
+              <li>We'll contact you with the exact start date and any paperwork needed</li>
+            </ul>
+          </div>
+          <p>Questions? Call us at <strong>(770) 277-3009</strong> or email <a href="mailto:tmasuwanee@gmail.com">tmasuwanee@gmail.com</a></p>
+        </div>
+        <div style="background: #1a2d5a; padding: 16px; text-align: center;">
+          <p style="color: white; margin: 0; font-size: 12px;">Top Martial Arts Suwanee &bull; 2005 Lawrenceville Suwanee Rd, Suwanee, GA 30024 &bull; (770) 277-3009</p>
+        </div>
+      </div>
+    `;
+
+    await sendEmail(params.email, 'After School Care Registration Confirmed — TMA Suwanee', html);
+    console.log('[Email] Afterschool confirmation sent to:', params.email);
+  } catch (error) {
+    console.error('[Email] Error sending afterschool confirmation:', error);
+  }
+}

@@ -48,7 +48,7 @@ import {
 } from "./db";
 import { sendTelegramMessage } from "./telegram";
 import { storagePut, storageGet } from "./storage";
-import { sendToGoogleSheets, sendToSlack, sendEmailNotification, sendCampRegistrationConfirmation, sendCampWaiverEmail, sendTrialReceipt } from "./integrations";
+import { sendToGoogleSheets, sendToSlack, sendEmailNotification, sendCampRegistrationConfirmation, sendCampWaiverEmail, sendTrialReceipt, sendAfterschoolConfirmation } from "./integrations";
 import { fireLeadEvent, firePurchaseEvent } from "./meta-capi";
 import { getAdInsights, syncAdInsights } from "./facebook-ads";
 import Stripe from "stripe";
@@ -1750,6 +1750,50 @@ export const appRouter = router({
         if (pi.status === "succeeded") {
           const m = pi.metadata || {};
           const planLabel = m.plan === "4_5_day" ? "4–5 Day/Week" : "2–3 Day/Week";
+          const earlyBird = m.earlyBird === "true";
+          const includeUniform = m.includeUniform === "true";
+          const includeSupplyFee = m.includeSupplyFee === "true";
+          const REGISTRATION = 99_00;
+          const UNIFORM = 50_00;
+          const SUPPLY_FEE = 65_00;
+          const uniformFee = includeUniform ? UNIFORM : 0;
+          const supplyFee = includeSupplyFee ? SUPPLY_FEE : 0;
+          // Save to DB
+          try {
+            const { insertAfterschoolRegistration } = await import('./db');
+            await insertAfterschoolRegistration({
+              parentName: m.parentName || "",
+              childName: m.studentName || "",
+              childAge: null,
+              email: m.email || "",
+              phone: m.phone || "",
+              planType: (m.plan as '4_5_day' | '2_3_day') || '4_5_day',
+              registrationFee: REGISTRATION,
+              uniformFee,
+              supplyFee,
+              earlyBird,
+              totalAmountCents: pi.amount,
+              stripePaymentIntentId: pi.id,
+              stripePaymentStatus: pi.status,
+            });
+          } catch (dbErr) {
+            console.error('[Afterschool] DB insert failed:', dbErr);
+          }
+          // Send confirmation email
+          if (m.email) {
+            void sendAfterschoolConfirmation({
+              parentName: m.parentName || "",
+              childName: m.studentName || "",
+              email: m.email,
+              planType: (m.plan as '4_5_day' | '2_3_day') || '4_5_day',
+              registrationFee: REGISTRATION,
+              uniformFee,
+              supplyFee,
+              earlyBird,
+              totalAmountCents: pi.amount,
+            });
+          }
+          // Notify staff via Telegram
           void sendTelegramMessage(
             `🏫 <b>After School Care registration paid</b>\n` +
             `Parent: ${m.parentName || "—"}\n` +
@@ -1757,7 +1801,7 @@ export const appRouter = router({
             `Plan: ${planLabel}\n` +
             `Amount: $${(pi.amount / 100).toFixed(2)}\n` +
             `Email: ${m.email || "—"} · Phone: ${m.phone || "—"}` +
-            (m.earlyBird === "true" ? "\n🎉 Early Bird (July 31 deadline)" : "")
+            (earlyBird ? "\n🎉 Early Bird (July 31 deadline)" : "")
           );
         }
         return { status: pi.status };
