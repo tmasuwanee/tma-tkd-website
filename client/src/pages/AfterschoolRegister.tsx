@@ -49,6 +49,10 @@ const PLANS = {
 
 type Plan = keyof typeof PLANS;
 
+function getEarlyBirdDiscount(plan: Plan): number {
+  return PLANS[plan].monthly / 2; // 50% off first month
+}
+
 // ─── Payment form (mounted inside Stripe Elements) ────────────────────────────
 function PaymentForm({
   paymentIntentId,
@@ -124,11 +128,13 @@ export default function AfterschoolRegister() {
 
   const createIntent = trpc.afterschool.createIntent.useMutation();
 
-  // Computed total
+  // Computed total (includes discounted first month when early bird is active)
+  const earlyBirdDiscount = earlyBird ? getEarlyBirdDiscount(plan) : 0;
   const totalCents =
     REGISTRATION * 100 +
     (includeUniform ? UNIFORM * 100 : 0) +
-    (includeSupplyFee ? SUPPLY_FEE * 100 : 0);
+    (includeSupplyFee ? SUPPLY_FEE * 100 : 0) +
+    (earlyBird ? earlyBirdDiscount * 100 : 0);
   const totalDisplay = `$${(totalCents / 100).toFixed(2)}`;
 
   // Handle Stripe redirect return (payment already completed)
@@ -260,15 +266,22 @@ export default function AfterschoolRegister() {
                     <span className="font-medium">${SUPPLY_FEE}</span>
                   </div>
                 )}
+                {earlyBird && (
+                  <>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">
+                        1st month tuition
+                        <span className="ml-1 text-xs text-gray-400 line-through">${PLANS[plan].monthly}</span>
+                      </span>
+                      <span className="font-medium text-green-700">${earlyBirdDiscount}</span>
+                    </div>
+                    <div className="text-xs text-green-700 font-medium">🎉 Early Bird 50% off — saves ${earlyBirdDiscount}!</div>
+                  </>
+                )}
                 <div className="flex justify-between pt-2 border-t border-gray-200 font-bold text-base">
                   <span>Total due today</span>
                   <span className="text-[#1a2d5a]">{totalDisplay}</span>
                 </div>
-                {earlyBird && (
-                  <p className="text-xs text-green-700 font-medium pt-1">
-                    ✓ Early Bird: 50% off first month's tuition applied by staff after enrollment.
-                  </p>
-                )}
               </div>
 
               {failed ? (
@@ -430,15 +443,25 @@ export default function AfterschoolRegister() {
                       <span className="font-medium">${SUPPLY_FEE}</span>
                     </div>
                   )}
+                  {earlyBird && (
+                    <>
+                      <div className="flex justify-between text-sm mb-1">
+                        <span className="text-gray-600">
+                          1st month tuition
+                          <span className="ml-1 text-xs text-gray-400 line-through">${PLANS[plan].monthly}</span>
+                        </span>
+                        <span className="font-medium text-green-700">${earlyBirdDiscount}</span>
+                      </div>
+                      <div className="flex items-center gap-1 text-xs text-green-700 font-medium mb-1">
+                        <span>🎉</span>
+                        <span>Early Bird 50% off — saves ${earlyBirdDiscount}!</span>
+                      </div>
+                    </>
+                  )}
                   <div className="flex justify-between font-bold text-base pt-2 border-t border-[#1a2d5a]/20 mt-2">
                     <span className="text-[#1a2d5a]">Due today</span>
                     <span className="text-[#1a2d5a]">{totalDisplay}</span>
                   </div>
-                  {earlyBird && (
-                    <p className="text-xs text-green-700 font-medium mt-2">
-                      🎉 Early Bird: 50% off your first month's tuition (applied by staff).
-                    </p>
-                  )}
                 </div>
 
                 <Button

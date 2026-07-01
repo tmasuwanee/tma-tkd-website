@@ -1719,9 +1719,13 @@ export const appRouter = router({
         const REGISTRATION = 99_00;
         const UNIFORM = 50_00;
         const SUPPLY_FEE = 65_00;
+        // Monthly tuition: 4-5 day = $500, 2-3 day = $400. Early bird = 50% off first month.
+        const MONTHLY = input.plan === "4_5_day" ? 500_00 : 400_00;
+        const earlyBirdDiscount = input.earlyBird ? Math.round(MONTHLY * 0.5) : 0;
         let amount = REGISTRATION;
         if (input.includeUniform) amount += UNIFORM;
         if (input.includeSupplyFee) amount += SUPPLY_FEE;
+        if (input.earlyBird) amount += earlyBirdDiscount; // add discounted first month
         const stripe = getStripe();
         const paymentIntent = await stripe.paymentIntents.create({
           amount,
@@ -1737,10 +1741,11 @@ export const appRouter = router({
             includeUniform: String(input.includeUniform),
             includeSupplyFee: String(input.includeSupplyFee),
             earlyBird: String(input.earlyBird),
+            earlyBirdDiscountCents: String(earlyBirdDiscount),
             startDate: input.startDate ?? "",
           },
         });
-        return { clientSecret: paymentIntent.client_secret, paymentIntentId: paymentIntent.id, amount };
+        return { clientSecret: paymentIntent.client_secret, paymentIntentId: paymentIntent.id, amount, earlyBirdDiscountCents: earlyBirdDiscount };
       }),
     confirm: publicProcedure
       .input(z.object({ paymentIntentId: z.string() }))
