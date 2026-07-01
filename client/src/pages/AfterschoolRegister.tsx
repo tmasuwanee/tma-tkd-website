@@ -531,7 +531,7 @@ export default function AfterschoolRegister() {
           <Card className="bg-white border border-gray-200 shadow-sm p-5">
             <h3 className="font-bold text-[#1a2d5a] mb-2 text-base">Questions?</h3>
             <p className="text-sm text-gray-600 mb-3">Call or text us — we're happy to help.</p>
-            <a href="tel:+17706896412" className="block text-[#c41e3a] font-semibold text-sm hover:underline">(770) 689-6412</a>
+            <a href="tel:+17702773009" className="block text-[#c41e3a] font-semibold text-sm hover:underline">(770) 277-3009</a>
             <button
               onClick={() => navigate("/afterschooltour")}
               className="mt-3 text-sm text-[#1a2d5a] hover:text-[#c41e3a] transition font-medium underline underline-offset-2"

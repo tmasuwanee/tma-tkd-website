@@ -96,7 +96,7 @@ export default function AfterschoolTour() {
           <p className="text-white/60 text-xs mt-1">Times are flexible. We will work with your schedule.</p>
         </div>
         <p className="text-white/50 text-xs max-w-xs">
-          Questions? Call us at (770) 963-9850 or stop by 4780 McGinnis Ferry Rd, Suwanee GA.
+          Questions? Call us at (770) 277-3009 or stop by 2005 Lawrenceville Suwanee Rd, Suwanee, GA 30024.
         </p>
       </div>
     );
