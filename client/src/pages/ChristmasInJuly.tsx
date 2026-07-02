@@ -36,10 +36,10 @@ type DurationOption = {
 };
 
 const PRODUCTS: Product[] = [
-  { key: "uniform", name: "Taekwondo Uniform", price: 65 },
-  { key: "kicking-paddle", name: "Kicking Paddle", price: 28 },
-  { key: "nunchucks", name: "Nunchucks", price: 22 },
-  { key: "belt-rack", name: "Belt Rack", price: 35 },
+  { key: "uniform", name: "Taekwondo Uniform", price: 60 },
+  { key: "kicking-paddle", name: "Kicking Paddle", price: 35 },
+  { key: "nunchucks", name: "Nunchucks", price: 13 },
+  { key: "belt-rack", name: "Belt Rack", price: 48 },
 ];
 
 const MARTIAL_ARTS_PROGRAMS: Program[] = [
@@ -161,7 +161,7 @@ export default function ChristmasInJuly() {
     );
     const maTotal = maSelection?.saleTotal ?? 0;
     const afterschoolTotal = afterschoolSelection?.saleTotal ?? 0;
-    const privateLessonTotal = privateLessons ? 250 : 0;
+    const privateLessonTotal = privateLessons ? 200 : 0;
     const beltTestingTotal = beltTesting ? 250 : 0;
     return roundMoney(
       proShopTotal +
@@ -224,7 +224,7 @@ export default function ChristmasInJuly() {
 
     if (privateLessons) {
       lines.push(
-        "Private lessons bundle: Bundle of 5 Private Lessons, regular $300.00, sale $250.00, save $50.00"
+        "Private lessons bundle: Bundle of 5 Private Lessons, regular $375.00, sale $200.00, save $175.00"
       );
     }
 
@@ -491,9 +491,9 @@ export default function ChristmasInJuly() {
           <section className="grid lg:grid-cols-2 gap-4">
             <BundleToggleCard
               title="Bundle of 5 Private Lessons"
-              detail="Regular: $60.00/lesson x 5 = $300.00"
-              sale="Sale price: $250.00"
-              savings="You save: $50.00"
+              detail="4 private lessons + 1 free lesson. Regular: $75.00/lesson x 5 = $375.00"
+              sale="Sale price: $200.00"
+              savings="You save: $175.00"
               checked={privateLessons}
               onChange={setPrivateLessons}
             />
@@ -910,8 +910,8 @@ function OrderSummary({
         {privateLessons && (
           <SummaryRow
             title="Bundle of 5 Private Lessons"
-            detail="Save $50.00"
-            amount="$250.00"
+            detail="Save $175.00"
+            amount="$200.00"
           />
         )}
 
