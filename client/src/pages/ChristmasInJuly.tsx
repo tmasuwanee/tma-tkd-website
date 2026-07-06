@@ -16,6 +16,27 @@ import {
   Sun,
 } from "lucide-react";
 import { SMS_CONSENT_TEXT } from "../../../shared/smsConsent";
+import { useEffect } from "react";
+
+// ─── Sale window ─────────────────────────────────────────────────────────────
+const SALE_OPENS_AT = new Date("2026-07-13T00:00:00-04:00"); // July 13 midnight ET
+const SALE_CLOSES_AT = new Date("2026-07-19T00:00:00-04:00"); // July 18 end ET
+
+function useSaleCountdown() {
+  const [now, setNow] = useState(new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const saleOpen = now >= SALE_OPENS_AT && now < SALE_CLOSES_AT;
+  const saleEnded = now >= SALE_CLOSES_AT;
+  const msUntilOpen = Math.max(0, SALE_OPENS_AT.getTime() - now.getTime());
+  const days = Math.floor(msUntilOpen / 86400000);
+  const hours = Math.floor((msUntilOpen % 86400000) / 3600000);
+  const minutes = Math.floor((msUntilOpen % 3600000) / 60000);
+  const seconds = Math.floor((msUntilOpen % 60000) / 1000);
+  return { saleOpen, saleEnded, days, hours, minutes, seconds };
+}
 
 type Product = {
   key: string;
@@ -123,6 +144,7 @@ export default function ChristmasInJuly() {
 
   const submit = trpc.leads.submit.useMutation();
   const utm = useMemo(() => getUtmParams(), []);
+  const { saleOpen, saleEnded, days, hours, minutes, seconds } = useSaleCountdown();
 
   const proShopSelections = useMemo(
     () =>
@@ -307,10 +329,12 @@ export default function ChristmasInJuly() {
           <CheckCircle2 className="w-11 h-11 text-white" />
         </div>
         <h1 className="text-3xl font-bold text-white mb-3">
-          Your order is reserved!
+          {saleOpen ? "Your order is reserved! 🎄" : "You're on the list! 🎅"}
         </h1>
         <p className="text-white/75 max-w-sm">
-          We'll contact you within 24 hours to confirm and process payment.
+          {saleOpen
+            ? "We'll contact you within 24 hours to confirm and process payment."
+            : "The sale opens July 13. We'll reach out then to lock in your deal and process payment. No charge until the sale starts!"}
         </p>
       </div>
     );
@@ -594,14 +618,39 @@ export default function ChristmasInJuly() {
                     </span>
                   </label>
 
+                  {!saleOpen && !saleEnded && (
+                    <div className="rounded-lg bg-[#1a2d5a] text-white p-4 text-center">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-white/60 mb-1">Sale opens in</p>
+                      <div className="flex justify-center gap-3 text-2xl font-bold tabular-nums">
+                        <span>{String(days).padStart(2,"0")}d</span>
+                        <span>{String(hours).padStart(2,"0")}h</span>
+                        <span>{String(minutes).padStart(2,"0")}m</span>
+                        <span>{String(seconds).padStart(2,"0")}s</span>
+                      </div>
+                      <p className="text-xs text-white/50 mt-1">July 13, 2026 at midnight ET</p>
+                    </div>
+                  )}
+                  {saleEnded && (
+                    <div className="rounded-lg bg-slate-200 text-slate-500 p-4 text-center text-sm font-semibold">
+                      This sale has ended. See you next time! 🎄
+                    </div>
+                  )}
                   <Button
                     type="submit"
-                    disabled={isSubmitting}
-                    className="w-full bg-[#c41e3a] hover:bg-[#a81830] text-white text-base font-semibold h-12 rounded-lg"
+                    disabled={isSubmitting || saleEnded}
+                    className={`w-full text-white text-base font-semibold h-12 rounded-lg transition ${
+                      saleOpen
+                        ? "bg-[#c41e3a] hover:bg-[#a81830]"
+                        : "bg-slate-400 cursor-not-allowed"
+                    }`}
                   >
                     {isSubmitting
                       ? "Submitting..."
-                      : "Claim My Christmas in July Deal"}
+                      : saleEnded
+                      ? "Sale Ended"
+                      : saleOpen
+                      ? "Claim My Christmas in July Deal"
+                      : "Pre-Register — Locked Until July 13"}
                   </Button>
                 </>
               ) : (
