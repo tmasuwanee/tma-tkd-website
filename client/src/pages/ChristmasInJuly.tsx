@@ -57,11 +57,16 @@ type DurationOption = {
 };
 
 const PRODUCTS: Product[] = [
+  { key: "tshirt", name: "TMA T-Shirt", price: 30 },
   { key: "uniform", name: "Taekwondo Uniform", price: 60 },
   { key: "kicking-paddle", name: "Kicking Paddle", price: 35 },
   { key: "nunchucks", name: "Nunchucks", price: 13 },
   { key: "belt-rack", name: "Belt Rack", price: 48 },
 ];
+
+const PRODUCT_OVERRIDES: Record<string, number> = {
+  tshirt: 20, // Sale price override (regular $30 → sale $20)
+};
 
 const MARTIAL_ARTS_PROGRAMS: Program[] = [
   { key: "tkd-2x", name: "Taekwondo 2x/week", monthlyPrice: 179 },
@@ -177,7 +182,9 @@ export default function ChristmasInJuly() {
     () =>
       PRODUCTS.map(product => {
         const quantity = quantities[product.key] ?? 0;
-        const discountedPrice = salePrice(product.price);
+        const discountedPrice = PRODUCT_OVERRIDES[product.key] !== undefined
+          ? PRODUCT_OVERRIDES[product.key]
+          : salePrice(product.price);
         return {
           ...product,
           quantity,
@@ -492,7 +499,9 @@ export default function ChristmasInJuly() {
             <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {PRODUCTS.map(product => {
                 const quantity = quantities[product.key] ?? 0;
-                const discountedPrice = salePrice(product.price);
+                const discountedPrice = PRODUCT_OVERRIDES[product.key] !== undefined
+                  ? PRODUCT_OVERRIDES[product.key]
+                  : salePrice(product.price);
 
                 return (
                   <article
@@ -571,7 +580,7 @@ export default function ChristmasInJuly() {
 
             <TuitionGroup
               title="Afterschool Program"
-              subtitle="Subject to change"
+              subtitle="🎁 During the sale: registration fee waived, supply fee waived & free uniform included with enrollment!"
               programs={AFTERSCHOOL_PROGRAMS}
               selectedProgram={afterschoolProgram}
               selectedDuration={afterschoolDuration}
