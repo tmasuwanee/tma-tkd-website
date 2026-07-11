@@ -80,7 +80,12 @@ const DURATIONS: DurationOption[] = [
   { months: 6, label: "6-Month Package", discount: 0.1 },
 ];
 
-const SECOND_KID_MONTHLY_DISCOUNT = 20;
+const ADDITIONAL_KID_MONTHLY_DISCOUNT = 20;
+const MAX_ADDITIONAL_KIDS = 4;
+const ADDITIONAL_KID_COUNT_OPTIONS = Array.from(
+  { length: MAX_ADDITIONAL_KIDS + 1 },
+  (_, index) => index
+);
 
 function getUtmParams() {
   const p = new URLSearchParams(window.location.search);
@@ -128,7 +133,7 @@ function getPackageSelection(
   return { program, duration, ...computePackageTotals(program.monthlyPrice, duration) };
 }
 
-function getSecondKidSelection(
+function getAdditionalKidSelection(
   programs: Program[],
   programKey: string,
   months: 3 | 6 | null
@@ -138,7 +143,7 @@ function getSecondKidSelection(
 
   if (!program || !duration) return null;
 
-  const monthlyPrice = Math.max(0, program.monthlyPrice - SECOND_KID_MONTHLY_DISCOUNT);
+  const monthlyPrice = Math.max(0, program.monthlyPrice - ADDITIONAL_KID_MONTHLY_DISCOUNT);
 
   return { program, duration, monthlyPrice, ...computePackageTotals(monthlyPrice, duration) };
 }
@@ -151,8 +156,8 @@ export default function ChristmasInJuly() {
   const [afterschoolDuration, setAfterschoolDuration] = useState<3 | 6 | null>(
     null
   );
-  const [afterschoolSecondKid, setAfterschoolSecondKid] = useState(false);
-  const [secondKidName, setSecondKidName] = useState("");
+  const [afterschoolAdditionalKids, setAfterschoolAdditionalKids] = useState(0);
+  const [additionalKidNames, setAdditionalKidNames] = useState<string[]>([]);
   const [privateLessons, setPrivateLessons] = useState(false);
   const [beltTesting, setBeltTesting] = useState(false);
   const [studentName, setStudentName] = useState("");
@@ -198,17 +203,34 @@ export default function ChristmasInJuly() {
     [afterschoolProgram, afterschoolDuration]
   );
 
-  const afterschoolSecondKidSelection = useMemo(
+  const afterschoolAdditionalKidSelection = useMemo(
     () =>
-      afterschoolSecondKid
-        ? getSecondKidSelection(
+      afterschoolAdditionalKids > 0
+        ? getAdditionalKidSelection(
             AFTERSCHOOL_PROGRAMS,
             afterschoolProgram,
             afterschoolDuration
           )
         : null,
-    [afterschoolSecondKid, afterschoolProgram, afterschoolDuration]
+    [afterschoolAdditionalKids, afterschoolProgram, afterschoolDuration]
   );
+
+  function setAdditionalKidCount(count: number) {
+    setAfterschoolAdditionalKids(count);
+    setAdditionalKidNames(current => {
+      const next = current.slice(0, count);
+      while (next.length < count) next.push("");
+      return next;
+    });
+  }
+
+  function updateAdditionalKidName(index: number, name: string) {
+    setAdditionalKidNames(current => {
+      const next = [...current];
+      next[index] = name;
+      return next;
+    });
+  }
 
   const orderTotal = useMemo(() => {
     const proShopTotal = proShopSelections.reduce(
@@ -218,7 +240,7 @@ export default function ChristmasInJuly() {
     const maTotal = maSelection?.saleTotal ?? 0;
     const afterschoolTotal =
       (afterschoolSelection?.saleTotal ?? 0) +
-      (afterschoolSecondKidSelection?.saleTotal ?? 0);
+      (afterschoolAdditionalKidSelection?.saleTotal ?? 0) * afterschoolAdditionalKids;
     const privateLessonTotal = privateLessons ? 200 : 0;
     const beltTestingTotal = beltTesting ? 250 : 0;
     return roundMoney(
@@ -230,7 +252,8 @@ export default function ChristmasInJuly() {
     );
   }, [
     afterschoolSelection,
-    afterschoolSecondKidSelection,
+    afterschoolAdditionalKidSelection,
+    afterschoolAdditionalKids,
     beltTesting,
     maSelection,
     privateLessons,
@@ -281,9 +304,12 @@ export default function ChristmasInJuly() {
       );
     }
 
-    if (afterschoolSecondKidSelection) {
+    if (afterschoolAdditionalKidSelection && afterschoolAdditionalKids > 0) {
+      const names = additionalKidNames
+        .map((name, index) => name.trim() || `child ${index + 2}`)
+        .join(", ");
       lines.push(
-        `Afterschool second child (${secondKidName.trim() || "name not provided"}): ${afterschoolSecondKidSelection.program.name} at discounted rate ${formatMoney(afterschoolSecondKidSelection.monthlyPrice)}/mo, ${afterschoolSecondKidSelection.duration.label}, regular ${formatMoney(afterschoolSecondKidSelection.regularTotal)}, sale ${formatMoney(afterschoolSecondKidSelection.saleTotal)}, save ${formatMoney(afterschoolSecondKidSelection.savings)}`
+        `Afterschool additional children (${afterschoolAdditionalKids}: ${names}): ${afterschoolAdditionalKidSelection.program.name} at discounted rate ${formatMoney(afterschoolAdditionalKidSelection.monthlyPrice)}/mo each, ${afterschoolAdditionalKidSelection.duration.label}, regular ${formatMoney(afterschoolAdditionalKidSelection.regularTotal * afterschoolAdditionalKids)}, sale ${formatMoney(afterschoolAdditionalKidSelection.saleTotal * afterschoolAdditionalKids)}, save ${formatMoney(afterschoolAdditionalKidSelection.savings * afterschoolAdditionalKids)}`
       );
     }
 
@@ -552,12 +578,12 @@ export default function ChristmasInJuly() {
               onProgramChange={setAfterschoolProgram}
               onDurationChange={setAfterschoolDuration}
               selection={afterschoolSelection}
-              allowSecondKid
-              secondKidEnabled={afterschoolSecondKid}
-              onSecondKidToggle={setAfterschoolSecondKid}
-              secondKidSelection={afterschoolSecondKidSelection}
-              secondKidName={secondKidName}
-              onSecondKidNameChange={setSecondKidName}
+              allowAdditionalKids
+              additionalKidCount={afterschoolAdditionalKids}
+              onAdditionalKidCountChange={setAdditionalKidCount}
+              additionalKidSelection={afterschoolAdditionalKidSelection}
+              additionalKidNames={additionalKidNames}
+              onAdditionalKidNameChange={updateAdditionalKidName}
             />
           </section>
 
@@ -714,8 +740,9 @@ export default function ChristmasInJuly() {
               proShopSelections={proShopSelections}
               maSelection={maSelection}
               afterschoolSelection={afterschoolSelection}
-              afterschoolSecondKidSelection={afterschoolSecondKidSelection}
-              secondKidName={secondKidName}
+              afterschoolAdditionalKidSelection={afterschoolAdditionalKidSelection}
+              afterschoolAdditionalKids={afterschoolAdditionalKids}
+              additionalKidNames={additionalKidNames}
               privateLessons={privateLessons}
               beltTesting={beltTesting}
               orderTotal={orderTotal}
@@ -736,12 +763,12 @@ function TuitionGroup({
   onProgramChange,
   onDurationChange,
   selection,
-  allowSecondKid = false,
-  secondKidEnabled = false,
-  onSecondKidToggle,
-  secondKidSelection = null,
-  secondKidName = "",
-  onSecondKidNameChange,
+  allowAdditionalKids = false,
+  additionalKidCount = 0,
+  onAdditionalKidCountChange,
+  additionalKidSelection = null,
+  additionalKidNames = [],
+  onAdditionalKidNameChange,
 }: {
   title: string;
   subtitle?: string;
@@ -751,22 +778,22 @@ function TuitionGroup({
   onProgramChange: (program: string) => void;
   onDurationChange: (months: 3 | 6) => void;
   selection: ReturnType<typeof getPackageSelection>;
-  allowSecondKid?: boolean;
-  secondKidEnabled?: boolean;
-  onSecondKidToggle?: (enabled: boolean) => void;
-  secondKidSelection?: ReturnType<typeof getSecondKidSelection>;
-  secondKidName?: string;
-  onSecondKidNameChange?: (name: string) => void;
+  allowAdditionalKids?: boolean;
+  additionalKidCount?: number;
+  onAdditionalKidCountChange?: (count: number) => void;
+  additionalKidSelection?: ReturnType<typeof getAdditionalKidSelection>;
+  additionalKidNames?: string[];
+  onAdditionalKidNameChange?: (index: number, name: string) => void;
 }) {
-  const showSecondKidTotals = Boolean(secondKidEnabled && secondKidSelection);
+  const showAdditionalKidTotals = Boolean(additionalKidCount > 0 && additionalKidSelection);
   const combinedRegularTotal = selection
-    ? selection.regularTotal + (showSecondKidTotals ? secondKidSelection!.regularTotal : 0)
+    ? selection.regularTotal + (showAdditionalKidTotals ? additionalKidSelection!.regularTotal * additionalKidCount : 0)
     : null;
   const combinedSaleTotal = selection
-    ? selection.saleTotal + (showSecondKidTotals ? secondKidSelection!.saleTotal : 0)
+    ? selection.saleTotal + (showAdditionalKidTotals ? additionalKidSelection!.saleTotal * additionalKidCount : 0)
     : null;
   const combinedSavings = selection
-    ? selection.savings + (showSecondKidTotals ? secondKidSelection!.savings : 0)
+    ? selection.savings + (showAdditionalKidTotals ? additionalKidSelection!.savings * additionalKidCount : 0)
     : null;
 
   return (
@@ -880,43 +907,51 @@ function TuitionGroup({
         </div>
       </div>
 
-      {allowSecondKid && selection && (
+      {allowAdditionalKids && selection && (
         <div className="border-t border-slate-200 pt-5">
-          <label className="flex items-start gap-3 p-4 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:border-slate-300 transition-colors">
-            <Checkbox
-              checked={secondKidEnabled}
-              onCheckedChange={v => onSecondKidToggle?.(v === true)}
-              className="mt-0.5 h-5 w-5 border-2 border-[#1a2d5a]/50 data-[state=checked]:bg-[#1a2d5a] data-[state=checked]:border-[#1a2d5a] shrink-0"
-            />
-            <span>
-              <span className="block font-semibold text-slate-950 text-sm">
-                Add a second child (sibling discount)
-              </span>
-              <span className="block text-sm text-slate-500 mt-1">
-                ${SECOND_KID_MONTHLY_DISCOUNT}/month off the second child's tuition on the same program, then the {Math.round((DURATIONS.find(d => d.months === selectedDuration)?.discount ?? 0) * 100)}% package discount applies on top of that discounted rate.
-              </span>
-            </span>
-          </label>
+          <Label className="text-slate-700 font-medium mb-1.5 block">
+            Additional children enrolling on this same program
+          </Label>
+          <p className="text-sm text-slate-500 mb-3">
+            Each additional child gets ${ADDITIONAL_KID_MONTHLY_DISCOUNT}/month off the original tuition, then the{" "}
+            {Math.round((DURATIONS.find(d => d.months === selectedDuration)?.discount ?? 0) * 100)}% package discount
+            applies on top of that discounted rate for every additional child.
+          </p>
+          <select
+            value={additionalKidCount}
+            onChange={e => onAdditionalKidCountChange?.(Number(e.target.value))}
+            className="w-full sm:w-56 border-2 border-slate-200 rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-950 focus:outline-none focus:border-[#1a2d5a]"
+          >
+            {ADDITIONAL_KID_COUNT_OPTIONS.map(count => (
+              <option key={count} value={count}>
+                {count === 0 ? "No additional children" : `+${count} additional ${count === 1 ? "child" : "children"}`}
+              </option>
+            ))}
+          </select>
 
-          {secondKidEnabled && (
-            <div className="mt-3">
-              <Label className="text-slate-700 font-medium mb-1.5 block">
-                Second child's name
-              </Label>
-              <Input
-                value={secondKidName}
-                onChange={e => onSecondKidNameChange?.(e.target.value)}
-                placeholder="Second child's full name"
-              />
-              {secondKidSelection && (
-                <p className="text-sm text-slate-600 mt-2">
-                  Second child's discounted monthly rate:{" "}
+          {additionalKidCount > 0 && (
+            <div className="mt-4 space-y-3">
+              {additionalKidSelection && (
+                <p className="text-sm text-slate-600">
+                  Each additional child's discounted monthly rate:{" "}
                   <span className="font-semibold text-[#1a2d5a]">
-                    {formatMoney(secondKidSelection.monthlyPrice)}/mo
+                    {formatMoney(additionalKidSelection.monthlyPrice)}/mo
                   </span>{" "}
-                  (${SECOND_KID_MONTHLY_DISCOUNT} off {formatMoney(selection.program.monthlyPrice)}/mo)
+                  (${ADDITIONAL_KID_MONTHLY_DISCOUNT} off {formatMoney(selection.program.monthlyPrice)}/mo)
                 </p>
               )}
+              {Array.from({ length: additionalKidCount }, (_, index) => (
+                <div key={index}>
+                  <Label className="text-slate-700 font-medium mb-1.5 block">
+                    Additional child #{index + 1} name
+                  </Label>
+                  <Input
+                    value={additionalKidNames[index] ?? ""}
+                    onChange={e => onAdditionalKidNameChange?.(index, e.target.value)}
+                    placeholder="Child's full name"
+                  />
+                </div>
+              ))}
             </div>
           )}
         </div>
@@ -944,9 +979,12 @@ function TuitionGroup({
             Select a program and package duration to see your savings.
           </p>
         )}
-        {showSecondKidTotals && (
+        {showAdditionalKidTotals && (
           <p className="text-xs text-slate-500 mt-3">
-            Includes 1st child at {formatMoney(selection!.saleTotal)} + 2nd child at {formatMoney(secondKidSelection!.saleTotal)}.
+            Includes 1st child at {formatMoney(selection!.saleTotal)} + {additionalKidCount}{" "}
+            additional {additionalKidCount === 1 ? "child" : "children"} at{" "}
+            {formatMoney(additionalKidSelection!.saleTotal)} each (
+            {formatMoney(additionalKidSelection!.saleTotal * additionalKidCount)} total).
           </p>
         )}
       </div>
@@ -1020,8 +1058,9 @@ function OrderSummary({
   proShopSelections,
   maSelection,
   afterschoolSelection,
-  afterschoolSecondKidSelection,
-  secondKidName,
+  afterschoolAdditionalKidSelection,
+  afterschoolAdditionalKids,
+  additionalKidNames,
   privateLessons,
   beltTesting,
   orderTotal,
@@ -1031,8 +1070,9 @@ function OrderSummary({
   >;
   maSelection: ReturnType<typeof getPackageSelection>;
   afterschoolSelection: ReturnType<typeof getPackageSelection>;
-  afterschoolSecondKidSelection: ReturnType<typeof getSecondKidSelection>;
-  secondKidName: string;
+  afterschoolAdditionalKidSelection: ReturnType<typeof getAdditionalKidSelection>;
+  afterschoolAdditionalKids: number;
+  additionalKidNames: string[];
   privateLessons: boolean;
   beltTesting: boolean;
   orderTotal: number;
@@ -1081,11 +1121,11 @@ function OrderSummary({
           />
         )}
 
-        {afterschoolSecondKidSelection && (
+        {afterschoolAdditionalKidSelection && afterschoolAdditionalKids > 0 && (
           <SummaryRow
-            title={`Afterschool, 2nd child${secondKidName.trim() ? ` (${secondKidName.trim()})` : ""}`}
-            detail={`${afterschoolSecondKidSelection.program.name} at ${formatMoney(afterschoolSecondKidSelection.monthlyPrice)}/mo, ${afterschoolSecondKidSelection.duration.label}`}
-            amount={formatMoney(afterschoolSecondKidSelection.saleTotal)}
+            title={`Afterschool, +${afterschoolAdditionalKids} additional ${afterschoolAdditionalKids === 1 ? "child" : "children"}`}
+            detail={`${additionalKidNames.filter(n => n.trim()).join(", ") || "names not provided"} — ${afterschoolAdditionalKidSelection.program.name} at ${formatMoney(afterschoolAdditionalKidSelection.monthlyPrice)}/mo each, ${afterschoolAdditionalKidSelection.duration.label}`}
+            amount={formatMoney(afterschoolAdditionalKidSelection.saleTotal * afterschoolAdditionalKids)}
           />
         )}
 
