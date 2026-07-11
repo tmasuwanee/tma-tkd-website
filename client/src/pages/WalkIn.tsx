@@ -325,7 +325,7 @@ export default function WalkIn() {
               onCheckedChange={v => setSmsConsent(v === true)}
               className="mt-0.5 h-5 w-5 border-2 border-[#1a2d5a]/50 data-[state=checked]:bg-[#1a2d5a] data-[state=checked]:border-[#1a2d5a] shrink-0"
             />
-            <span className="text-xs text-gray-700 leading-relaxed">
+            <span className="text-xs text-gray-700 leading-relaxed min-w-0 break-words">
               <span className="font-semibold block mb-0.5 text-sm">Text me class updates and reminders</span>
               {SMS_CONSENT_TEXT}
             </span>

@@ -215,8 +215,8 @@ export default function FreeClass() {
                 </div>
               </Card>
             ) : (
-              <Card className="bg-white border-2 border-accent shadow-xl">
-                <div className="p-8">
+              <Card className="bg-white border-2 border-accent shadow-xl overflow-hidden">
+                <div className="p-4 sm:p-8">
                   <form onSubmit={handleSubmit} className="space-y-6">
                     <div className="grid md:grid-cols-2 gap-6">
                       <div>
@@ -379,9 +379,9 @@ export default function FreeClass() {
                         id="smsConsent"
                         checked={smsConsent}
                         onCheckedChange={v => setSmsConsent(v === true)}
-                        className="mt-0.5"
+                        className="mt-0.5 shrink-0"
                       />
-                      <Label htmlFor="smsConsent" className="text-xs text-gray-700 leading-relaxed cursor-pointer font-normal">
+                      <Label htmlFor="smsConsent" className="text-xs text-gray-700 leading-relaxed cursor-pointer font-normal min-w-0 break-words">
                         I agree to receive recurring SMS text messages from Top Martial Arts
                         Suwanee (TMA) at the phone number above, including inquiry replies,
                         trial confirmations, class reminders, and program updates.
