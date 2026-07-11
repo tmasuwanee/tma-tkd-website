@@ -117,6 +117,10 @@ export const students = mysqlTable("students", {
   phone: varchar("phone", { length: 20 }),
   programs: text("programs"),
   enrollmentDate: varchar("enrollmentDate", { length: 50 }),
+  // Student date of birth, stored as YYYY-MM-DD. Sourced from ZenPlanner
+  // ("Birth Date") for the birthday automation. Nullable: not every student
+  // has a DOB on file.
+  dob: varchar("dob", { length: 20 }),
   beltRank: varchar("beltRank", { length: 100 }),
   lastPromotedAt: timestamp("lastPromotedAt"),
   status: varchar("status", { length: 50 }),
