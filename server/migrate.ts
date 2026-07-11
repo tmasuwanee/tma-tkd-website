@@ -19,6 +19,12 @@ const MIGRATIONS: { name: string; sql: string }[] = [
     name: "trialEnrollments.remindersSent",
     sql: "ALTER TABLE trialEnrollments ADD COLUMN IF NOT EXISTS remindersSent VARCHAR(50)",
   },
+  {
+    // 2026-07-11: student date of birth (YYYY-MM-DD) for the birthday automation.
+    // Backfilled from ZenPlanner's "Birth Date" field via the roster CSV import.
+    name: "students.dob",
+    sql: "ALTER TABLE students ADD COLUMN IF NOT EXISTS dob VARCHAR(20)",
+  },
 ];
 
 export async function runStartupMigrations(): Promise<void> {

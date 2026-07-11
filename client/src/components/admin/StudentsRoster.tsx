@@ -39,10 +39,38 @@ const COLUMN_MAP: Record<string, string> = {
   "phone": "phone", "phone number": "phone", "cell": "phone", "mobile": "phone",
   "program": "programs", "class": "programs", "program name": "programs",
   "enrollment date": "enrollmentDate", "enroll date": "enrollmentDate", "start date": "enrollmentDate",
+  "birthday": "dob", "birth date": "dob", "birthdate": "dob", "dob": "dob",
+  "date of birth": "dob", "born": "dob",
   "belt rank": "beltRank", "rank": "beltRank", "belt": "beltRank",
   "status": "status", "member status": "status",
   "emergency contact": "emergencyContact", "emergency": "emergencyContact",
 };
+
+// Normalize a birth date to YYYY-MM-DD. ZenPlanner exports MM/DD/YYYY; the
+// <input type="date"> and the birthday automation both expect ISO. Anything
+// we can't parse is passed through unchanged so nothing is silently dropped.
+function normalizeDob(raw: string): string {
+  const v = (raw || "").trim();
+  if (!v) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+  const m = v.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/);
+  if (m) {
+    let [, mo, d, y] = m;
+    if (y.length === 2) y = (Number(y) > 50 ? "19" : "20") + y;
+    return `${y}-${mo.padStart(2, "0")}-${d.padStart(2, "0")}`;
+  }
+  return v;
+}
+
+// Display a stored YYYY-MM-DD birthday as M/D/YYYY; fall back to whatever is
+// there (or "-" when empty).
+function formatDob(dob?: string | null): string {
+  const v = (dob || "").trim();
+  if (!v) return "-";
+  const m = v.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (m) return `${Number(m[2])}/${Number(m[3])}/${m[1]}`;
+  return v;
+}
 
 function parseCSV(text: string): Record<string, string>[] {
   const lines = text.split(/\r?\n/).filter(l => l.trim());
@@ -66,6 +94,7 @@ function parseCSV(text: string): Record<string, string>[] {
     mappedHeaders.forEach((header, i) => {
       row[header] = (values[i] ?? "").replace(/^"|"$/g, "").trim();
     });
+    if (row.dob) row.dob = normalizeDob(row.dob);
     return row;
   }).filter(row => row.name);
 }
@@ -77,6 +106,7 @@ interface StudentEditState {
   phone: string;
   programs: string;
   enrollmentDate: string;
+  dob: string;
   emergencyContact: string;
   status: string;
   beltRank: string;
@@ -194,6 +224,7 @@ export default function StudentsRoster() {
           phone?: string;
           programs?: string;
           enrollmentDate?: string;
+          dob?: string;
           beltRank?: string;
           status?: string;
           emergencyContact?: string;
@@ -271,6 +302,7 @@ export default function StudentsRoster() {
         phone: student.phone || "",
         programs: student.programs || "",
         enrollmentDate: student.enrollmentDate || "",
+        dob: student.dob || "",
         emergencyContact: student.emergencyContact || "",
         status: student.status || "",
         beltRank: student.beltRank || "",
@@ -287,6 +319,7 @@ export default function StudentsRoster() {
       phone: "",
       programs: "",
       enrollmentDate: "",
+      dob: "",
       emergencyContact: "",
       status: "Active",
       beltRank: "White",
@@ -309,6 +342,7 @@ export default function StudentsRoster() {
         phone: editingStudent.phone || null,
         programs: editingStudent.programs || null,
         enrollmentDate: editingStudent.enrollmentDate || null,
+        dob: editingStudent.dob || null,
         emergencyContact: editingStudent.emergencyContact || null,
         status: editingStudent.status || null,
         beltRank: editingStudent.beltRank || null,
@@ -328,6 +362,7 @@ export default function StudentsRoster() {
         phone: editingStudent.phone || null,
         programs: editingStudent.programs || null,
         enrollmentDate: editingStudent.enrollmentDate || null,
+        dob: editingStudent.dob || null,
         emergencyContact: editingStudent.emergencyContact || null,
         status: editingStudent.status || null,
         beltRank: editingStudent.beltRank || null,
@@ -431,7 +466,7 @@ export default function StudentsRoster() {
       {/* CSV Format Hint */}
       <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
         <p className="text-xs font-semibold text-amber-800 mb-1">Expected CSV columns (from ZenPlanner export):</p>
-        <p className="text-xs text-amber-700 font-mono">Name, Email, Phone, Program, Enrollment Date, Belt Rank, Status, Emergency Contact</p>
+        <p className="text-xs text-amber-700 font-mono">Name, Email, Phone, Program, Enrollment Date, Birthday, Belt Rank, Status, Emergency Contact</p>
         <p className="text-xs text-amber-600 mt-1">Column names are flexible - partial matches work. Re-uploading a CSV adds new students and updates existing ones by name - no data is deleted.</p>
       </div>
 
@@ -556,6 +591,7 @@ export default function StudentsRoster() {
                     <TableHead className="font-semibold">Belt Rank</TableHead>
                     <TableHead className="font-semibold">Progress</TableHead>
                     <TableHead className="font-semibold">Status</TableHead>
+                    <TableHead className="font-semibold">Birthday</TableHead>
                     <TableHead className="font-semibold">Enrolled</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -776,6 +812,9 @@ function StudentRow({
         )}
       </TableCell>
       <TableCell>
+        <span className="text-xs text-gray-500">{formatDob(student.dob)}</span>
+      </TableCell>
+      <TableCell>
         <span className="text-xs text-gray-500">{student.enrollmentDate || "-"}</span>
       </TableCell>
     </TableRow>
@@ -877,6 +916,15 @@ function StudentEditDialog({
               <Input
                 value={student.enrollmentDate}
                 onChange={e => onStudentChange({ ...student, enrollmentDate: e.target.value })}
+                placeholder="YYYY-MM-DD"
+                type="date"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700">Birthday</label>
+              <Input
+                value={student.dob}
+                onChange={e => onStudentChange({ ...student, dob: e.target.value })}
                 placeholder="YYYY-MM-DD"
                 type="date"
               />

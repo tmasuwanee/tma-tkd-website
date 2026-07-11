@@ -596,6 +596,9 @@ export async function upsertStudents(rows: InsertStudent[]): Promise<{ added: nu
         phone: row.phone ?? match.phone,
         programs: row.programs ?? match.programs,
         enrollmentDate: row.enrollmentDate ?? match.enrollmentDate,
+        // Only overwrite DOB when the import row actually carries one, so a
+        // partial CSV (e.g. name-only) never wipes a birthday already on file.
+        dob: (row.dob && row.dob.trim()) ? row.dob : match.dob,
         beltRank: row.beltRank ?? match.beltRank,
         status: row.status ?? match.status,
         emergencyContact: row.emergencyContact ?? match.emergencyContact,
