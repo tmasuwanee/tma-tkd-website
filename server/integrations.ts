@@ -233,6 +233,61 @@ export async function sendEmailNotification(lead: Lead) {
 }
 
 /**
+ * Staff notification for a pro shop / sale order (e.g. Christmas in July).
+ * Distinct from the class-inquiry email: it frames the submission as an ORDER
+ * to fulfill, and renders the itemized order summary (stored in additionalNotes)
+ * instead of the "child / program interest" fields. Reusable for any future
+ * pro shop order flow that tags leads with `proshop_order`.
+ */
+export async function sendProShopOrderNotification(lead: Lead) {
+  try {
+    if (!ENV.leadNotificationEmail) {
+      console.warn('[Email] Missing notification email, skipping pro shop order');
+      return;
+    }
+
+    // The order summary is built client-side and stored in additionalNotes as
+    // plain text with line breaks. Escape HTML, then preserve the line breaks.
+    const escapeHtml = (s: string) =>
+      s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const orderSummaryHtml = lead.additionalNotes
+      ? escapeHtml(lead.additionalNotes).replace(/\n/g, '<br>')
+      : 'No order details provided.';
+
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: #c41e3a; padding: 20px; text-align: center;">
+          <h1 style="color: white; margin: 0;">🛍️ New Pro Shop Order</h1>
+          <p style="color: #ffe0e5; margin: 6px 0 0; font-size: 13px;">Action needed: confirm availability and arrange payment</p>
+        </div>
+        <div style="padding: 24px; background: #f9f9f9;">
+          <h3 style="margin: 0 0 8px; color: #1a2d5a;">Customer</h3>
+          <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+            <tr><td style="padding: 8px; font-weight: bold; width: 140px;">Name:</td><td style="padding: 8px;">${lead.parentName}</td></tr>
+            ${lead.kidName ? `<tr><td style="padding: 8px; font-weight: bold;">Student:</td><td style="padding: 8px;">${lead.kidName}</td></tr>` : ''}
+            <tr><td style="padding: 8px; font-weight: bold;">Phone:</td><td style="padding: 8px;"><a href="tel:${lead.phone}">${lead.phone}</a></td></tr>
+            <tr><td style="padding: 8px; font-weight: bold;">Email:</td><td style="padding: 8px;">${lead.email ? `<a href="mailto:${lead.email}">${lead.email}</a>` : 'Not provided'}</td></tr>
+            <tr><td style="padding: 8px; font-weight: bold;">Submitted:</td><td style="padding: 8px;">${new Date(lead.createdAt).toLocaleString()}</td></tr>
+          </table>
+          <h3 style="margin: 0 0 8px; color: #1a2d5a;">Order Details</h3>
+          <div style="background: #ffffff; border: 1px solid #e2e8f0; border-left: 4px solid #c41e3a; border-radius: 4px; padding: 16px; font-size: 14px; line-height: 1.7; color: #1f2937;">
+            ${orderSummaryHtml}
+          </div>
+        </div>
+        <div style="background: #1a2d5a; padding: 16px; text-align: center;">
+          <p style="color: white; margin: 0; font-size: 12px;">Top Martial Arts Suwanee &bull; (770) 277-3009</p>
+        </div>
+      </div>
+    `;
+
+    await sendEmail(ENV.leadNotificationEmail, `New Pro Shop Order - ${lead.parentName}`, html);
+    console.log('[Email] Pro shop order notification sent to:', ENV.leadNotificationEmail);
+  } catch (error) {
+    console.error('[Email] Error sending pro shop order notification:', error);
+  }
+}
+
+/**
  * Send confirmation email to parent after camp registration payment
  */
 export async function sendCampRegistrationConfirmation(params: {

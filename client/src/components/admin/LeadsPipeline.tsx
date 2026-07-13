@@ -59,7 +59,22 @@ const PROGRAM_COLORS: Record<string, string> = {
 function getTagColor(tag: string): string {
   if (tag === "facebook_lead") return "bg-blue-100 text-blue-800 border-blue-200";
   if (tag.startsWith("summer_camp")) return "bg-green-100 text-green-800 border-green-200";
+  // Pro shop / sale orders stand out so staff can spot purchases at a glance.
+  if (tag === "proshop_order") return "bg-amber-100 text-amber-900 border-amber-300 font-bold";
+  if (tag === "christmas_july_2026") return "bg-red-100 text-red-800 border-red-300";
   return "bg-gray-100 text-gray-700 border-gray-200";
+}
+
+// Human-friendly tag labels for the pipeline (raw slug otherwise).
+const TAG_LABELS: Record<string, string> = {
+  proshop_order: "🛍️ Pro Shop Order",
+  christmas_july_2026: "Christmas in July",
+  facebook_lead: "Facebook Lead",
+  tour_request: "Tour Request",
+};
+
+function tagLabel(tag: string): string {
+  return TAG_LABELS[tag] ?? tag;
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -103,7 +118,7 @@ function TagChips({ tags, onRemove }: { tags: string[] | string | null | undefin
           key={tag}
           className={`inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded border font-medium ${getTagColor(tag)}`}
         >
-          {tag}
+          {tagLabel(tag)}
           {onRemove && (
             <button
               onClick={(e) => { e.stopPropagation(); onRemove(tag); }}

@@ -48,7 +48,7 @@ import {
 } from "./db";
 import { sendTelegramMessage } from "./telegram";
 import { storagePut, storageGet } from "./storage";
-import { sendToGoogleSheets, sendToSlack, sendEmailNotification, sendCampRegistrationConfirmation, sendCampWaiverEmail, sendTrialReceipt, sendAfterschoolConfirmation } from "./integrations";
+import { sendToGoogleSheets, sendToSlack, sendEmailNotification, sendProShopOrderNotification, sendCampRegistrationConfirmation, sendCampWaiverEmail, sendTrialReceipt, sendAfterschoolConfirmation } from "./integrations";
 import { fireLeadEvent, firePurchaseEvent } from "./meta-capi";
 import { getAdInsights, syncAdInsights } from "./facebook-ads";
 import Stripe from "stripe";
@@ -457,15 +457,22 @@ export const appRouter = router({
             trialClassDay: input.trialClassDay ?? null,
             timestamp: new Date().toISOString(),
           });
+          // Pro shop / sale orders get their own email template (order summary,
+          // fulfillment framing) instead of the "New Free Class Inquiry" email.
+          const isProShopOrder = (input.tags ?? []).includes("proshop_order");
           await Promise.all([
             sendToGoogleSheets(leadForIntegrations),
             sendToSlack(leadForIntegrations),
-            sendEmailNotification(leadForIntegrations),
+            isProShopOrder
+              ? sendProShopOrderNotification(leadForIntegrations)
+              : sendEmailNotification(leadForIntegrations),
           ]);
 
           return {
             success: true,
-            message: "Thank you for your interest! We will contact you soon to schedule your free class.",
+            message: isProShopOrder
+              ? "Thank you for your order! We will contact you within 24 hours to confirm and arrange payment."
+              : "Thank you for your interest! We will contact you soon to schedule your free class.",
           };
         } catch (error) {
           console.error("Lead submission error:", error);

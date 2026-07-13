@@ -42,6 +42,7 @@ type Product = {
   key: string;
   name: string;
   price: number;
+  image?: string;
 };
 
 type Program = {
@@ -60,8 +61,13 @@ const PRODUCTS: Product[] = [
   { key: "tshirt", name: "TMA T-Shirt", price: 30 },
   { key: "uniform", name: "Taekwondo Uniform", price: 60 },
   { key: "kicking-paddle", name: "Kicking Paddle", price: 35 },
-  { key: "nunchucks", name: "Nunchucks", price: 13 },
+  { key: "nunchucks", name: "Nunchucks", price: 25 },
   { key: "belt-rack", name: "Belt Rack", price: 48 },
+  { key: "kickboxing-shorts", name: "Kickboxing Shorts", price: 35, image: "/proshop/kickboxing-shorts.png" },
+  { key: "kickboxing-shin-gloves", name: "Kickboxing Shin Pads + Gloves", price: 75, image: "/proshop/kickboxing-shin-gloves.png" },
+  { key: "kickboxing-tee", name: "Kickboxing Tee Shirt", price: 30, image: "/proshop/kickboxing-tee.png" },
+  { key: "bjj-gi", name: "BJJ Gi", price: 150 },
+  { key: "rebreakable-board", name: "Rebreakable Board", price: 40 },
 ];
 
 const PRODUCT_OVERRIDES: Record<string, number> = {
@@ -382,7 +388,7 @@ export default function ChristmasInJuly() {
         phone: phone.trim(),
         email: email.trim() || undefined,
         additionalNotes: buildOrderSummaryText(),
-        tags: ["christmas_july_2026"],
+        tags: ["proshop_order", "christmas_july_2026"],
         smsConsent: true,
         smsConsentText: SMS_CONSENT_TEXT,
         ...utm,
@@ -508,10 +514,19 @@ export default function ChristmasInJuly() {
                     key={product.key}
                     className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden"
                   >
-                    <div className="h-36 bg-slate-200 flex items-center justify-center px-4 text-center">
-                      <span className="text-slate-500 font-semibold text-sm">
-                        {product.name}
-                      </span>
+                    <div className="h-36 bg-white flex items-center justify-center px-4 text-center border-b border-slate-100">
+                      {product.image ? (
+                        <img
+                          src={product.image}
+                          alt={product.name}
+                          loading="lazy"
+                          className="max-h-32 max-w-full object-contain"
+                        />
+                      ) : (
+                        <span className="text-slate-400 font-semibold text-sm">
+                          {product.name}
+                        </span>
+                      )}
                     </div>
                     <div className="p-4 space-y-4">
                       <div>
