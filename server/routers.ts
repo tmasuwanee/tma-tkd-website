@@ -1707,6 +1707,98 @@ export const appRouter = router({
       .mutation(async ({ input }) => { await updateTrialStatus(input.id, input.status); return { success: true }; }),
   }),
 
+  // ─── Back to School $49 two-week special (online payment) ──────────────────
+  // Families pick a program and pay $49 online for two weeks. The CRM lead is
+  // created up front (tagged back_to_school_2026) so nothing is invisible even
+  // if the confirm round-trip is lost; confirm then marks it paid, fires the
+  // Meta purchase event, and pings staff. The amount is fixed server-side so
+  // the client can never set the price.
+  backToSchool: router({
+    createIntent: publicProcedure
+      .input(z.object({
+        program: z.string().min(1).max(100),
+        parentName: z.string().min(1).max(255),
+        kidName: z.string().min(1).max(255),
+        kidAge: z.string().max(20).nullable().optional(),
+        phone: z.string().min(1).max(40),
+        email: z.string().email().nullable().optional(),
+        smsConsentText: z.string().min(1),
+        utmSource: z.string().optional(),
+        utmMedium: z.string().optional(),
+        utmCampaign: z.string().optional(),
+        utmContent: z.string().optional(),
+        testMode: z.boolean().optional(), // charge 50 cents for a live test instead of $49
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const AMOUNT = input.testMode ? 50 : 4900;
+        const ip = (ctx?.req as any)?.ip
+          || (ctx?.req as any)?.headers?.["cf-connecting-ip"]
+          || (ctx?.req as any)?.headers?.["x-forwarded-for"]
+          || null;
+        const leadId = await createLead({
+          parentName: input.parentName,
+          kidName: input.kidName,
+          kidAge: input.kidAge ?? "",
+          programInterest: input.program,
+          email: input.email ?? "",
+          phone: input.phone,
+          pipelineStage: "new_lead",
+          additionalNotes: `Back to School Special: 2 weeks of ${input.program} for $${(AMOUNT / 100).toFixed(2)}. Online payment PENDING.`,
+          tags: JSON.stringify(["back_to_school_2026"]),
+          utmSource: input.utmSource,
+          utmMedium: input.utmMedium,
+          utmCampaign: input.utmCampaign,
+          utmContent: input.utmContent,
+          smsConsent: 1,
+          smsConsentAt: new Date(),
+          smsConsentIp: ip ? String(ip).slice(0, 64) : null,
+          smsConsentText: input.smsConsentText,
+        });
+        const stripe = getStripe();
+        const paymentIntent = await stripe.paymentIntents.create({
+          amount: AMOUNT,
+          currency: "usd",
+          receipt_email: input.email ?? undefined,
+          metadata: {
+            product: "back_to_school_49",
+            leadId: String(leadId),
+            program: input.program,
+            parentName: input.parentName,
+            phone: input.phone,
+          },
+        });
+        return { clientSecret: paymentIntent.client_secret, paymentIntentId: paymentIntent.id, leadId };
+      }),
+
+    confirm: publicProcedure
+      .input(z.object({ paymentIntentId: z.string() }))
+      .mutation(async ({ input }) => {
+        const stripe = getStripe();
+        const pi = await stripe.paymentIntents.retrieve(input.paymentIntentId);
+        if (pi.status !== "succeeded") return { status: pi.status };
+
+        const leadId = Number(pi.metadata?.leadId ?? 0);
+        if (!leadId) return { status: pi.status };
+        const lead = await getLeadById(leadId);
+        if (!lead) return { status: pi.status };
+
+        // Idempotent: side effects fire only on the first successful confirm.
+        const currentTags = lead.tags ? (JSON.parse(lead.tags) as string[]) : [];
+        if (!currentTags.includes("paid")) {
+          await updateLeadTags(leadId, [...currentTags, "paid"]);
+          await updateLeadNotes(
+            leadId,
+            `Back to School Special: PAID $${(pi.amount / 100).toFixed(2)} online on ${new Date().toLocaleString()}. Program: ${pi.metadata?.program ?? lead.programInterest}. 2 weeks.`
+          );
+          void firePurchaseEvent({ leadId, email: lead.email, phone: lead.phone, valueUsd: pi.amount / 100 });
+          void sendTelegramMessage(
+            `🎒 Back to School $49 PAID\n${lead.parentName}${lead.kidName ? ` (${lead.kidName})` : ""} · ${pi.metadata?.program ?? lead.programInterest}\n$${(pi.amount / 100).toFixed(2)}\n${adminLink("/admin/leads")}`
+          ).catch(() => {});
+        }
+        return { status: pi.status, leadId };
+      }),
+  }),
+
     // ─── After School Care registrations (2026-07-01) ─────────────────────────
   // Standalone Stripe checkout for After School Care one-time fees.
   // Families choose their plan (4-5 day or 2-3 day) and pay registration ($99),
