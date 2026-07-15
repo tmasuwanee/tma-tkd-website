@@ -20,6 +20,7 @@ import AttendanceKiosk from "./pages/AttendanceKiosk";
 import WalkIn from "./pages/WalkIn";
 import WalkInQR from "./pages/WalkInQR";
 import AfterschoolTour from "./pages/AfterschoolTour";
+import BackToSchool from "./pages/BackToSchool";
 import ChristmasInJuly from "./pages/ChristmasInJuly";
 import AfterschoolRegister from "./pages/AfterschoolRegister";
 import AdminShell from "./components/admin/AdminShell";
@@ -50,6 +51,7 @@ function Router() {
       <Route path={"/walkin"} component={WalkIn} />
       <Route path={"/walkin-qr"} component={WalkInQR} />
       <Route path={"/afterschooltour"} component={AfterschoolTour} />
+      <Route path={"/back-to-school"} component={BackToSchool} />
       <Route path={"/christmas-in-july"} component={ChristmasInJuly} />
       <Route path={"/afterschool-register"} component={AfterschoolRegister} />
       {/* Legacy URLs that don't map 1:1 to a view key get redirected. */}

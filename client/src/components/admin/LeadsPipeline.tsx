@@ -62,6 +62,8 @@ function getTagColor(tag: string): string {
   // Pro shop / sale orders stand out so staff can spot purchases at a glance.
   if (tag === "proshop_order") return "bg-amber-100 text-amber-900 border-amber-300 font-bold";
   if (tag === "christmas_july_2026") return "bg-red-100 text-red-800 border-red-300";
+  if (tag === "back_to_school_2026") return "bg-indigo-100 text-indigo-800 border-indigo-300 font-bold";
+  if (tag === "back_to_school_2026") return "bg-indigo-100 text-indigo-800 border-indigo-300 font-bold";
   return "bg-gray-100 text-gray-700 border-gray-200";
 }
 
@@ -69,6 +71,7 @@ function getTagColor(tag: string): string {
 const TAG_LABELS: Record<string, string> = {
   proshop_order: "🛍️ Pro Shop Order",
   christmas_july_2026: "Christmas in July",
+  back_to_school_2026: "🎒 Back to School",
   facebook_lead: "Facebook Lead",
   tour_request: "Tour Request",
 };
