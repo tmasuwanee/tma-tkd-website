@@ -50,6 +50,7 @@ import { sendTelegramMessage } from "./telegram";
 import { storagePut, storageGet } from "./storage";
 import { sendToGoogleSheets, sendToSlack, sendEmailNotification, sendProShopOrderNotification, sendCampRegistrationConfirmation, sendCampWaiverEmail, sendTrialReceipt, sendAfterschoolConfirmation } from "./integrations";
 import { fireLeadEvent, firePurchaseEvent } from "./meta-capi";
+import { computeOrderCents, buildOrderSummary } from "../shared/christmasPricing";
 import { getAdInsights, syncAdInsights } from "./facebook-ads";
 import Stripe from "stripe";
 import { ENV } from "./_core/env";
@@ -1793,6 +1794,131 @@ export const appRouter = router({
           void firePurchaseEvent({ leadId, email: lead.email, phone: lead.phone, valueUsd: pi.amount / 100 });
           void sendTelegramMessage(
             `🎒 Back to School $49 PAID\n${lead.parentName}${lead.kidName ? ` (${lead.kidName})` : ""} · ${pi.metadata?.program ?? lead.programInterest}\n$${(pi.amount / 100).toFixed(2)}\n${adminLink("/admin/leads")}`
+          ).catch(() => {});
+        }
+        return { status: pi.status, leadId };
+      }),
+  }),
+
+  // ─── Christmas in July sale checkout (2026-07) ────────────────────────────
+  // The cart has pro shop items, tuition bundles, sibling discounts, private
+  // lessons and belt testing. The client sends ONLY raw selections (no prices);
+  // the amount is recomputed here from shared/christmasPricing so a tampered
+  // client cannot set its own price. Same module the client renders from, so
+  // the displayed total and the charged total cannot drift.
+  christmas: router({
+    createIntent: publicProcedure
+      .input(z.object({
+        selections: z.object({
+          quantities: z.record(z.string(), z.number()).optional(),
+          maProgram: z.string().nullable().optional(),
+          maDuration: z.union([z.literal(3), z.literal(6)]).nullable().optional(),
+          afterschoolProgram: z.string().nullable().optional(),
+          afterschoolDuration: z.union([z.literal(3), z.literal(6)]).nullable().optional(),
+          afterschoolAdditionalKids: z.number().min(0).max(4).optional(),
+          additionalKidNames: z.array(z.string().max(255)).max(4).optional(),
+          privateLessons: z.boolean().optional(),
+          beltTesting: z.boolean().optional(),
+        }),
+        studentName: z.string().min(1).max(255),
+        parentName: z.string().min(1).max(255),
+        phone: z.string().min(1).max(40),
+        email: z.string().email().nullable().optional(),
+        notes: z.string().max(2000).optional(),
+        smsConsentText: z.string().min(1),
+        utmSource: z.string().optional(),
+        utmMedium: z.string().optional(),
+        utmCampaign: z.string().optional(),
+        utmContent: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        // Authoritative amount. Never trust the client.
+        const amountCents = computeOrderCents(input.selections);
+        if (amountCents < 50) {
+          throw new Error("Your cart is empty or below the minimum charge. Please select at least one item.");
+        }
+        if (amountCents > 1_000_000) {
+          throw new Error("Order total is too large to process online. Please call the school.");
+        }
+
+        const summary = buildOrderSummary(input.selections, input.notes);
+        const ip = (ctx?.req as any)?.ip
+          || (ctx?.req as any)?.headers?.["cf-connecting-ip"]
+          || (ctx?.req as any)?.headers?.["x-forwarded-for"]
+          || null;
+
+        const programInterest = input.selections.afterschoolProgram
+          ? "Afterschool"
+          : input.selections.maProgram
+            ? "Multiple Programs"
+            : "Pro Shop";
+
+        const leadId = await createLead({
+          parentName: input.parentName,
+          kidName: input.studentName,
+          kidAge: "",
+          programInterest,
+          email: input.email ?? "",
+          phone: input.phone,
+          pipelineStage: "new_lead",
+          additionalNotes: `${summary}\n\nOnline payment PENDING ($${(amountCents / 100).toFixed(2)}).`,
+          tags: JSON.stringify(["proshop_order", "christmas_july_2026"]),
+          utmSource: input.utmSource,
+          utmMedium: input.utmMedium,
+          utmCampaign: input.utmCampaign,
+          utmContent: input.utmContent,
+          smsConsent: 1,
+          smsConsentAt: new Date(),
+          smsConsentIp: ip ? String(ip).slice(0, 64) : null,
+          smsConsentText: input.smsConsentText,
+        });
+
+        const stripe = getStripe();
+        const paymentIntent = await stripe.paymentIntents.create({
+          amount: amountCents,
+          currency: "usd",
+          receipt_email: input.email ?? undefined,
+          metadata: {
+            product: "christmas_july_2026",
+            leadId: String(leadId),
+            parentName: input.parentName,
+            phone: input.phone,
+          },
+        });
+
+        return {
+          clientSecret: paymentIntent.client_secret,
+          paymentIntentId: paymentIntent.id,
+          leadId,
+          amountCents,
+        };
+      }),
+
+    confirm: publicProcedure
+      .input(z.object({ paymentIntentId: z.string() }))
+      .mutation(async ({ input }) => {
+        const stripe = getStripe();
+        const pi = await stripe.paymentIntents.retrieve(input.paymentIntentId);
+        if (pi.status !== "succeeded") return { status: pi.status };
+
+        const leadId = Number(pi.metadata?.leadId ?? 0);
+        if (!leadId) return { status: pi.status };
+        const lead = await getLeadById(leadId);
+        if (!lead) return { status: pi.status };
+
+        // Idempotent: side effects fire only on the first successful confirm.
+        const currentTags = lead.tags ? (JSON.parse(lead.tags) as string[]) : [];
+        if (!currentTags.includes("paid")) {
+          await updateLeadTags(leadId, [...currentTags, "paid"]);
+          const paidNote = (lead.additionalNotes ?? "").replace(
+            /Online payment PENDING \(\$[\d.]+\)\./,
+            `Online payment RECEIVED: $${(pi.amount / 100).toFixed(2)} on ${new Date().toLocaleString()}.`
+          );
+          await updateLeadNotes(leadId, paidNote);
+          void firePurchaseEvent({ leadId, email: lead.email, phone: lead.phone, valueUsd: pi.amount / 100 });
+          void sendProShopOrderNotification({ ...lead, additionalNotes: paidNote } as any).catch(() => {});
+          void sendTelegramMessage(
+            `🛍️ Christmas in July order PAID\n${lead.parentName}${lead.kidName ? ` (${lead.kidName})` : ""}\n$${(pi.amount / 100).toFixed(2)}\n${adminLink("/admin/leads")}`
           ).catch(() => {});
         }
         return { status: pi.status, leadId };

@@ -16,7 +16,27 @@ import {
   Sun,
 } from "lucide-react";
 import { SMS_CONSENT_TEXT } from "../../../shared/smsConsent";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
+import { loadStripe } from "@stripe/stripe-js";
+import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
+import {
+  PRODUCTS,
+  MARTIAL_ARTS_PROGRAMS,
+  AFTERSCHOOL_PROGRAMS,
+  DURATIONS,
+  ADDITIONAL_KID_MONTHLY_DISCOUNT,
+  MAX_ADDITIONAL_KIDS,
+  formatMoney,
+  roundMoney,
+  productSalePrice,
+  clampQuantity,
+  getPackageSelection,
+  getAdditionalKidSelection,
+  type Product,
+  type Program,
+} from "../../../shared/christmasPricing";
+
+const stripePromise = loadStripe(import.meta.env.VITE_TMA_STRIPE_PUBLISHABLE_KEY);
 
 // ─── Sale window ─────────────────────────────────────────────────────────────
 const SALE_OPENS_AT = new Date("2026-07-13T00:00:00-04:00"); // July 13 midnight ET
@@ -38,65 +58,63 @@ function useSaleCountdown() {
   return { saleOpen, saleEnded, days, hours, minutes, seconds };
 }
 
-type Product = {
-  key: string;
-  name: string;
-  price: number;
-  image?: string;
-};
-
-type Program = {
-  key: string;
-  name: string;
-  monthlyPrice: number;
-};
-
-type DurationOption = {
-  months: 3 | 6;
-  label: string;
-  discount: number;
-};
-
-const PRODUCTS: Product[] = [
-  { key: "tshirt", name: "TMA T-Shirt", price: 30 },
-  { key: "uniform", name: "Taekwondo Uniform", price: 60 },
-  { key: "kicking-paddle", name: "Kicking Paddle", price: 35 },
-  { key: "nunchucks", name: "Nunchucks", price: 25 },
-  { key: "belt-rack", name: "Belt Rack", price: 48 },
-  { key: "kickboxing-shorts", name: "Kickboxing Shorts", price: 35, image: "/proshop/kickboxing-shorts.png" },
-  { key: "kickboxing-shin-gloves", name: "Kickboxing Shin Pads + Gloves", price: 75, image: "/proshop/kickboxing-shin-gloves.png" },
-  { key: "kickboxing-tee", name: "Kickboxing Tee Shirt", price: 30, image: "/proshop/kickboxing-tee.png" },
-  { key: "bjj-gi", name: "BJJ Gi", price: 150 },
-  { key: "rebreakable-board", name: "Rebreakable Board", price: 40 },
-];
-
-const PRODUCT_OVERRIDES: Record<string, number> = {
-  tshirt: 20, // Sale price override (regular $30 → sale $20)
-};
-
-const MARTIAL_ARTS_PROGRAMS: Program[] = [
-  { key: "tkd-2x", name: "Taekwondo 2x/week", monthlyPrice: 179 },
-  { key: "tkd-3x", name: "Taekwondo 3x/week", monthlyPrice: 199 },
-  { key: "kickboxing", name: "Kickboxing", monthlyPrice: 159 },
-  { key: "bjj", name: "Brazilian Jiu-Jitsu (BJJ)", monthlyPrice: 159 },
-];
-
-const AFTERSCHOOL_PROGRAMS: Program[] = [
-  { key: "afterschool-5", name: "Afterschool 5 days/week", monthlyPrice: 540 },
-  { key: "afterschool-3", name: "Afterschool 3 days/week", monthlyPrice: 500 },
-];
-
-const DURATIONS: DurationOption[] = [
-  { months: 3, label: "3-Month Package", discount: 0.05 },
-  { months: 6, label: "6-Month Package", discount: 0.1 },
-];
-
-const ADDITIONAL_KID_MONTHLY_DISCOUNT = 20;
-const MAX_ADDITIONAL_KIDS = 4;
 const ADDITIONAL_KID_COUNT_OPTIONS = Array.from(
   { length: MAX_ADDITIONAL_KIDS + 1 },
   (_, index) => index
 );
+
+function PaymentForm({
+  paymentIntentId,
+  total,
+  onSuccess,
+}: {
+  paymentIntentId: string;
+  total: string;
+  onSuccess: () => void;
+}) {
+  const stripe = useStripe();
+  const elements = useElements();
+  const [isProcessing, setIsProcessing] = useState(false);
+  const confirm = trpc.christmas.confirm.useMutation();
+
+  async function handlePay(e: React.FormEvent) {
+    e.preventDefault();
+    if (!stripe || !elements) return;
+    setIsProcessing(true);
+    const { error } = await stripe.confirmPayment({
+      elements,
+      confirmParams: { return_url: `${window.location.origin}/christmas-in-july` },
+      redirect: "if_required",
+    });
+    if (error) {
+      toast.error(error.message ?? "Payment failed. Please try again.");
+      setIsProcessing(false);
+      return;
+    }
+    // Card is charged at this point. Confirm records it; if this call fails the
+    // lead still exists tagged with the pending note, so the order is never lost.
+    try {
+      await confirm.mutateAsync({ paymentIntentId });
+    } catch (err) {
+      console.error(err);
+    }
+    onSuccess();
+  }
+
+  return (
+    <form onSubmit={handlePay} className="space-y-5">
+      <PaymentElement />
+      <Button
+        type="submit"
+        disabled={!stripe || isProcessing}
+        className="w-full bg-[#c41e3a] hover:bg-[#a81830] text-white text-base font-semibold h-12 rounded-lg"
+      >
+        {isProcessing ? "Processing..." : `Pay ${total}`}
+      </Button>
+      <p className="text-center text-xs text-slate-400">Secured by Stripe. Top Martial Arts Suwanee.</p>
+    </form>
+  );
+}
 
 function getUtmParams() {
   const p = new URLSearchParams(window.location.search);
@@ -108,56 +126,6 @@ function getUtmParams() {
   };
 }
 
-function formatMoney(value: number) {
-  return `$${value.toFixed(2)}`;
-}
-
-function roundMoney(value: number) {
-  return Math.round(value * 100) / 100;
-}
-
-function salePrice(price: number) {
-  return roundMoney(price * 0.8);
-}
-
-function clampQuantity(value: number) {
-  return Math.max(0, Math.min(5, value));
-}
-
-function computePackageTotals(monthlyPrice: number, duration: DurationOption) {
-  const regularTotal = roundMoney(monthlyPrice * duration.months);
-  const saleTotal = roundMoney(regularTotal * (1 - duration.discount));
-  const savings = roundMoney(regularTotal - saleTotal);
-  return { regularTotal, saleTotal, savings };
-}
-
-function getPackageSelection(
-  programs: Program[],
-  programKey: string,
-  months: 3 | 6 | null
-) {
-  const program = programs.find(item => item.key === programKey);
-  const duration = DURATIONS.find(item => item.months === months);
-
-  if (!program || !duration) return null;
-
-  return { program, duration, ...computePackageTotals(program.monthlyPrice, duration) };
-}
-
-function getAdditionalKidSelection(
-  programs: Program[],
-  programKey: string,
-  months: 3 | 6 | null
-) {
-  const program = programs.find(item => item.key === programKey);
-  const duration = DURATIONS.find(item => item.months === months);
-
-  if (!program || !duration) return null;
-
-  const monthlyPrice = Math.max(0, program.monthlyPrice - ADDITIONAL_KID_MONTHLY_DISCOUNT);
-
-  return { program, duration, monthlyPrice, ...computePackageTotals(monthlyPrice, duration) };
-}
 
 export default function ChristmasInJuly() {
   const [quantities, setQuantities] = useState<Record<string, number>>({});
@@ -179,8 +147,11 @@ export default function ChristmasInJuly() {
   const [smsConsent, setSmsConsent] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [paymentIntentId, setPaymentIntentId] = useState<string | null>(null);
+  const startedRef = useRef(false);
 
-  const submit = trpc.leads.submit.useMutation();
+  const createIntent = trpc.christmas.createIntent.useMutation();
   const utm = useMemo(() => getUtmParams(), []);
   const { saleOpen, saleEnded, days, hours, minutes, seconds } = useSaleCountdown();
 
@@ -188,9 +159,7 @@ export default function ChristmasInJuly() {
     () =>
       PRODUCTS.map(product => {
         const quantity = quantities[product.key] ?? 0;
-        const discountedPrice = PRODUCT_OVERRIDES[product.key] !== undefined
-          ? PRODUCT_OVERRIDES[product.key]
-          : salePrice(product.price);
+        const discountedPrice = productSalePrice(product);
         return {
           ...product,
           quantity,
@@ -349,15 +318,13 @@ export default function ChristmasInJuly() {
     return lines.join("\n");
   }
 
-  function getProgramInterest() {
-    if (maSelection && afterschoolSelection) return "Multiple";
-    if (maSelection) return maSelection.program.name;
-    if (afterschoolSelection) return "Afterschool";
-    if (proShopSelections.length > 0) return "Pro Shop";
-    return "Christmas in July Sale";
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
+  /**
+   * Start checkout. We send only the raw selections (no prices): the server
+   * recomputes the amount from shared/christmasPricing and returns a Stripe
+   * client secret. It also creates the lead up front (payment PENDING) so an
+   * order is never invisible if the customer drops off mid-payment.
+   */
+  async function startCheckout(e: React.FormEvent) {
     e.preventDefault();
 
     if (!studentName.trim() || !parentName.trim() || !phone.trim()) {
@@ -377,28 +344,39 @@ export default function ChristmasInJuly() {
       return;
     }
 
+    if (startedRef.current) return;
+    startedRef.current = true;
     setIsSubmitting(true);
 
     try {
-      await submit.mutateAsync({
+      const r = await createIntent.mutateAsync({
+        selections: {
+          quantities,
+          maProgram: maProgram || null,
+          maDuration: maDuration,
+          afterschoolProgram: afterschoolProgram || null,
+          afterschoolDuration: afterschoolDuration,
+          afterschoolAdditionalKids: afterschoolAdditionalKids,
+          additionalKidNames: additionalKidNames,
+          privateLessons,
+          beltTesting,
+        },
+        studentName: studentName.trim(),
         parentName: parentName.trim(),
-        kidName: studentName.trim(),
-        kidAge: "",
-        programInterest: getProgramInterest(),
         phone: phone.trim(),
-        email: email.trim() || undefined,
-        additionalNotes: buildOrderSummaryText(),
-        tags: ["proshop_order", "christmas_july_2026"],
-        smsConsent: true,
+        email: email.trim() || null,
+        notes: notes.trim() || undefined,
         smsConsentText: SMS_CONSENT_TEXT,
         ...utm,
       });
 
-      setSubmitted(true);
+      setClientSecret(r.clientSecret ?? null);
+      setPaymentIntentId(r.paymentIntentId);
       window.scrollTo(0, 0);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      toast.error("Something went wrong. Please try again.");
+      toast.error(err?.message ?? "Could not start checkout. Please try again.");
+      startedRef.current = false;
     } finally {
       setIsSubmitting(false);
     }
@@ -411,12 +389,12 @@ export default function ChristmasInJuly() {
           <CheckCircle2 className="w-11 h-11 text-white" />
         </div>
         <h1 className="text-3xl font-bold text-white mb-3">
-          {saleOpen ? "Your order is reserved! 🎄" : "You're on the list! 🎅"}
+          {saleOpen ? "Payment received! 🎄" : "You're on the list! 🎅"}
         </h1>
         <p className="text-white/75 max-w-sm">
           {saleOpen
-            ? "We'll contact you within 24 hours to confirm and process payment."
-            : "The sale opens July 13. We'll reach out then to lock in your deal and process payment. No charge until the sale starts!"}
+            ? "Your order is paid and confirmed. Stripe emailed you a receipt. We'll contact you within 24 hours to arrange pickup of your items."
+            : "The sale opens July 13. We'll reach out then to lock in your deal and take payment. No charge until the sale starts!"}
         </p>
       </div>
     );
@@ -485,7 +463,7 @@ export default function ChristmasInJuly() {
         </section>
 
         <form
-          onSubmit={handleSubmit}
+          onSubmit={startCheckout}
           className="max-w-6xl mx-auto px-4 py-8 sm:py-12 space-y-10"
         >
           <section className="space-y-5">
@@ -505,9 +483,7 @@ export default function ChristmasInJuly() {
             <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {PRODUCTS.map(product => {
                 const quantity = quantities[product.key] ?? 0;
-                const discountedPrice = PRODUCT_OVERRIDES[product.key] !== undefined
-                  ? PRODUCT_OVERRIDES[product.key]
-                  : salePrice(product.price);
+                const discountedPrice = productSalePrice(product);
 
                 return (
                   <article
@@ -734,23 +710,42 @@ export default function ChristmasInJuly() {
                       This sale has ended. See you next time! 🎄
                     </div>
                   )}
-                  <Button
-                    type="submit"
-                    disabled={isSubmitting || saleEnded}
-                    className={`w-full text-white text-base font-semibold h-12 rounded-lg transition ${
-                      saleOpen
-                        ? "bg-[#c41e3a] hover:bg-[#a81830]"
-                        : "bg-slate-400 cursor-not-allowed"
-                    }`}
-                  >
-                    {isSubmitting
-                      ? "Submitting..."
-                      : saleEnded
-                      ? "Sale Ended"
-                      : saleOpen
-                      ? "Claim My Christmas in July Deal"
-                      : "Pre-Register — Locked Until July 13"}
-                  </Button>
+                  {clientSecret && paymentIntentId ? (
+                    <div className="rounded-lg border-2 border-[#c41e3a]/30 bg-white p-4 space-y-4">
+                      <div className="flex items-baseline justify-between">
+                        <p className="text-sm font-bold text-[#1a2d5a]">Payment</p>
+                        <p className="text-2xl font-extrabold text-[#1a2d5a]">{formatMoney(orderTotal)}</p>
+                      </div>
+                      <Elements
+                        stripe={stripePromise}
+                        options={{ clientSecret, appearance: { theme: "stripe" } }}
+                      >
+                        <PaymentForm
+                          paymentIntentId={paymentIntentId}
+                          total={formatMoney(orderTotal)}
+                          onSuccess={() => { setSubmitted(true); window.scrollTo(0, 0); }}
+                        />
+                      </Elements>
+                    </div>
+                  ) : (
+                    <Button
+                      type="submit"
+                      disabled={isSubmitting || saleEnded}
+                      className={`w-full text-white text-base font-semibold h-12 rounded-lg transition ${
+                        saleOpen
+                          ? "bg-[#c41e3a] hover:bg-[#a81830]"
+                          : "bg-slate-400 cursor-not-allowed"
+                      }`}
+                    >
+                      {isSubmitting
+                        ? "Starting checkout..."
+                        : saleEnded
+                        ? "Sale Ended"
+                        : saleOpen
+                        ? `Continue to payment · ${formatMoney(orderTotal)}`
+                        : "Pre-Register, Locked Until July 13"}
+                    </Button>
+                  )}
                 </>
               ) : (
                 <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-5 text-sm text-slate-600">
@@ -1174,7 +1169,7 @@ function OrderSummary({
         <div>
           <p className="text-sm text-white/65">Grand total</p>
           <p className="text-xs text-white/45 mt-1">
-            Staff will confirm availability and payment.
+            Paid securely online. Staff will confirm pickup.
           </p>
         </div>
         <p className="text-3xl font-bold">{formatMoney(orderTotal)}</p>
