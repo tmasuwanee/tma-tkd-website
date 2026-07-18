@@ -324,9 +324,7 @@ export default function ChristmasInJuly() {
    * client secret. It also creates the lead up front (payment PENDING) so an
    * order is never invisible if the customer drops off mid-payment.
    */
-  async function startCheckout(e: React.FormEvent) {
-    e.preventDefault();
-
+  async function startCheckout() {
     if (!studentName.trim() || !parentName.trim() || !phone.trim()) {
       toast.error("Please fill in student name, parent name, and phone.");
       return;
@@ -462,10 +460,7 @@ export default function ChristmasInJuly() {
           </div>
         </section>
 
-        <form
-          onSubmit={startCheckout}
-          className="max-w-6xl mx-auto px-4 py-8 sm:py-12 space-y-10"
-        >
+        <div className="max-w-6xl mx-auto px-4 py-8 sm:py-12 space-y-10">
           <section className="space-y-5">
             <div>
               <p className="text-sm font-bold text-[#c41e3a] uppercase tracking-wide">
@@ -729,7 +724,8 @@ export default function ChristmasInJuly() {
                     </div>
                   ) : (
                     <Button
-                      type="submit"
+                      type="button"
+                      onClick={startCheckout}
                       disabled={isSubmitting || saleEnded}
                       className={`w-full text-white text-base font-semibold h-12 rounded-lg transition ${
                         saleOpen
@@ -767,7 +763,7 @@ export default function ChristmasInJuly() {
               orderTotal={orderTotal}
             />
           </section>
-        </form>
+        </div>
       </main>
     </div>
   );
