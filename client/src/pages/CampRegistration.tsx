@@ -11,7 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Check } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, ChevronRight, ChevronLeft, Users, User, Calendar, CreditCard } from "lucide-react";
+import { CheckCircle2, ChevronRight, ChevronLeft, Users, User, Calendar, CreditCard, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
 import { SMS_CONSENT_TEXT } from "../../../shared/smsConsent";
@@ -118,6 +118,7 @@ function StepIndicator({ step, currentStep }: { step: number; currentStep: numbe
     { label: "Parent Info", icon: User },
     { label: "Program", icon: Calendar },
     { label: "Payment", icon: CreditCard },
+    { label: "Waiver", icon: FileText },
   ];
   return (
     <div className="flex items-center justify-center mb-8">
@@ -660,9 +661,10 @@ function PaymentForm({ clientSecret, paymentIntentId, onSuccess }: { clientSecre
   );
 }
 
-function Step4({ data, onBack }: { data: FormData; onBack: () => void }) {
+function Step4({ data, onBack, onPaymentSuccess }: { data: FormData; onBack: () => void; onPaymentSuccess: (registrationId?: number) => void }) {
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [paymentIntentId, setPaymentIntentId] = useState<string | null>(null);
+  const [registrationId, setRegistrationId] = useState<number | undefined>(undefined);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const numCampers = data.campers.filter(c => c.name.trim()).length || 1;
@@ -672,6 +674,7 @@ function Step4({ data, onBack }: { data: FormData; onBack: () => void }) {
     onSuccess: (result) => {
       if (result.clientSecret) setClientSecret(result.clientSecret);
       if (result.paymentIntentId) setPaymentIntentId(result.paymentIntentId);
+      if (result.registrationId) setRegistrationId(result.registrationId);
     },
     onError: (err) => {
       toast.error("Failed to create registration: " + err.message);
@@ -721,17 +724,9 @@ function Step4({ data, onBack }: { data: FormData; onBack: () => void }) {
   }, []);
 
   if (paymentSuccess) {
-    return (
-      <div className="text-center py-12">
-        <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-          <CheckCircle2 className="w-10 h-10 text-green-600" />
-        </div>
-        <h2 className="text-3xl font-bold text-[#1a2d5a] mb-3">Registration Complete!</h2>
-        <p className="text-gray-600 mb-2">Thank you for registering for TMA Summer Camp 2026!</p>
-        <p className="text-gray-500 text-sm mb-6">A confirmation email has been sent to <strong>{data.email}</strong>.</p>
-        <p className="text-gray-500 text-sm">Questions? Call us at <a href="tel:+17702773009" className="text-[#1a2d5a] font-semibold">((770) 277-3009</a></p>
-      </div>
-    );
+    // Redirect to Step 5 waiver form
+    onPaymentSuccess(registrationId);
+    return null;
   }
 
   return (
@@ -797,9 +792,289 @@ function Step4({ data, onBack }: { data: FormData; onBack: () => void }) {
   );
 }
 
-// Main Registration Page
+// Step 5: Digital Waiver
+interface WaiverFormData {
+  camperNames: string;
+  camperDobs: string;
+  campWeeks: string;
+  parentName: string;
+  homeAddress: string;
+  cellPhone: string;
+  email: string;
+  emergencyContactName: string;
+  emergencyContactRelationship: string;
+  emergencyPhone: string;
+  authorizedPickup1: string;
+  authorizedPickup2: string;
+  allergies: string;
+  medications: string;
+  medicalConditions: string;
+  initialsMaritalArts: string;
+  initialsFieldTrips: string;
+  noPhotoConsent: boolean;
+  signedName: string;
+  agreedToTerms: boolean;
+}
+
+function Step5({ registrationId, prefill, onComplete }: {
+  registrationId?: number;
+  prefill: { parentName: string; email: string; phone: string; camperNames: string; camperDobs: string; campWeeks: string };
+  onComplete: () => void;
+}) {
+  const [form, setForm] = useState<WaiverFormData>({
+    camperNames: prefill.camperNames,
+    camperDobs: prefill.camperDobs,
+    campWeeks: prefill.campWeeks,
+    parentName: prefill.parentName,
+    homeAddress: "",
+    cellPhone: prefill.phone,
+    email: prefill.email,
+    emergencyContactName: "",
+    emergencyContactRelationship: "",
+    emergencyPhone: "",
+    authorizedPickup1: "",
+    authorizedPickup2: "",
+    allergies: "",
+    medications: "",
+    medicalConditions: "",
+    initialsMaritalArts: "",
+    initialsFieldTrips: "",
+    noPhotoConsent: false,
+    signedName: "",
+    agreedToTerms: false,
+  });
+
+  const submitWaiver = trpc.camp.submitWaiver.useMutation({
+    onSuccess: () => {
+      toast.success("Waiver submitted successfully!");
+      onComplete();
+    },
+    onError: (err) => {
+      toast.error("Failed to submit waiver: " + err.message);
+    },
+  });
+
+  const set = (field: keyof WaiverFormData, value: string | boolean) =>
+    setForm(prev => ({ ...prev, [field]: value }));
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.agreedToTerms) {
+      toast.error("Please check the agreement box to submit.");
+      return;
+    }
+    if (!form.signedName.trim()) {
+      toast.error("Please enter your full legal name as your electronic signature.");
+      return;
+    }
+    submitWaiver.mutate({
+      registrationId: registrationId,
+      camperNames: form.camperNames,
+      camperDobs: form.camperDobs || undefined,
+      campWeeks: form.campWeeks || undefined,
+      parentName: form.parentName,
+      homeAddress: form.homeAddress || undefined,
+      cellPhone: form.cellPhone || undefined,
+      email: form.email || undefined,
+      emergencyContactName: form.emergencyContactName,
+      emergencyContactRelationship: form.emergencyContactRelationship || undefined,
+      emergencyPhone: form.emergencyPhone,
+      authorizedPickup1: form.authorizedPickup1 || undefined,
+      authorizedPickup2: form.authorizedPickup2 || undefined,
+      allergies: form.allergies || undefined,
+      medications: form.medications || undefined,
+      medicalConditions: form.medicalConditions || undefined,
+      initialsMaritalArts: form.initialsMaritalArts,
+      initialsFieldTrips: form.initialsFieldTrips,
+      noPhotoConsent: form.noPhotoConsent,
+      signedName: form.signedName,
+      agreedToTerms: form.agreedToTerms,
+    });
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-8">
+      <div>
+        <h2 className="text-2xl font-bold text-[#1a2d5a] mb-1">Summer Camp Waiver</h2>
+        <p className="text-gray-500 text-sm">Please complete and sign the waiver below. All fields marked * are required.</p>
+      </div>
+
+      {/* Section 1: Camper & Parent Info */}
+      <div className="space-y-4">
+        <h3 className="text-lg font-semibold text-[#1a2d5a] border-b pb-2">Camper &amp; Parent Information</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="sm:col-span-2">
+            <Label>Camper Name(s) *</Label>
+            <Input value={form.camperNames} onChange={e => set("camperNames", e.target.value)} required />
+          </div>
+          <div>
+            <Label>Date(s) of Birth</Label>
+            <Input value={form.camperDobs} onChange={e => set("camperDobs", e.target.value)} placeholder="MM/DD/YYYY" />
+          </div>
+          <div>
+            <Label>Camp Week(s)</Label>
+            <Input value={form.campWeeks} onChange={e => set("campWeeks", e.target.value)} placeholder="e.g. Week 1, Week 2" />
+          </div>
+          <div>
+            <Label>Parent / Guardian Name *</Label>
+            <Input value={form.parentName} onChange={e => set("parentName", e.target.value)} required />
+          </div>
+          <div>
+            <Label>Cell Phone *</Label>
+            <Input value={form.cellPhone} onChange={e => set("cellPhone", e.target.value)} required />
+          </div>
+          <div className="sm:col-span-2">
+            <Label>Home Address</Label>
+            <Input value={form.homeAddress} onChange={e => set("homeAddress", e.target.value)} placeholder="Street, City, State, ZIP" />
+          </div>
+          <div className="sm:col-span-2">
+            <Label>Email</Label>
+            <Input type="email" value={form.email} onChange={e => set("email", e.target.value)} />
+          </div>
+        </div>
+      </div>
+
+      {/* Section 2: Emergency Contact & Authorized Pickup */}
+      <div className="space-y-4">
+        <h3 className="text-lg font-semibold text-[#1a2d5a] border-b pb-2">Emergency Contact &amp; Authorized Pickup</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <Label>Emergency Contact Name *</Label>
+            <Input value={form.emergencyContactName} onChange={e => set("emergencyContactName", e.target.value)} required />
+          </div>
+          <div>
+            <Label>Relationship</Label>
+            <Input value={form.emergencyContactRelationship} onChange={e => set("emergencyContactRelationship", e.target.value)} placeholder="e.g. Spouse, Grandparent" />
+          </div>
+          <div>
+            <Label>Emergency Phone *</Label>
+            <Input value={form.emergencyPhone} onChange={e => set("emergencyPhone", e.target.value)} required />
+          </div>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <Label>Authorized Pickup 1 (Name -- Relationship)</Label>
+            <Input value={form.authorizedPickup1} onChange={e => set("authorizedPickup1", e.target.value)} placeholder="e.g. John Smith -- Uncle" />
+          </div>
+          <div>
+            <Label>Authorized Pickup 2 (optional)</Label>
+            <Input value={form.authorizedPickup2} onChange={e => set("authorizedPickup2", e.target.value)} placeholder="e.g. Jane Doe -- Aunt" />
+          </div>
+        </div>
+      </div>
+
+      {/* Section 3: Medical Information */}
+      <div className="space-y-4">
+        <h3 className="text-lg font-semibold text-[#1a2d5a] border-b pb-2">Medical Information</h3>
+        <div className="grid grid-cols-1 gap-4">
+          <div>
+            <Label>Allergies (food, environmental, medications)</Label>
+            <Input value={form.allergies} onChange={e => set("allergies", e.target.value)} placeholder="None" />
+          </div>
+          <div>
+            <Label>Current Medications</Label>
+            <Input value={form.medications} onChange={e => set("medications", e.target.value)} placeholder="None" />
+          </div>
+          <div>
+            <Label>Medical Conditions / Special Needs</Label>
+            <Input value={form.medicalConditions} onChange={e => set("medicalConditions", e.target.value)} placeholder="None" />
+          </div>
+        </div>
+      </div>
+
+      {/* Section 4: Agreement & Initials */}
+      <div className="space-y-6">
+        <h3 className="text-lg font-semibold text-[#1a2d5a] border-b pb-2">Waiver Agreement</h3>
+
+        {/* Martial Arts Training */}
+        <div className="bg-gray-50 rounded-lg p-4 border space-y-3">
+          <p className="text-sm text-gray-700 font-medium">Martial Arts Training Release</p>
+          <p className="text-sm text-gray-600">
+            I understand that martial arts training involves physical contact and inherent risks including, but not limited to, bruises, sprains, and other injuries. I voluntarily allow my child to participate and release Top Martial Arts Suwanee, its instructors, and staff from any liability for injuries sustained during training activities.
+          </p>
+          <div className="flex items-center gap-3">
+            <Label className="text-sm font-semibold w-24 shrink-0">Initials *</Label>
+            <Input
+              className="w-32"
+              value={form.initialsMaritalArts}
+              onChange={e => set("initialsMaritalArts", e.target.value)}
+              placeholder="e.g. J.S."
+              required
+            />
+          </div>
+        </div>
+
+        {/* Field Trips */}
+        <div className="bg-gray-50 rounded-lg p-4 border space-y-3">
+          <p className="text-sm text-gray-700 font-medium">Field Trip Release</p>
+          <p className="text-sm text-gray-600">
+            I give permission for my child to participate in off-site field trips organized by TMA Summer Camp. I understand that transportation will be provided and that all reasonable safety precautions will be taken. I release Top Martial Arts Suwanee from liability for any incidents that may occur during field trips.
+          </p>
+          <div className="flex items-center gap-3">
+            <Label className="text-sm font-semibold w-24 shrink-0">Initials *</Label>
+            <Input
+              className="w-32"
+              value={form.initialsFieldTrips}
+              onChange={e => set("initialsFieldTrips", e.target.value)}
+              placeholder="e.g. J.S."
+              required
+            />
+          </div>
+        </div>
+
+        {/* Photo Consent */}
+        <div className="flex items-start gap-3 p-4 bg-gray-50 rounded-lg border">
+          <Checkbox
+            id="noPhoto"
+            checked={form.noPhotoConsent}
+            onCheckedChange={v => set("noPhotoConsent", !!v)}
+            className="mt-0.5 shrink-0"
+          />
+          <label htmlFor="noPhoto" className="text-sm text-gray-600 min-w-0">
+            <span className="font-semibold">Opt out of photo/video consent:</span> Check this box if you do NOT want photos or videos of your child used in TMA marketing materials, social media, or website. (By default, we may use photos/videos for promotional purposes.)
+          </label>
+        </div>
+
+        {/* Electronic Signature */}
+        <div className="space-y-3">
+          <Label className="text-sm font-semibold">Electronic Signature (Full Legal Name) *</Label>
+          <p className="text-xs text-gray-500">By typing your full legal name below, you agree that this constitutes your electronic signature and that you have read and agree to all terms above.</p>
+          <Input
+            value={form.signedName}
+            onChange={e => set("signedName", e.target.value)}
+            placeholder="Type your full legal name"
+            required
+          />
+        </div>
+
+        {/* Agreement Checkbox */}
+        <div className="flex items-start gap-3 p-4 bg-blue-50 rounded-lg border border-blue-200">
+          <Checkbox
+            id="waiverAgree"
+            checked={form.agreedToTerms}
+            onCheckedChange={v => set("agreedToTerms", !!v)}
+            className="mt-0.5 shrink-0"
+          />
+          <label htmlFor="waiverAgree" className="text-sm text-gray-700 min-w-0">
+            I have read and agree to all terms of this waiver. I understand this is a legally binding document.
+          </label>
+        </div>
+      </div>
+
+      <Button
+        type="submit"
+        className="w-full bg-[#1a2d5a] hover:bg-[#1a2d5a]/90 text-white py-3 text-lg font-semibold"
+        disabled={submitWaiver.isPending}
+      >
+        {submitWaiver.isPending ? "Submitting..." : "Submit Waiver"}
+      </Button>
+    </form>
+  );
+}
+
 export default function CampRegistration() {
   const [step, setStep] = useState(1);
+  const [registrationId, setRegistrationId] = useState<number | undefined>(undefined);
   const [formData, setFormData] = useState<FormData>({
     campers: [
       { name: "", dob: "", age: "", sex: "" },
@@ -847,7 +1122,32 @@ export default function CampRegistration() {
             {step === 1 && <Step1 data={formData} onChange={setFormData} onNext={() => setStep(2)} />}
             {step === 2 && <Step2 data={formData} onChange={setFormData} onNext={() => setStep(3)} onBack={() => setStep(1)} />}
             {step === 3 && <Step3 data={formData} onChange={setFormData} onNext={() => setStep(4)} onBack={() => setStep(2)} />}
-            {step === 4 && <Step4 data={formData} onBack={() => setStep(3)} />}
+            {step === 4 && <Step4 data={formData} onBack={() => setStep(3)} onPaymentSuccess={(regId) => { setRegistrationId(regId); setStep(5); }} />}
+            {step === 5 && (
+              <Step5
+                registrationId={registrationId}
+                prefill={{
+                  parentName: `${formData.parentFirstName} ${formData.parentLastName}`.trim(),
+                  email: formData.email,
+                  phone: formData.phone,
+                  camperNames: formData.campers.filter(c => c.name.trim()).map(c => c.name).join(", "),
+                  camperDobs: formData.campers.filter(c => c.name.trim()).map(c => c.dob).join(", "),
+                  campWeeks: formData.selectedWeeks.join(", "),
+                }}
+                onComplete={() => setStep(6)}
+              />
+            )}
+            {step === 6 && (
+              <div className="text-center py-12">
+                <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                  <CheckCircle2 className="w-10 h-10 text-green-600" />
+                </div>
+                <h2 className="text-3xl font-bold text-[#1a2d5a] mb-3">All Done!</h2>
+                <p className="text-gray-600 mb-2">Registration and waiver complete. Thank you for registering for TMA Summer Camp 2026!</p>
+                <p className="text-gray-500 text-sm mb-6">A confirmation email has been sent to <strong>{formData.email}</strong>.</p>
+                <p className="text-gray-500 text-sm">Questions? Call us at <a href="tel:+17702773009" className="text-[#1a2d5a] font-semibold">(770) 277-3009</a></p>
+              </div>
+            )}
           </CardContent>
         </Card>
 

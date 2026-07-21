@@ -685,3 +685,38 @@ export const trialEnrollments = mysqlTable("trialEnrollments", {
 
 export type TrialEnrollment = typeof trialEnrollments.$inferSelect;
 export type InsertTrialEnrollment = typeof trialEnrollments.$inferInsert;
+
+// ─── Camp Waivers (2026-07-21) ────────────────────────────────────────────────
+// Stores the signed summer camp waiver submitted after payment in the camp
+// registration flow. One row per submission. Linked to campRegistrations via registrationId.
+export const campWaivers = mysqlTable("campWaivers", {
+  id: int("id").autoincrement().primaryKey(),
+  registrationId: int("registrationId"),
+  camperNames: text("camperNames").notNull(),
+  camperDobs: text("camperDobs"),
+  campWeeks: text("campWeeks"),
+  parentName: varchar("parentName", { length: 255 }).notNull(),
+  homeAddress: text("homeAddress"),
+  cellPhone: varchar("cellPhone", { length: 20 }),
+  email: varchar("email", { length: 320 }),
+  emergencyContactName: varchar("emergencyContactName", { length: 255 }).notNull(),
+  emergencyContactRelationship: varchar("emergencyContactRelationship", { length: 100 }),
+  emergencyPhone: varchar("emergencyPhone", { length: 20 }).notNull(),
+  authorizedPickup1: varchar("authorizedPickup1", { length: 255 }),
+  authorizedPickup2: varchar("authorizedPickup2", { length: 255 }),
+  allergies: text("allergies"),
+  medications: text("medications"),
+  medicalConditions: text("medicalConditions"),
+  initialsMaritalArts: varchar("initialsMaritalArts", { length: 20 }).notNull(),
+  initialsFieldTrips: varchar("initialsFieldTrips", { length: 20 }).notNull(),
+  noPhotoConsent: boolean("noPhotoConsent").default(false).notNull(),
+  signedName: varchar("signedName", { length: 255 }).notNull(),
+  agreedToTerms: boolean("agreedToTerms").default(false).notNull(),
+  ipAddress: varchar("ipAddress", { length: 64 }),
+  submittedAt: timestamp("submittedAt").defaultNow().notNull(),
+}, (table) => ({
+  regIdx: index("camp_waivers_reg_idx").on(table.registrationId),
+  submittedIdx: index("camp_waivers_submitted_idx").on(table.submittedAt),
+}));
+export type CampWaiver = typeof campWaivers.$inferSelect;
+export type InsertCampWaiver = typeof campWaivers.$inferInsert;
