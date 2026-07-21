@@ -135,6 +135,10 @@ export function CampRegistrationsTab() {
     onSuccess: async () => { await utils.admin.getCampRegistrations.invalidate(); toast.success("Registration removed."); },
     onError: () => toast.error("Failed to delete registration."),
   });
+  const resendConfirmation = trpc.admin.resendCampConfirmation.useMutation({
+    onSuccess: (r) => { toast.success(`Confirmation + waiver email resent to ${r.email}`); },
+    onError: (e) => { toast.error(e.message ?? "Failed to resend the confirmation email."); },
+  });
   const restore = trpc.admin.restoreRegistration.useMutation({
     onSuccess: async () => { await utils.admin.getCampRegistrations.invalidate(); toast.success("Registration restored."); },
     onError: () => toast.error("Failed to restore registration."),
@@ -264,7 +268,11 @@ export function CampRegistrationsTab() {
                 </TableHeader>
                 <TableBody>
                   {displayedRegistrations.map((reg) => {
-                    const campers = [reg.camper1Name, reg.camper2Name, reg.camper3Name].filter(Boolean);
+                    const campers = [
+                      { name: reg.camper1Name, age: reg.camper1Age, dob: reg.camper1Dob },
+                      { name: reg.camper2Name, age: reg.camper2Age, dob: reg.camper2Dob },
+                      { name: reg.camper3Name, age: reg.camper3Age, dob: reg.camper3Dob },
+                    ].filter(c => c.name);
                     const addOns = [
                       reg.addFieldTrip ? "Field Trip ($25)" : null,
                       reg.addExtendedCare ? "Extended Care ($25)" : null,
@@ -289,7 +297,13 @@ export function CampRegistrationsTab() {
                         </TableCell>
                         <TableCell>
                           <div className="space-y-0.5">
-                            {campers.map((name, i) => <div key={i} className="text-sm font-medium text-gray-800">{name}</div>)}
+                            {campers.map((c, i) => (
+                              <div key={i} className="text-sm font-medium text-gray-800">
+                                {c.name}
+                                {c.age ? <span className="text-xs font-normal text-gray-500"> · age {c.age}</span> : null}
+                                {c.dob ? <span className="text-xs font-normal text-gray-400"> ({c.dob})</span> : null}
+                              </div>
+                            ))}
                           </div>
                         </TableCell>
                         <TableCell>
@@ -337,15 +351,29 @@ export function CampRegistrationsTab() {
                           )}
                         </TableCell>
                         <TableCell>
-                          {reg.isDeleted ? (
-                            <Button variant="ghost" size="sm" onClick={() => restore.mutate({ id: reg.id })} disabled={restore.isPending} className="text-green-600 hover:text-green-700 hover:bg-green-50 p-1.5 h-auto" title="Restore">
-                              <RotateCcw className="w-4 h-4" />
-                            </Button>
-                          ) : (
-                            <Button variant="ghost" size="sm" onClick={() => setDeleteTargetId(reg.id)} className="text-red-400 hover:text-red-600 hover:bg-red-50 p-1.5 h-auto" title="Remove">
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          )}
+                          <div className="flex items-center gap-0.5">
+                            {!reg.isDeleted && reg.stripePaymentStatus === "succeeded" && reg.email && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => resendConfirmation.mutate({ id: reg.id })}
+                                disabled={resendConfirmation.isPending}
+                                className="text-[#1a2d5a] hover:text-[#1a2d5a] hover:bg-blue-50 p-1.5 h-auto"
+                                title="Resend confirmation + waiver email to the parent"
+                              >
+                                <Mail className="w-4 h-4" />
+                              </Button>
+                            )}
+                            {reg.isDeleted ? (
+                              <Button variant="ghost" size="sm" onClick={() => restore.mutate({ id: reg.id })} disabled={restore.isPending} className="text-green-600 hover:text-green-700 hover:bg-green-50 p-1.5 h-auto" title="Restore">
+                                <RotateCcw className="w-4 h-4" />
+                              </Button>
+                            ) : (
+                              <Button variant="ghost" size="sm" onClick={() => setDeleteTargetId(reg.id)} className="text-red-400 hover:text-red-600 hover:bg-red-50 p-1.5 h-auto" title="Remove">
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     );

@@ -7,7 +7,7 @@ import {
   createLead, getLeadById, getAllLeads, updateLeadStage, updateLeadProgram, updateLeadNotes, updateLeadTags, deleteLead,
   upsertLeadFromFacebook, createLeadActivity, getLeadActivities,
   createCampRegistration, updateCampRegistrationPayment,
-  getCampRegistrationByPaymentIntentId, getAllCampRegistrations,
+  getCampRegistrationByPaymentIntentId, getCampRegistrationById, getAllCampRegistrations,
   softDeleteRegistration, restoreRegistration,
   upsertStudents, getAllStudents, searchStudents, updateStudent, createStudent,
   // Lead Conductor (2026-05-19)
@@ -256,9 +256,21 @@ export const appRouter = router({
         await updateCampRegistrationPayment(input.paymentIntentId, paymentIntent.status);
 
         if (paymentIntent.status === 'succeeded') {
-          try {
-            const registration = await getCampRegistrationByPaymentIntentId(input.paymentIntentId);
-            if (registration) {
+          const registration = await getCampRegistrationByPaymentIntentId(input.paymentIntentId);
+          if (registration) {
+            // Staff notification first, via Telegram. This does NOT depend on
+            // Resend/email deliverability, so staff are told about a paid
+            // registration even if the parent's confirmation email later fails.
+            void sendTelegramMessage(
+              `🏕️ <b>Camp registration PAID</b>\n` +
+              `${registration.parentFirstName} ${registration.parentLastName} · ${registration.camper1Name}\n` +
+              `$${((registration.amountPaid ?? 0) / 100).toFixed(2)} · ${registration.programType}\n` +
+              `${registration.email}\n${adminLink("/admin/camp")}`
+            ).catch(() => {});
+
+            // Parent-facing emails. If Resend fails, DON'T swallow silently:
+            // alert staff on Telegram so someone can resend or follow up.
+            try {
               await sendCampRegistrationConfirmation({
                 parentFirstName: registration.parentFirstName,
                 parentLastName: registration.parentLastName,
@@ -275,9 +287,15 @@ export const appRouter = router({
                 parentEmail: registration.email,
                 camper1Name: registration.camper1Name,
               });
+            } catch (emailErr) {
+              console.error('[confirmPayment] Failed to send confirmation/waiver email:', emailErr);
+              void sendTelegramMessage(
+                `⚠️ <b>Camp confirmation email FAILED to send</b>\n` +
+                `${registration.parentFirstName} ${registration.parentLastName} · ${registration.email}\n` +
+                `The payment went through, but the confirmation/waiver email did not. ` +
+                `Resend it manually from the Camp Registrations tab.\n${adminLink("/admin/camp")}`
+              ).catch(() => {});
             }
-          } catch (emailErr) {
-            console.error('[confirmPayment] Failed to send confirmation/waiver email:', emailErr);
           }
         }
 
@@ -295,8 +313,14 @@ export const appRouter = router({
           deletedAt: r.deletedAt,
           id: r.id,
           camper1Name: r.camper1Name,
+          camper1Age: r.camper1Age ?? null,
+          camper1Dob: r.camper1Dob ?? null,
           camper2Name: r.camper2Name ?? null,
+          camper2Age: r.camper2Age ?? null,
+          camper2Dob: r.camper2Dob ?? null,
           camper3Name: r.camper3Name ?? null,
+          camper3Age: r.camper3Age ?? null,
+          camper3Dob: r.camper3Dob ?? null,
           numCampers: r.numCampers,
           parentFirstName: r.parentFirstName,
           parentLastName: r.parentLastName,
@@ -326,6 +350,34 @@ export const appRouter = router({
       .mutation(async ({ input }) => {
         await restoreRegistration(input.id);
         return { success: true };
+      }),
+
+    // Manually (re)send the camp confirmation + waiver email for a registration.
+    // Used when the automatic send failed (Resend hiccup, bounce) so staff can
+    // recover without re-charging the parent. Throws on failure so the UI can
+    // surface it, rather than silently swallowing like the auto path once did.
+    resendCampConfirmation: publicProcedure
+      .input(z.object({ id: z.number().int().positive() }))
+      .mutation(async ({ input }) => {
+        const registration = await getCampRegistrationById(input.id);
+        if (!registration) throw new Error("Registration not found.");
+        if (!registration.email) throw new Error("This registration has no email on file.");
+        await sendCampRegistrationConfirmation({
+          parentFirstName: registration.parentFirstName,
+          parentLastName: registration.parentLastName,
+          parentEmail: registration.email,
+          camper1Name: registration.camper1Name,
+          programType: registration.programType,
+          selectedWeeks: registration.anticipatedWeeks ? JSON.parse(registration.anticipatedWeeks) : [],
+          amountPaid: registration.amountPaid ?? 0,
+          addExtendedCare: registration.addExtendedCare === 1,
+        });
+        await sendCampWaiverEmail({
+          parentFirstName: registration.parentFirstName,
+          parentEmail: registration.email,
+          camper1Name: registration.camper1Name,
+        });
+        return { success: true, email: registration.email };
       }),
   }),
 
