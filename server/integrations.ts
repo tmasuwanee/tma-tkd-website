@@ -433,6 +433,48 @@ export async function sendCampWaiverEmail(params: {
 }
 
 /**
+ * Confirmation email for a standalone camp field-trip payment. Sent from the
+ * field-trip checkout on success, in addition to Stripe's automatic receipt.
+ */
+export async function sendFieldTripConfirmation(params: {
+  payerName: string;
+  parentEmail: string;
+  slots: number;
+  amountCents: number;
+  detail?: string;
+}) {
+  try {
+    const amount = `$${(params.amountCents / 100).toFixed(2)}`;
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: #1a2d5a; padding: 24px; text-align: center;">
+          <h1 style="color: white; margin: 0; font-size: 24px;">Field Trip Payment Confirmed!</h1>
+          <p style="color: #a0b4d6; margin: 8px 0 0;">TMA Summer Camp 2026</p>
+        </div>
+        <div style="padding: 24px; background: #ffffff;">
+          <p style="font-size: 16px;">Hi ${params.payerName || "there"},</p>
+          <p>Thank you! Your summer camp field trip payment is confirmed.</p>
+          <div style="background: #f0f4ff; border-left: 4px solid #1a2d5a; padding: 16px; margin: 20px 0; border-radius: 4px;">
+            <p style="margin: 4px 0;"><strong>Field trips paid:</strong> ${params.slots} (&times; $25.00)</p>
+            ${params.detail ? `<p style="margin: 4px 0;"><strong>Details:</strong> ${params.detail}</p>` : ''}
+            <p style="margin: 4px 0;"><strong>Amount paid:</strong> ${amount}</p>
+          </div>
+          <p>Your camper is all set for the field trip. A separate receipt has also been emailed to you by Stripe.</p>
+          <p>Questions? Call or text us at <strong>(770) 277-3009</strong>.</p>
+        </div>
+        <div style="background: #1a2d5a; padding: 16px; text-align: center;">
+          <p style="color: white; margin: 0; font-size: 12px;">Top Martial Arts Suwanee &bull; 2005 Lawrenceville Suwanee Rd, Suwanee, GA 30024 &bull; (770) 277-3009</p>
+        </div>
+      </div>
+    `;
+    await sendEmail(params.parentEmail, 'Your TMA Summer Camp Field Trip Payment is Confirmed!', html);
+    console.log('[Email] Field trip confirmation sent to:', params.parentEmail);
+  } catch (error) {
+    console.error('[Email] Error sending field trip confirmation:', error);
+  }
+}
+
+/**
  * Create JWT for Google Service Account
  */
 function createJWT(serviceAccount: any): string {

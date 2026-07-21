@@ -48,7 +48,7 @@ import {
 } from "./db";
 import { sendTelegramMessage } from "./telegram";
 import { storagePut, storageGet } from "./storage";
-import { sendToGoogleSheets, sendToSlack, sendEmailNotification, sendProShopOrderNotification, sendCampRegistrationConfirmation, sendCampWaiverEmail, sendTrialReceipt, sendAfterschoolConfirmation } from "./integrations";
+import { sendToGoogleSheets, sendToSlack, sendEmailNotification, sendProShopOrderNotification, sendCampRegistrationConfirmation, sendCampWaiverEmail, sendFieldTripConfirmation, sendTrialReceipt, sendAfterschoolConfirmation } from "./integrations";
 import { fireLeadEvent, firePurchaseEvent } from "./meta-capi";
 import { computeOrderCents, buildOrderSummary } from "../shared/christmasPricing";
 import { getAdInsights, syncAdInsights } from "./facebook-ads";
@@ -1675,6 +1675,15 @@ export const appRouter = router({
             `${m.payerName || "Camp family"} · $${(pi.amount / 100).toFixed(2)}\n` +
             `${m.detail || ""}`
           );
+          if (m.email) {
+            void sendFieldTripConfirmation({
+              payerName: m.payerName || "",
+              parentEmail: m.email,
+              slots: Number(m.slots) || 0,
+              amountCents: pi.amount,
+              detail: m.detail || undefined,
+            });
+          }
         }
         return { status: pi.status };
       }),

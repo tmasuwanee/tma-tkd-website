@@ -26,6 +26,7 @@ const LINK_GROUPS: LinkGroup[] = [
       { label: "Afterschool Tour Request", path: "/afterschooltour", desc: "Parents request a tour; staff calls to confirm." },
       { label: "Afterschool Registration", path: "/afterschool-register", desc: "Paid afterschool enrollment (registration, uniform, supply fees)." },
       { label: "Summer Camp Registration", path: "/camp-registration", desc: "Paid summer camp signup." },
+      { label: "Camp Field Trip Payment", path: "/field-trip", desc: "Self-serve $25/field-trip payment. Sends a confirmation email." },
     ],
   },
   {
