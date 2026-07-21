@@ -1893,6 +1893,13 @@ export const appRouter = router({
         utmContent: z.string().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
+        // Hard server-side sale window. The client disables the button after the
+        // sale ends, but never trust the client on a payment endpoint: reject any
+        // charge attempt outside the sale window so no one is billed late.
+        const SALE_CLOSES_AT = new Date("2026-07-19T00:00:00-04:00");
+        if (new Date() >= SALE_CLOSES_AT) {
+          throw new Error("The Christmas in July sale has ended. Please contact the school if you still need to place an order.");
+        }
         // Authoritative amount. Never trust the client.
         const amountCents = computeOrderCents(input.selections);
         if (amountCents < 50) {
