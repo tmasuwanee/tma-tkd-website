@@ -2701,3 +2701,54 @@ export async function insertAfterschoolRegistration(params: {
   ) as unknown as [{ insertId: number }];
   return result?.insertId ?? 0;
 }
+
+// ─── Camp Waivers ─────────────────────────────────────────────────────────────
+/** Insert a new camp waiver submission row. Returns the new row id. */
+export async function insertCampWaiver(params: {
+  registrationId?: number | null;
+  camperNames: string;
+  camperDobs?: string | null;
+  campWeeks?: string | null;
+  parentName: string;
+  homeAddress?: string | null;
+  cellPhone?: string | null;
+  email?: string | null;
+  emergencyContactName: string;
+  emergencyContactRelationship?: string | null;
+  emergencyPhone: string;
+  authorizedPickup1?: string | null;
+  authorizedPickup2?: string | null;
+  allergies?: string | null;
+  medications?: string | null;
+  medicalConditions?: string | null;
+  initialsMaritalArts: string;
+  initialsFieldTrips: string;
+  noPhotoConsent: boolean;
+  signedName: string;
+  agreedToTerms: boolean;
+  ipAddress?: string | null;
+}): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+  const [result] = await db.execute(
+    sql`INSERT INTO campWaivers
+      (registrationId, camperNames, camperDobs, campWeeks, parentName, homeAddress,
+       cellPhone, email, emergencyContactName, emergencyContactRelationship, emergencyPhone,
+       authorizedPickup1, authorizedPickup2, allergies, medications, medicalConditions,
+       initialsMaritalArts, initialsFieldTrips, noPhotoConsent, signedName, agreedToTerms,
+       ipAddress, submittedAt)
+     VALUES (
+       ${params.registrationId ?? null}, ${params.camperNames}, ${params.camperDobs ?? null},
+       ${params.campWeeks ?? null}, ${params.parentName}, ${params.homeAddress ?? null},
+       ${params.cellPhone ?? null}, ${params.email ?? null},
+       ${params.emergencyContactName}, ${params.emergencyContactRelationship ?? null},
+       ${params.emergencyPhone}, ${params.authorizedPickup1 ?? null},
+       ${params.authorizedPickup2 ?? null}, ${params.allergies ?? null},
+       ${params.medications ?? null}, ${params.medicalConditions ?? null},
+       ${params.initialsMaritalArts}, ${params.initialsFieldTrips},
+       ${params.noPhotoConsent ? 1 : 0}, ${params.signedName},
+       ${params.agreedToTerms ? 1 : 0}, ${params.ipAddress ?? null}, NOW()
+     )`
+  ) as unknown as [{ insertId: number }];
+  return result?.insertId ?? 0;
+}

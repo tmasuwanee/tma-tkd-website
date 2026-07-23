@@ -11,7 +11,7 @@ import { CheckCircle2, Minus, Plus } from "lucide-react";
 
 /**
  * Standalone camp field-trip payment page. Families self-serve: they enter
- * their info, choose how many field trips ($25 each), and pay. Staff can also
+ * their info, choose how many weeks of field trips ($25/week/child, covers both trips that week), and pay. Staff can also
  * pre-fill via URL params (/field-trip?name=..&email=..&detail=..&slots=..),
  * which the form reads in as defaults.
  *
@@ -137,7 +137,7 @@ export default function FieldTripPay() {
                 <p className="text-sm text-gray-500">Paying as</p>
                 <p className="font-semibold text-[#1a2d5a] mb-2">{payerName}</p>
                 <div className="flex justify-between items-baseline pt-3 border-t border-gray-200">
-                  <span className="text-sm text-gray-600">$25 &times; {slots} field trip{slots > 1 ? "s" : ""}</span>
+                  <span className="text-sm text-gray-600">$25 &times; {slots} week{slots > 1 ? "s" : ""}</span>
                   <span className="text-2xl font-extrabold text-[#1a2d5a]">{total}</span>
                 </div>
               </div>
@@ -148,8 +148,7 @@ export default function FieldTripPay() {
           ) : (
             <div className="p-6 sm:p-8 space-y-5">
               <p className="text-sm text-gray-600">
-                Pay for your camper's summer camp field trips. Each field trip is <strong>$25</strong>
-                {" "}(one per child, per field-trip week).
+                Pay for your camper's summer camp field trips. <strong>$25 per week, per child</strong> -- covers both field trips that week.
               </p>
 
               <div>
@@ -167,7 +166,7 @@ export default function FieldTripPay() {
               </div>
 
               <div>
-                <Label className="text-gray-700 font-medium mb-2 block">Number of field trips</Label>
+                <Label className="text-gray-700 font-medium mb-2 block">Number of weeks</Label>
                 <div className="flex items-center gap-3">
                   <Button type="button" variant="outline" className="h-11 w-11 p-0" onClick={() => setSlotCount(-1)} disabled={slots <= 1}>
                     <Minus className="w-4 h-4" />
@@ -176,7 +175,7 @@ export default function FieldTripPay() {
                   <Button type="button" variant="outline" className="h-11 w-11 p-0" onClick={() => setSlotCount(1)} disabled={slots >= 20}>
                     <Plus className="w-4 h-4" />
                   </Button>
-                  <span className="ml-auto text-sm text-gray-500">$25 each</span>
+                  <span className="ml-auto text-sm text-gray-500">$25 per week</span>
                 </div>
               </div>
 

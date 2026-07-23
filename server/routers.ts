@@ -45,6 +45,8 @@ import {
   manualBookTrial,
   // $99 3-week trial enrollments (2026-06-15)
   createTrialEnrollment, getTrialByPaymentIntent, activateTrial, listTrialEnrollments, updateTrialStatus,
+  // Camp Waivers (2026-07-21)
+  insertCampWaiver,
 } from "./db";
 import { sendTelegramMessage } from "./telegram";
 import { storagePut, storageGet } from "./storage";
@@ -204,7 +206,7 @@ export const appRouter = router({
           },
         });
 
-        await createCampRegistration({
+        const regResult = await createCampRegistration({
           camper1Name: input.camper1Name,
           camper1Dob: input.camper1Dob,
           camper1Age: input.camper1Age,
@@ -242,10 +244,13 @@ export const appRouter = router({
           smsConsentIp: ip ? String(ip).slice(0, 64) : null,
           smsConsentText: input.smsConsentText,
         });
-
+        const registrationId = (regResult as unknown as { insertId?: number }[])[0]?.insertId
+          ?? (regResult as unknown as { insertId?: number }).insertId
+          ?? null;
         return {
           clientSecret: paymentIntent.client_secret,
           paymentIntentId: paymentIntent.id,
+          registrationId: registrationId ?? undefined,
         };
       }),
 
@@ -301,6 +306,50 @@ export const appRouter = router({
         }
 
         return { status: paymentIntent.status };
+      }),
+
+    // Step 5: parent submits the digital waiver after payment confirmation
+    submitWaiver: publicProcedure
+      .input(z.object({
+        registrationId: z.number().int().positive().optional(),
+        camperNames: z.string().min(1),
+        camperDobs: z.string().optional(),
+        campWeeks: z.string().optional(),
+        parentName: z.string().min(1),
+        homeAddress: z.string().optional(),
+        cellPhone: z.string().optional(),
+        email: z.string().email().optional(),
+        emergencyContactName: z.string().min(1),
+        emergencyContactRelationship: z.string().optional(),
+        emergencyPhone: z.string().min(1),
+        authorizedPickup1: z.string().optional(),
+        authorizedPickup2: z.string().optional(),
+        allergies: z.string().optional(),
+        medications: z.string().optional(),
+        medicalConditions: z.string().optional(),
+        initialsMaritalArts: z.string().min(1),
+        initialsFieldTrips: z.string().min(1),
+        noPhotoConsent: z.boolean(),
+        signedName: z.string().min(1),
+        agreedToTerms: z.boolean(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const ipAddress = (ctx as { req?: { headers?: { 'x-forwarded-for'?: string; 'x-real-ip'?: string } } }).req?.headers?.['x-forwarded-for']?.split(',')[0]?.trim()
+          ?? (ctx as { req?: { socket?: { remoteAddress?: string } } }).req?.socket?.remoteAddress
+          ?? null;
+        const waiverId = await insertCampWaiver({
+          ...input,
+          ipAddress,
+        });
+        // Staff Telegram notification
+        void sendTelegramMessage(
+          `📋 <b>Camp Waiver Submitted</b>\n` +
+          `${input.parentName} -- ${input.camperNames}\n` +
+          `Emergency: ${input.emergencyContactName} (${input.emergencyPhone})\n` +
+          `Signed: ${input.signedName}\n` +
+          `${adminLink("/admin/camp")}`
+        ).catch(() => {});
+        return { success: true, waiverId };
       }),
   }),
 
