@@ -634,9 +634,11 @@ export const waivers = mysqlTable("waivers", {
   signedDate: varchar("signedDate", { length: 20 }).notNull(),  // YYYY-MM-DD
   // Snapshot of the exact disclaimer wording they agreed to.
   disclaimerText: text("disclaimerText"),
-  // walk_in | online | ipad — where the signature was captured.
+  // walk_in | online | ipad | transportation — where/what the signature was for.
   source: varchar("source", { length: 64 }).default("walk_in").notNull(),
   ipAddress: varchar("ipAddress", { length: 64 }),
+  // URL of a generated signed PDF (e.g. GCPS transportation form), when applicable.
+  pdfUrl: varchar("pdfUrl", { length: 1024 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 }, (table) => ({
   leadIdx: index("waivers_lead_idx").on(table.leadId),

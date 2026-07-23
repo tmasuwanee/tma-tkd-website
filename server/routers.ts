@@ -48,7 +48,8 @@ import {
 } from "./db";
 import { sendTelegramMessage } from "./telegram";
 import { storagePut, storageGet } from "./storage";
-import { sendToGoogleSheets, sendToSlack, sendEmailNotification, sendProShopOrderNotification, sendCampRegistrationConfirmation, sendCampWaiverEmail, sendFieldTripConfirmation, sendTrialReceipt, sendAfterschoolConfirmation } from "./integrations";
+import { sendToGoogleSheets, sendToSlack, sendEmailNotification, sendProShopOrderNotification, sendCampRegistrationConfirmation, sendCampWaiverEmail, sendFieldTripConfirmation, sendTransportationForm, sendTrialReceipt, sendAfterschoolConfirmation } from "./integrations";
+import { fillTransportationPdf } from "./transportation-pdf";
 import { fireLeadEvent, firePurchaseEvent } from "./meta-capi";
 import { computeOrderCents, buildOrderSummary } from "../shared/christmasPricing";
 import { getAdInsights, syncAdInsights } from "./facebook-ads";
@@ -1626,6 +1627,113 @@ export const appRouter = router({
     delete: publicProcedure
       .input(z.object({ id: z.number().int().positive() }))
       .mutation(async ({ input }) => { await deleteWaiver(input.id); return { success: true }; }),
+  }),
+
+  // ─── GCPS transportation authorization (2026-07-23) ──────────────────────
+  // Our own DocuSign replacement for the GCPS Transportation Parent Authorization
+  // (3026-RF). The parent fills + e-signs on /transportation; the server stamps
+  // their answers + drawn signature onto the official TMA-customized PDF, stores
+  // it, emails the signed PDF to the parent + staff, and records it under the
+  // waivers system (source "transportation") so it shows in the dashboard.
+  transportation: router({
+    submit: publicProcedure
+      .input(z.object({
+        studentName: z.string().min(1).max(255),
+        grade: z.string().max(40).optional(),
+        teacher: z.string().max(120).optional(),
+        homeAddress: z.string().max(300).optional(),
+        aptBldg: z.string().max(40).optional(),
+        homePhone: z.string().max(40).optional(),
+        cellPhone: z.string().max(40).optional(),
+        workPhone: z.string().max(40).optional(),
+        schoolName: z.string().min(1).max(200),   // child's elementary school
+        dateToBegin: z.string().max(40).optional(),
+        parentEmail: z.string().email(),
+        parentPhone: z.string().min(1).max(40),
+        printedName: z.string().min(1).max(255),
+        signedDate: z.string().min(1).max(20),
+        signaturePngDataUrl: z.string().min(1),
+        agreedToGuidelines: z.literal(true),
+        guidelinesText: z.string().min(1).max(8000),
+        smsConsentText: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const ip = (ctx?.req as any)?.ip
+          || (ctx?.req as any)?.headers?.["cf-connecting-ip"]
+          || (ctx?.req as any)?.headers?.["x-forwarded-for"]
+          || null;
+
+        // 1) Stamp the parent's answers + signature onto the GCPS PDF.
+        const pdfBytes = await fillTransportationPdf({
+          studentName: input.studentName,
+          grade: input.grade,
+          teacher: input.teacher,
+          homeAddress: input.homeAddress,
+          aptBldg: input.aptBldg,
+          homePhone: input.homePhone,
+          cellPhone: input.cellPhone,
+          workPhone: input.workPhone,
+          schoolName: input.schoolName,
+          dateToBegin: input.dateToBegin,
+          printedName: input.printedName,
+          signedDate: input.signedDate,
+          signaturePngDataUrl: input.signaturePngDataUrl,
+        });
+        const pdfBuffer = Buffer.from(pdfBytes);
+        const pdfBase64 = pdfBuffer.toString("base64");
+
+        // 2) Store the signed PDF.
+        let pdfUrl: string | null = null;
+        try {
+          const safe = input.studentName.replace(/[^a-z0-9]+/gi, "-").toLowerCase();
+          const key = `transportation/${new Date().toISOString().slice(0, 10)}-${safe}-${Math.floor(Math.random() * 1e6)}.pdf`;
+          const put = await storagePut(key, pdfBuffer, "application/pdf");
+          pdfUrl = put.url;
+        } catch (err) {
+          console.error("[transportation] PDF storage failed (continuing):", err);
+        }
+
+        // 3) Record it under the waivers system (matches/creates the lead by email).
+        const summary =
+          `GCPS Transportation Parent Authorization\n` +
+          `Student: ${input.studentName}${input.grade ? ` (grade ${input.grade})` : ""}` +
+          `${input.teacher ? `, teacher ${input.teacher}` : ""}\n` +
+          `School: ${input.schoolName}\n` +
+          `Home address: ${input.homeAddress ?? "-"}${input.aptBldg ? ` Apt ${input.aptBldg}` : ""}\n` +
+          `Home phone: ${input.homePhone ?? "-"} | Cell: ${input.cellPhone ?? "-"} | Work: ${input.workPhone ?? "-"}\n` +
+          `Date to begin: ${input.dateToBegin ?? "-"}\n` +
+          `Agreed to GCPS transportation guidelines.\n\n${input.guidelinesText}`;
+
+        const result = await submitWaiver({
+          parentName: input.printedName,
+          address: input.homeAddress ?? null,
+          email: input.parentEmail,
+          phone: input.parentPhone,
+          students: [{ name: input.studentName, dob: "" }],
+          interests: [],
+          signatureData: input.signaturePngDataUrl,
+          signedName: input.printedName,
+          signedDate: input.signedDate,
+          disclaimerText: summary,
+          source: "transportation",
+          pdfUrl,
+          ip: ip ? String(ip) : null,
+          ...(input.smsConsentText ? { smsConsent: true, smsConsentText: input.smsConsentText } : {}),
+        });
+
+        // 4) Email the signed PDF to parent + staff (non-blocking).
+        void sendTransportationForm({
+          parentEmail: input.parentEmail,
+          parentName: input.printedName,
+          studentName: input.studentName,
+          pdfBase64,
+        });
+        void sendTelegramMessage(
+          `🚌 <b>Transportation form signed</b>\n${input.printedName} · ${input.studentName}\nSchool: ${input.schoolName}\n${adminLink("/admin/waivers")}`
+        ).catch(() => {});
+
+        return { success: true, pdfUrl, waiverId: result.waiverId };
+      }),
   }),
 
   // ─── Field-trip one-off payments (2026-06-22) ────────────────────────────

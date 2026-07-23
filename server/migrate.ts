@@ -25,6 +25,13 @@ const MIGRATIONS: { name: string; sql: string }[] = [
     name: "students.dob",
     sql: "ALTER TABLE students ADD COLUMN IF NOT EXISTS dob VARCHAR(20)",
   },
+  {
+    // 2026-07-23: URL of a generated signed document (e.g. the GCPS transportation
+    // authorization PDF) stored in object storage. Lets the dashboard link to the
+    // filled + signed PDF for waiver rows that produce one.
+    name: "waivers.pdfUrl",
+    sql: "ALTER TABLE waivers ADD COLUMN IF NOT EXISTS pdfUrl VARCHAR(1024)",
+  },
 ];
 
 export async function runStartupMigrations(): Promise<void> {

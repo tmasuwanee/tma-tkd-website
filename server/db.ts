@@ -453,6 +453,7 @@ export async function submitWaiver(input: {
   disclaimerText?: string | null;
   source?: string;
   ip?: string | null;
+  pdfUrl?: string | null;
   smsConsent?: boolean;
   smsConsentText?: string | null;
 }): Promise<{ leadId: number; waiverId: number; matchedExisting: boolean }> {
@@ -495,6 +496,7 @@ export async function submitWaiver(input: {
     disclaimerText: input.disclaimerText ?? null,
     source: input.source ?? "walk_in",
     ipAddress: input.ip ? String(input.ip).slice(0, 64) : null,
+    pdfUrl: input.pdfUrl ?? null,
   });
 
   return { leadId, waiverId, matchedExisting };

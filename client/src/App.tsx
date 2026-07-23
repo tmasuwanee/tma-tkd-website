@@ -21,6 +21,7 @@ import WalkIn from "./pages/WalkIn";
 import WalkInQR from "./pages/WalkInQR";
 import AfterschoolTour from "./pages/AfterschoolTour";
 import BackToSchool from "./pages/BackToSchool";
+import Transportation from "./pages/Transportation";
 import AfterschoolRegister from "./pages/AfterschoolRegister";
 import AdminShell from "./components/admin/AdminShell";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
@@ -51,6 +52,7 @@ function Router() {
       <Route path={"/walkin-qr"} component={WalkInQR} />
       <Route path={"/afterschooltour"} component={AfterschoolTour} />
       <Route path={"/back-to-school"} component={BackToSchool} />
+      <Route path={"/transportation"} component={Transportation} />
       {/* Christmas in July sale ended (July 2026). Redirect to home. */}
       <Route path={"/christmas-in-july"}><Redirect to="/" /></Route>
       <Route path={"/afterschool-register"} component={AfterschoolRegister} />

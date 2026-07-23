@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Input } from "@/components/ui/input";
-import { Loader2, FileSignature, X, Trash2, Search } from "lucide-react";
+import { Loader2, FileSignature, X, Trash2, Search, Download } from "lucide-react";
 
 const INTEREST_LABELS: Record<string, string> = {
   better_listening: "Better listening",
@@ -60,18 +60,32 @@ export default function WaiversView() {
             <div className="text-center py-8 text-gray-400 text-sm">No waivers match your search.</div>
           ) : filtered.map(w => {
           const kids = parseArr(w.students);
+          const isTransportation = w.source === "transportation";
           return (
             <div key={w.id}
               className="bg-white border border-gray-200 rounded-lg p-3.5 hover:border-[#1a2d5a]/40 transition-colors flex items-center justify-between gap-3">
               <button onClick={() => setOpen(w)} className="flex-1 min-w-0 text-left">
-                <div className="font-semibold text-gray-800 text-sm truncate">
-                  {kids.map((k: any) => k.name).filter(Boolean).join(", ") || w.parentName}
+                <div className="font-semibold text-gray-800 text-sm truncate flex items-center gap-2">
+                  <span className="truncate">{kids.map((k: any) => k.name).filter(Boolean).join(", ") || w.parentName}</span>
+                  {isTransportation ? (
+                    <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider bg-[#1a2d5a]/10 text-[#1a2d5a] rounded-full px-2 py-0.5">
+                      Transportation
+                    </span>
+                  ) : null}
                 </div>
                 <div className="text-xs text-gray-500 truncate">{w.parentName} · {w.phone}</div>
               </button>
               <div className="text-xs text-gray-400 shrink-0">signed {w.signedDate}</div>
+              {w.pdfUrl ? (
+                <a href={w.pdfUrl} target="_blank" rel="noopener noreferrer" title="Download signed PDF"
+                  onClick={e => e.stopPropagation()}
+                  className="shrink-0 flex items-center gap-1 text-xs font-semibold text-[#1a2d5a] hover:text-white border border-[#1a2d5a]/30 hover:bg-[#1a2d5a] rounded px-2 py-1 transition-colors">
+                  <Download className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">PDF</span>
+                </a>
+              ) : null}
               <button onClick={() => remove(w)} title="Delete waiver"
-                className="text-gray-300 hover:text-red-500 shrink-0">
+                className="text-gray-300 hover:text-[#c41e3a] shrink-0">
                 <Trash2 className="w-4 h-4" />
               </button>
             </div>
@@ -88,14 +102,29 @@ export default function WaiversView() {
 function WaiverModal({ w, onClose }: { w: any; onClose: () => void }) {
   const kids = parseArr(w.students);
   const interests = parseArr(w.interests);
+  const isTransportation = w.source === "transportation";
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-3.5 border-b sticky top-0 bg-white">
-          <h3 className="font-bold text-[#1a2d5a]">Signed Waiver</h3>
+          <div className="flex items-center gap-2">
+            <h3 className="font-bold text-[#1a2d5a]">Signed Waiver</h3>
+            {isTransportation ? (
+              <span className="text-[10px] font-semibold uppercase tracking-wider bg-[#1a2d5a]/10 text-[#1a2d5a] rounded-full px-2 py-0.5">
+                Transportation
+              </span>
+            ) : null}
+          </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-700"><X className="w-5 h-5" /></button>
         </div>
         <div className="p-5 space-y-4 text-sm">
+          {w.pdfUrl ? (
+            <a href={w.pdfUrl} target="_blank" rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-[#1a2d5a] hover:bg-[#12203f] rounded px-3 py-1.5 transition-colors">
+              <Download className="w-3.5 h-3.5" />
+              Download signed PDF
+            </a>
+          ) : null}
           <Field label="Parent / Guardian" value={w.parentName} />
           <Field label="Email" value={w.email} />
           <Field label="Phone" value={w.phone} />

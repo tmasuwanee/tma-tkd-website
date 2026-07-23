@@ -33,6 +33,7 @@ const LINK_GROUPS: LinkGroup[] = [
     group: "Waivers & In-Studio",
     items: [
       { label: "Guest / Walk-in Waiver", path: "/enroll", desc: "Liability waiver + sign-up. Alias: /waiver." },
+      { label: "After-School Transportation Form", path: "/transportation", desc: "GCPS transportation authorization. Parent signs; a filled PDF is emailed + stored." },
       { label: "Walk-in Self Sign-up", path: "/walkin", desc: "Walk-in picks a trial class and signs on their own phone." },
       { label: "Walk-in QR Display (staff)", path: "/walkin-qr", desc: "Full-screen QR to hand a walk-in on a tablet.", staffOnly: true },
       { label: "Attendance Kiosk", path: "/attendance", desc: "In-studio attendance check-in kiosk.", staffOnly: true },
