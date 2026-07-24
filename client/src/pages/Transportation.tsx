@@ -81,10 +81,10 @@ const TEXT_FIELDS: Box[] = [
   { key: "workPhone",   x: 330, y: 127, w: 122, h: 15, ph: "Work #" },
   { key: "schoolName",  x: 198, y: 199, w: 200, h: 15, ph: "Child's school" },
   { key: "dateToBegin", x: 116, y: 625, w: 74,  h: 14, ph: "Start date" },
-  { key: "printedName", x: 50,  y: 727, w: 270, h: 15, ph: "Print your name" },
-  { key: "signedDate",  x: 548, y: 723, w: 58,  h: 14, ph: "Date" },
+  { key: "printedName", x: 33,  y: 719, w: 205, h: 15, ph: "Print your name" },
+  { key: "signedDate",  x: 498, y: 719, w: 70,  h: 14, ph: "Date" },
 ];
-const SIG_BOX = { x: 400, y: 708, w: 182, h: 28 };
+const SIG_BOX = { x: 292, y: 701, w: 144, h: 27 };
 
 function todayISO() {
   const d = new Date();
@@ -130,6 +130,17 @@ export default function Transportation() {
   const pctW = (v: number) => `${(v / PAGE_W) * 100}%`;
   const pctH = (v: number) => `${(v / PAGE_H) * 100}%`;
   const fontPx = Math.max(9, Math.round(9.5 * scale));
+
+  // Grid-mode: live coordinate readout so exact field positions can be read off.
+  const [hoverXY, setHoverXY] = useState<{ x: number; y: number } | null>(null);
+  function onDocMove(e: React.MouseEvent) {
+    if (!showGrid) return;
+    const r = e.currentTarget.getBoundingClientRect();
+    setHoverXY({
+      x: Math.round(((e.clientX - r.left) / r.width) * PAGE_W),
+      y: Math.round(((e.clientY - r.top) / r.height) * PAGE_H),
+    });
+  }
 
   function openSignature() { setSigDraft(signature); setSigOpen(true); }
   function saveSignature() {
@@ -233,22 +244,30 @@ export default function Transportation() {
 
         {/* The GCPS form image with a fillable overlay */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-2">
-          <div ref={docRef} className="relative w-full select-none">
+          <div ref={docRef} className="relative w-full select-none" onMouseMove={onDocMove} onMouseLeave={() => setHoverXY(null)}>
             <img src={FORM_IMG} alt="GCPS Transportation Parent Authorization form" className="block w-full h-auto rounded" draggable={false} />
 
-            {/* Debug gridlines (?grid=1) to verify field placement */}
+            {/* Debug gridlines (?grid=1) to verify field placement. Minor lines
+                every 25, bolder + labeled every 50 (x) / 25 (y). */}
             {showGrid && scale > 0 && (
               <div className="absolute inset-0 pointer-events-none">
-                {Array.from({ length: Math.floor(PAGE_W / 50) + 1 }, (_, i) => i * 50).map(x => (
-                  <div key={`v${x}`} className="absolute top-0 bottom-0" style={{ left: pctL(x), borderLeft: "0.5px solid rgba(255,0,0,0.6)" }}>
-                    <span style={{ position: "absolute", top: 0, left: 1, fontSize: 7, color: "red" }}>{x}</span>
+                {Array.from({ length: Math.floor(PAGE_W / 25) + 1 }, (_, i) => i * 25).map(x => (
+                  <div key={`v${x}`} className="absolute top-0 bottom-0" style={{ left: pctL(x), borderLeft: `${x % 100 === 0 ? 0.9 : 0.4}px solid rgba(255,0,0,${x % 50 === 0 ? 0.7 : 0.35})` }}>
+                    {x % 50 === 0 && <span style={{ position: "absolute", top: 0, left: 1, fontSize: 7, color: "red" }}>{x}</span>}
                   </div>
                 ))}
                 {Array.from({ length: Math.floor(PAGE_H / 25) + 1 }, (_, i) => i * 25).map(y => (
-                  <div key={`h${y}`} className="absolute left-0 right-0" style={{ top: pctT(y), borderTop: "0.5px solid rgba(0,0,255,0.6)" }}>
+                  <div key={`h${y}`} className="absolute left-0 right-0" style={{ top: pctT(y), borderTop: `${y % 100 === 0 ? 0.9 : 0.4}px solid rgba(0,0,255,${y % 50 === 0 ? 0.7 : 0.35})` }}>
                     <span style={{ position: "absolute", left: 0, top: 1, fontSize: 7, color: "blue" }}>{y}</span>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {/* Live coordinate readout (grid mode): hover to read exact x,y */}
+            {showGrid && hoverXY && (
+              <div className="absolute z-30 px-2 py-1 rounded bg-black/80 text-white text-xs font-mono pointer-events-none" style={{ left: pctL(Math.min(hoverXY.x, 500)), top: pctT(Math.max(hoverXY.y - 20, 0)) }}>
+                x {hoverXY.x}, y {hoverXY.y}
               </div>
             )}
 
