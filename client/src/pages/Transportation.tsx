@@ -72,8 +72,8 @@ type Box = { key: TextKey; x: number; y: number; w: number; h: number; ph: strin
 // box), so top = lineY - height/2. Line positions were measured from the form image.
 const TEXT_FIELDS: Box[] = [
   { key: "studentName", x: 146, y: 56,  w: 232, h: 15, ph: "Student name" },
-  { key: "grade",       x: 456, y: 50,  w: 46,  h: 14, ph: "Grade" },
-  { key: "teacher",     x: 508, y: 50,  w: 72,  h: 14, ph: "Teacher" },
+  { key: "grade",       x: 345, y: 50,  w: 54,  h: 14, ph: "Grade" },
+  { key: "teacher",     x: 445, y: 50,  w: 62,  h: 14, ph: "Teacher" },
   { key: "homeAddress", x: 146, y: 92,  w: 252, h: 15, ph: "Home address" },
   { key: "homePhone",   x: 146, y: 111, w: 200, h: 15, ph: "Home phone" },
   { key: "aptBldg",     x: 470, y: 111, w: 90,  h: 14, ph: "Apt/Bldg #" },
