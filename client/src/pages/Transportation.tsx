@@ -68,21 +68,23 @@ type TextKey =
 // Field boxes in PDF points (x, y from TOP, width, height). Same numbers the
 // server stamps at, so the overlay and the signed PDF line up. Verify with ?grid=1.
 type Box = { key: TextKey; x: number; y: number; w: number; h: number; ph: string };
+// Boxes are vertically CENTERED on each printed line (input text centers in its
+// box), so top = lineY - height/2. Line positions were measured from the form image.
 const TEXT_FIELDS: Box[] = [
-  { key: "studentName", x: 146, y: 50,  w: 232, h: 16, ph: "Student name" },
-  { key: "grade",       x: 366, y: 52,  w: 62,  h: 14, ph: "Grade" },
-  { key: "teacher",     x: 446, y: 52,  w: 94,  h: 14, ph: "Teacher" },
-  { key: "homeAddress", x: 146, y: 86,  w: 252, h: 16, ph: "Home address" },
-  { key: "homePhone",   x: 146, y: 108, w: 204, h: 16, ph: "Home phone" },
-  { key: "aptBldg",     x: 466, y: 108, w: 92,  h: 16, ph: "Apt/Bldg #" },
-  { key: "cellPhone",   x: 88,  y: 122, w: 184, h: 16, ph: "Cell #" },
-  { key: "workPhone",   x: 330, y: 122, w: 124, h: 16, ph: "Work #" },
-  { key: "schoolName",  x: 198, y: 190, w: 206, h: 16, ph: "Child's school" },
-  { key: "dateToBegin", x: 116, y: 620, w: 76,  h: 14, ph: "Start date" },
-  { key: "printedName", x: 50,  y: 720, w: 274, h: 16, ph: "Print your name" },
-  { key: "signedDate",  x: 546, y: 720, w: 62,  h: 14, ph: "Date" },
+  { key: "studentName", x: 146, y: 56,  w: 232, h: 15, ph: "Student name" },
+  { key: "grade",       x: 456, y: 50,  w: 46,  h: 14, ph: "Grade" },
+  { key: "teacher",     x: 508, y: 50,  w: 72,  h: 14, ph: "Teacher" },
+  { key: "homeAddress", x: 146, y: 92,  w: 252, h: 15, ph: "Home address" },
+  { key: "homePhone",   x: 146, y: 111, w: 200, h: 15, ph: "Home phone" },
+  { key: "aptBldg",     x: 470, y: 111, w: 90,  h: 14, ph: "Apt/Bldg #" },
+  { key: "cellPhone",   x: 88,  y: 127, w: 184, h: 15, ph: "Cell #" },
+  { key: "workPhone",   x: 330, y: 127, w: 122, h: 15, ph: "Work #" },
+  { key: "schoolName",  x: 198, y: 199, w: 200, h: 15, ph: "Child's school" },
+  { key: "dateToBegin", x: 116, y: 625, w: 74,  h: 14, ph: "Start date" },
+  { key: "printedName", x: 50,  y: 727, w: 270, h: 15, ph: "Print your name" },
+  { key: "signedDate",  x: 548, y: 723, w: 58,  h: 14, ph: "Date" },
 ];
-const SIG_BOX = { x: 400, y: 712, w: 182, h: 30 };
+const SIG_BOX = { x: 400, y: 708, w: 182, h: 28 };
 
 function todayISO() {
   const d = new Date();
