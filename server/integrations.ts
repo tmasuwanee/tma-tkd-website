@@ -263,6 +263,69 @@ export async function sendTransportationForm(params: {
 }
 
 /**
+ * Emails the signed After School enrollment + waiver PDF to the parent and to
+ * staff. Called by afterschool.submitIntake after the parent signs, BEFORE
+ * payment, so the signed record exists even if they drop off at checkout.
+ */
+export async function sendAfterschoolIntake(params: {
+  parentEmail: string;
+  parentName: string;
+  studentName: string;
+  pdfBase64: string;
+}) {
+  const filename = `TMA-AfterSchool-Enrollment-${params.studentName.replace(/[^a-z0-9]+/gi, "-")}.pdf`;
+  const attachments: EmailAttachment[] = [{ filename, content: params.pdfBase64 }];
+
+  // Parent copy
+  try {
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: #1a2d5a; padding: 24px; text-align: center;">
+          <h1 style="color: white; margin: 0; font-size: 22px;">Enrollment Received</h1>
+          <p style="color: #a0b4d6; margin: 8px 0 0;">TMA Suwanee After School Program</p>
+        </div>
+        <div style="padding: 24px; background: #ffffff;">
+          <p style="font-size: 16px;">Hi ${params.parentName || "there"},</p>
+          <p>Thank you. We received your signed After School enrollment and waiver for
+          <strong>${params.studentName}</strong>. A full copy is attached to this email for your records.</p>
+          <p>If you have not paid your one-time enrollment fees yet, you can finish that from the
+          registration page. Our staff will reach out to confirm your start date and pick-up details.</p>
+          <p>Questions? Call or text us at <strong>(770) 277-3009</strong>.</p>
+        </div>
+        <div style="background: #1a2d5a; padding: 16px; text-align: center;">
+          <p style="color: white; margin: 0; font-size: 12px;">Top Martial Arts Suwanee &bull; 2005 Lawrenceville Suwanee Rd, Suwanee, GA 30024 &bull; (770) 277-3009</p>
+        </div>
+      </div>`;
+    await sendEmail(params.parentEmail, `Your TMA After School enrollment for ${params.studentName}`, html, attachments);
+    console.log('[Email] Afterschool intake sent to parent:', params.parentEmail);
+  } catch (error) {
+    console.error('[Email] Error sending afterschool intake to parent:', error);
+  }
+
+  // Staff copy
+  try {
+    if (ENV.leadNotificationEmail) {
+      const html = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <div style="background: #c41e3a; padding: 20px; text-align: center;">
+            <h1 style="color: white; margin: 0; font-size: 20px;">New After School Enrollment Signed</h1>
+          </div>
+          <div style="padding: 20px; background: #f9f9f9;">
+            <p><strong>Student:</strong> ${params.studentName}</p>
+            <p><strong>Parent:</strong> ${params.parentName} (${params.parentEmail})</p>
+            <p>The signed enrollment + waiver PDF is attached. Payment status is tracked separately
+            in the After School registrations view.</p>
+          </div>
+        </div>`;
+      await sendEmail(ENV.leadNotificationEmail, `After School enrollment signed: ${params.studentName}`, html, attachments);
+      console.log('[Email] Afterschool intake sent to staff');
+    }
+  } catch (error) {
+    console.error('[Email] Error sending afterschool intake to staff:', error);
+  }
+}
+
+/**
  * Send admin notification email when a free class inquiry is submitted
  */
 export async function sendEmailNotification(lead: Lead) {

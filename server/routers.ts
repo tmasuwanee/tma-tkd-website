@@ -50,8 +50,10 @@ import {
 } from "./db";
 import { sendTelegramMessage } from "./telegram";
 import { storagePut, storageGet } from "./storage";
-import { sendToGoogleSheets, sendToSlack, sendEmailNotification, sendProShopOrderNotification, sendCampRegistrationConfirmation, sendCampWaiverEmail, sendFieldTripConfirmation, sendTransportationForm, sendTrialReceipt, sendAfterschoolConfirmation } from "./integrations";
+import { sendToGoogleSheets, sendToSlack, sendEmailNotification, sendProShopOrderNotification, sendCampRegistrationConfirmation, sendCampWaiverEmail, sendFieldTripConfirmation, sendTransportationForm, sendTrialReceipt, sendAfterschoolConfirmation, sendAfterschoolIntake } from "./integrations";
 import { fillTransportationPdf } from "./transportation-pdf";
+import { buildAfterschoolIntakePdf } from "./afterschool-intake-pdf";
+import { afterschoolWaiverPlainText } from "@shared/afterschoolWaiver";
 import { fireLeadEvent, firePurchaseEvent } from "./meta-capi";
 import { computeOrderCents, buildOrderSummary } from "../shared/christmasPricing";
 import { getAdInsights, syncAdInsights } from "./facebook-ads";
@@ -2156,6 +2158,196 @@ export const appRouter = router({
   // uniform ($50), and supply fee ($65) upfront. No DB row needed — Stripe
   // metadata is the record. Staff is pinged on success via Telegram.
   afterschool: router({
+    // Full enrollment intake: children, parents, pickup auth, about-the-child,
+    // plan, and the signed waiver. Saves + emails the signed PDF FIRST (so the
+    // legal record exists even if the family drops off at checkout), then
+    // returns a Stripe PaymentIntent so the client can collect the one-time fees.
+    submitIntake: publicProcedure
+      .input(z.object({
+        // children
+        children: z.array(z.object({
+          name: z.string().min(1).max(255),
+          dob: z.string().max(40).optional(),
+          gender: z.string().max(40).optional(),
+        })).min(1).max(2),
+        childrenAddress: z.string().max(300).optional(),
+        // parents
+        parentEmail: z.string().email(),
+        primaryPhone: z.string().min(1).max(40),
+        legalCustody: z.string().max(200).optional(),
+        mother: z.object({
+          name: z.string().max(255).optional(),
+          phone: z.string().max(40).optional(),
+          address: z.string().max(300).optional(),
+          workPhone: z.string().max(40).optional(),
+          cellPhone: z.string().max(40).optional(),
+        }).optional(),
+        father: z.object({
+          name: z.string().max(255).optional(),
+          phone: z.string().max(40).optional(),
+          address: z.string().max(300).optional(),
+          cellPhone: z.string().max(40).optional(),
+        }).optional(),
+        // pickup authorization
+        pickupAuth: z.array(z.object({
+          name: z.string().max(255),
+          phone: z.string().max(40).optional(),
+        })).max(3).default([]),
+        custodialGuardianName: z.string().min(1).max(255),
+        // about the child
+        specialNeeds: z.string().max(2000).optional(),
+        hadSeizures: z.boolean().default(false),
+        hasTantrums: z.boolean().default(false),
+        tantrumHandling: z.string().max(1000).optional(),
+        pickupDays: z.array(z.string().max(12)).max(7).default([]),
+        // plan + fees
+        plan: z.enum(["4_5_day", "2_3_day"]),
+        includeUniform: z.boolean().default(true),
+        includeSupplyFee: z.boolean().default(true),
+        earlyBird: z.boolean().default(false),
+        startDate: z.string().max(40).optional(),
+        // waiver
+        waiverInitials: z.record(z.string(), z.string().max(6)),
+        signedName: z.string().min(1).max(255),
+        signedRelationship: z.string().max(120).optional(),
+        signedDate: z.string().min(1).max(40),
+        signaturePngDataUrl: z.string().min(1),
+        smsConsentText: z.string().max(2000).optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const ip = (ctx?.req as any)?.ip
+          || (ctx?.req as any)?.headers?.["cf-connecting-ip"]
+          || (ctx?.req as any)?.headers?.["x-forwarded-for"]
+          || null;
+
+        const planLabel = input.plan === "4_5_day" ? "4–5 Day/Week" : "2–3 Day/Week";
+        const primaryStudent = input.children[0];
+
+        // 1) Build the signed enrollment + waiver PDF.
+        const pdfBytes = await buildAfterschoolIntakePdf({
+          children: input.children,
+          childrenAddress: input.childrenAddress,
+          parentEmail: input.parentEmail,
+          legalCustody: input.legalCustody,
+          primaryPhone: input.primaryPhone,
+          mother: input.mother,
+          father: input.father,
+          pickupAuth: input.pickupAuth,
+          custodialGuardianName: input.custodialGuardianName,
+          aboutChild: {
+            specialNeeds: input.specialNeeds,
+            hadSeizures: input.hadSeizures,
+            hasTantrums: input.hasTantrums,
+            tantrumHandling: input.tantrumHandling,
+          },
+          pickupDays: input.pickupDays,
+          planLabel,
+          includeUniform: input.includeUniform,
+          includeSupplyFee: input.includeSupplyFee,
+          earlyBird: input.earlyBird,
+          startDate: input.startDate,
+          waiverInitials: input.waiverInitials,
+          signedName: input.signedName,
+          signedRelationship: input.signedRelationship,
+          signedDate: input.signedDate,
+          signaturePngDataUrl: input.signaturePngDataUrl,
+        });
+        const pdfBuffer = Buffer.from(pdfBytes);
+        const pdfBase64 = pdfBuffer.toString("base64");
+
+        // 2) Store the signed PDF.
+        let pdfUrl: string | null = null;
+        try {
+          const safe = primaryStudent.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase();
+          const key = `afterschool/${new Date().toISOString().slice(0, 10)}-${safe}-${Math.floor(Math.random() * 1e6)}.pdf`;
+          const put = await storagePut(key, pdfBuffer, "application/pdf");
+          pdfUrl = put.url;
+        } catch (err) {
+          console.error("[afterschool] PDF storage failed (continuing):", err);
+        }
+
+        // 3) Record it under the waivers system (matches/creates the lead by email).
+        let waiverId: number | undefined;
+        try {
+          const summary =
+            `After School Enrollment + Waiver\n` +
+            `Students: ${input.children.map(c => c.name + (c.dob ? ` (DOB ${c.dob})` : "")).join("; ")}\n` +
+            `Plan: ${planLabel}\n` +
+            `Pick-up days: ${input.pickupDays.join(", ") || "-"}\n` +
+            `Custodial guardian: ${input.custodialGuardianName}\n\n` +
+            afterschoolWaiverPlainText();
+          const result = await submitWaiver({
+            parentName: input.signedName,
+            address: input.childrenAddress ?? null,
+            email: input.parentEmail,
+            phone: input.primaryPhone,
+            students: input.children.map(c => ({ name: c.name, dob: c.dob ?? "" })),
+            interests: ["afterschool"],
+            signatureData: input.signaturePngDataUrl,
+            signedName: input.signedName,
+            signedDate: input.signedDate,
+            disclaimerText: summary,
+            source: "afterschool-registration",
+            pdfUrl,
+            ip: ip ? String(ip) : null,
+            ...(input.smsConsentText ? { smsConsent: true, smsConsentText: input.smsConsentText } : {}),
+          });
+          waiverId = result.waiverId;
+        } catch (err) {
+          console.error("[afterschool] waiver record failed (continuing):", err);
+        }
+
+        // 4) Email the signed PDF to parent + staff (non-blocking).
+        void sendAfterschoolIntake({
+          parentEmail: input.parentEmail,
+          parentName: input.signedName,
+          studentName: primaryStudent.name,
+          pdfBase64,
+        });
+        void sendTelegramMessage(
+          `📝 <b>After School enrollment signed</b>\n${input.signedName} · ${primaryStudent.name}\nPlan: ${planLabel}\n${adminLink("/admin/waivers")}`
+        ).catch(() => {});
+
+        // 5) Create the Stripe PaymentIntent for the one-time fees.
+        const REGISTRATION = 99_00;
+        const UNIFORM = 50_00;
+        const SUPPLY_FEE = 65_00;
+        const MONTHLY = input.plan === "4_5_day" ? 500_00 : 400_00;
+        const earlyBirdDiscount = input.earlyBird ? Math.round(MONTHLY * 0.5) : 0;
+        let amount = REGISTRATION;
+        if (input.includeUniform) amount += UNIFORM;
+        if (input.includeSupplyFee) amount += SUPPLY_FEE;
+        if (input.earlyBird) amount += earlyBirdDiscount;
+        const stripe = getStripe();
+        const paymentIntent = await stripe.paymentIntents.create({
+          amount,
+          currency: "usd",
+          receipt_email: input.parentEmail,
+          metadata: {
+            product: "afterschool_registration",
+            parentName: input.signedName,
+            studentName: primaryStudent.name,
+            email: input.parentEmail,
+            phone: input.primaryPhone,
+            plan: input.plan,
+            includeUniform: String(input.includeUniform),
+            includeSupplyFee: String(input.includeSupplyFee),
+            earlyBird: String(input.earlyBird),
+            earlyBirdDiscountCents: String(earlyBirdDiscount),
+            startDate: input.startDate ?? "",
+            waiverId: waiverId != null ? String(waiverId) : "",
+          },
+        });
+
+        return {
+          clientSecret: paymentIntent.client_secret,
+          paymentIntentId: paymentIntent.id,
+          amount,
+          earlyBirdDiscountCents: earlyBirdDiscount,
+          pdfUrl,
+          waiverId,
+        };
+      }),
     createIntent: publicProcedure
       .input(z.object({
         parentName: z.string().min(1).max(255),
