@@ -70,17 +70,19 @@ type TextKey =
 type Box = { key: TextKey; x: number; y: number; w: number; h: number; ph: string };
 // Boxes are vertically CENTERED on each printed line (input text centers in its
 // box), so top = lineY - height/2. Line positions were measured from the form image.
+// Positions from the parent hovering the ?grid=1 readout (x = box left, y = line
+// center). print name / signature / date confirmed correct.
 const TEXT_FIELDS: Box[] = [
-  { key: "studentName", x: 146, y: 56,  w: 232, h: 15, ph: "Student name" },
-  { key: "grade",       x: 345, y: 50,  w: 54,  h: 14, ph: "Grade" },
-  { key: "teacher",     x: 445, y: 50,  w: 62,  h: 14, ph: "Teacher" },
-  { key: "homeAddress", x: 146, y: 92,  w: 252, h: 15, ph: "Home address" },
-  { key: "homePhone",   x: 146, y: 111, w: 200, h: 15, ph: "Home phone" },
-  { key: "aptBldg",     x: 470, y: 111, w: 90,  h: 14, ph: "Apt/Bldg #" },
-  { key: "cellPhone",   x: 88,  y: 127, w: 184, h: 15, ph: "Cell #" },
-  { key: "workPhone",   x: 330, y: 127, w: 122, h: 15, ph: "Work #" },
-  { key: "schoolName",  x: 198, y: 199, w: 200, h: 15, ph: "Child's school" },
-  { key: "dateToBegin", x: 116, y: 625, w: 74,  h: 14, ph: "Start date" },
+  { key: "studentName", x: 89,  y: 55,  w: 290, h: 15, ph: "Student name" },
+  { key: "grade",       x: 264, y: 55,  w: 50,  h: 14, ph: "Grade" },
+  { key: "teacher",     x: 320, y: 55,  w: 68,  h: 14, ph: "Teacher" },
+  { key: "homeAddress", x: 89,  y: 88,  w: 300, h: 15, ph: "Home address" },
+  { key: "homePhone",   x: 88,  y: 107, w: 198, h: 15, ph: "Home phone" },
+  { key: "aptBldg",     x: 334, y: 107, w: 86,  h: 14, ph: "Apt/Bldg #" },
+  { key: "cellPhone",   x: 54,  y: 127, w: 166, h: 15, ph: "Cell #" },
+  { key: "workPhone",   x: 224, y: 127, w: 108, h: 15, ph: "Work #" },
+  { key: "schoolName",  x: 158, y: 198, w: 202, h: 15, ph: "Child's school" },
+  { key: "dateToBegin", x: 112, y: 613, w: 76,  h: 14, ph: "Start date" },
   { key: "printedName", x: 33,  y: 719, w: 205, h: 15, ph: "Print your name" },
   { key: "signedDate",  x: 498, y: 719, w: 70,  h: 14, ph: "Date" },
 ];

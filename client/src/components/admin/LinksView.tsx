@@ -42,6 +42,7 @@ const LINK_GROUPS: LinkGroup[] = [
   {
     group: "Program Pages",
     items: [
+      { label: "Class Schedule", path: "/schedule", desc: "Current weekly class schedule image. QR-friendly." },
       { label: "Taekwondo", path: "/taekwondo", desc: "Taekwondo program page." },
       { label: "Kickboxing", path: "/kickboxing", desc: "Kickboxing program page." },
       { label: "Brazilian Jiu-Jitsu", path: "/bjj", desc: "BJJ program page." },
