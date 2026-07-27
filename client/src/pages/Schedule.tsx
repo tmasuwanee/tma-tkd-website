@@ -3,7 +3,7 @@ import { Maximize2 } from "lucide-react";
 // Standalone class-schedule page. A QR code (on flyers / the studio wall) links
 // here so families always see the current schedule. Upload a new image via
 // `manus-upload-file --webdev` and update SCHEDULE_IMG to the returned path.
-const SCHEDULE_IMG = "/manus-storage/august-2026_860d85ea.jpg";
+const SCHEDULE_IMG = "/manus-storage/schedule-aug10-2026_1935212e.png";
 
 export default function Schedule() {
   return (
