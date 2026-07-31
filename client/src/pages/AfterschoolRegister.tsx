@@ -1,6 +1,6 @@
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -45,6 +45,19 @@ function getEarlyBirdDiscount(plan: Plan): number {
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 const STEP_LABELS = ["Children", "Parents", "Pick-up", "About", "Plan", "Sign & Agree"];
+
+// Draft autosave: everything the parent types is stashed in localStorage so a
+// refresh, an accidental back, or a detour to the tour page never loses it.
+// The drawn signature is intentionally NOT persisted (it can't visually restore
+// onto a fresh canvas). Cleared once registration completes.
+const SAVE_KEY = "tma_afterschool_intake_v1";
+// Compact snapshot handed to the tour page so "Schedule a tour instead" carries
+// over the name/child/phone/email the parent already entered.
+const TOUR_PREFILL_KEY = "tma_afterschool_prefill";
+
+function loadSaved(): Record<string, any> {
+  try { return JSON.parse(localStorage.getItem(SAVE_KEY) || "{}") || {}; } catch { return {}; }
+}
 
 const inputCls =
   "w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a2d5a]/30";
@@ -104,46 +117,69 @@ export default function AfterschoolRegister() {
 
   const todayIso = new Date().toISOString().slice(0, 10);
 
+  // Restore any saved draft once, then seed each field from it.
+  const saved = useMemo(loadSaved, []);
+
   // Wizard position: form step 0..5, then payment, then done.
   const [phase, setPhase] = useState<"form" | "payment" | "done">("form");
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState<number>(saved.step ?? 0);
 
   // ── Intake state ──
-  const [children, setChildren] = useState([
-    { name: "", dob: "", gender: "" },
-  ]);
-  const [twoChildren, setTwoChildren] = useState(false);
-  const [childrenAddress, setChildrenAddress] = useState("");
+  const [children, setChildren] = useState<{ name: string; dob: string; gender: string }[]>(
+    saved.children ?? [{ name: "", dob: "", gender: "" }],
+  );
+  const [twoChildren, setTwoChildren] = useState<boolean>(saved.twoChildren ?? false);
+  const [childrenAddress, setChildrenAddress] = useState<string>(saved.childrenAddress ?? "");
 
-  const [parentEmail, setParentEmail] = useState("");
-  const [primaryPhone, setPrimaryPhone] = useState("");
-  const [legalCustody, setLegalCustody] = useState("");
-  const [mother, setMother] = useState({ name: "", phone: "", address: "", workPhone: "", cellPhone: "" });
-  const [father, setFather] = useState({ name: "", phone: "", address: "", cellPhone: "" });
+  const [parentEmail, setParentEmail] = useState<string>(saved.parentEmail ?? "");
+  const [primaryPhone, setPrimaryPhone] = useState<string>(saved.primaryPhone ?? "");
+  const [legalCustody, setLegalCustody] = useState<string>(saved.legalCustody ?? "");
+  const [mother, setMother] = useState<{ name: string; phone: string; address: string; workPhone: string; cellPhone: string }>(
+    saved.mother ?? { name: "", phone: "", address: "", workPhone: "", cellPhone: "" });
+  const [father, setFather] = useState<{ name: string; phone: string; address: string; cellPhone: string }>(
+    saved.father ?? { name: "", phone: "", address: "", cellPhone: "" });
 
-  const [pickupAuth, setPickupAuth] = useState([
-    { name: "", phone: "" },
-    { name: "", phone: "" },
-    { name: "", phone: "" },
-  ]);
-  const [custodialGuardianName, setCustodialGuardianName] = useState("");
+  const [pickupAuth, setPickupAuth] = useState<{ name: string; phone: string }[]>(
+    saved.pickupAuth ?? [{ name: "", phone: "" }, { name: "", phone: "" }, { name: "", phone: "" }],
+  );
+  const [custodialGuardianName, setCustodialGuardianName] = useState<string>(saved.custodialGuardianName ?? "");
 
-  const [specialNeeds, setSpecialNeeds] = useState("");
-  const [hadSeizures, setHadSeizures] = useState<boolean | null>(null);
-  const [hasTantrums, setHasTantrums] = useState<boolean | null>(null);
-  const [tantrumHandling, setTantrumHandling] = useState("");
+  const [specialNeeds, setSpecialNeeds] = useState<string>(saved.specialNeeds ?? "");
+  const [hadSeizures, setHadSeizures] = useState<boolean | null>(saved.hadSeizures ?? null);
+  const [hasTantrums, setHasTantrums] = useState<boolean | null>(saved.hasTantrums ?? null);
+  const [tantrumHandling, setTantrumHandling] = useState<string>(saved.tantrumHandling ?? "");
 
-  const [plan, setPlan] = useState<Plan>("4_5_day");
-  const [includeUniform, setIncludeUniform] = useState(true);
-  const [includeSupplyFee, setIncludeSupplyFee] = useState(true);
-  const [startDate, setStartDate] = useState("");
-  const [pickupDays, setPickupDays] = useState<string[]>([]);
+  const [plan, setPlan] = useState<Plan>(saved.plan ?? "4_5_day");
+  const [includeUniform, setIncludeUniform] = useState<boolean>(saved.includeUniform ?? true);
+  const [includeSupplyFee, setIncludeSupplyFee] = useState<boolean>(saved.includeSupplyFee ?? true);
+  const [startDate, setStartDate] = useState<string>(saved.startDate ?? "");
+  const [pickupDays, setPickupDays] = useState<string[]>(saved.pickupDays ?? []);
 
-  const [waiverInitials, setWaiverInitials] = useState<Record<string, string>>({});
+  const [waiverInitials, setWaiverInitials] = useState<Record<string, string>>(saved.waiverInitials ?? {});
   const [signaturePng, setSignaturePng] = useState<string | null>(null);
-  const [signedName, setSignedName] = useState("");
-  const [signedRelationship, setSignedRelationship] = useState("");
+  const [signedName, setSignedName] = useState<string>(saved.signedName ?? "");
+  const [signedRelationship, setSignedRelationship] = useState<string>(saved.signedRelationship ?? "");
   const [agreed, setAgreed] = useState(false);
+
+  // Persist the draft on every change (signature + agree checkbox excluded).
+  useEffect(() => {
+    if (phase !== "form") return;
+    const blob = {
+      step, children, twoChildren, childrenAddress, parentEmail, primaryPhone, legalCustody,
+      mother, father, pickupAuth, custodialGuardianName, specialNeeds, hadSeizures, hasTantrums,
+      tantrumHandling, plan, includeUniform, includeSupplyFee, startDate, pickupDays,
+      waiverInitials, signedName, signedRelationship,
+    };
+    try { localStorage.setItem(SAVE_KEY, JSON.stringify(blob)); } catch { /* quota / private mode */ }
+  }, [phase, step, children, twoChildren, childrenAddress, parentEmail, primaryPhone, legalCustody,
+    mother, father, pickupAuth, custodialGuardianName, specialNeeds, hadSeizures, hasTantrums,
+    tantrumHandling, plan, includeUniform, includeSupplyFee, startDate, pickupDays,
+    waiverInitials, signedName, signedRelationship]);
+
+  // Clear the saved draft once registration is complete.
+  useEffect(() => {
+    if (phase === "done") { try { localStorage.removeItem(SAVE_KEY); } catch { /* noop */ } }
+  }, [phase]);
 
   // ── Checkout state ──
   const [clientSecret, setClientSecret] = useState<string | null>(null);
@@ -168,6 +204,19 @@ export default function AfterschoolRegister() {
 
   function toggleDay(d: string) {
     setPickupDays(prev => (prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d]));
+  }
+
+  // Hand what they've already typed to the tour page so it pre-fills there.
+  function goToTour() {
+    try {
+      localStorage.setItem(TOUR_PREFILL_KEY, JSON.stringify({
+        parentName: signedName || mother.name || father.name || "",
+        kidName: children[0]?.name || "",
+        phone: primaryPhone,
+        email: parentEmail,
+      }));
+    } catch { /* noop */ }
+    navigate("/afterschooltour");
   }
 
   // ── Per-step validation ──
@@ -670,7 +719,7 @@ export default function AfterschoolRegister() {
             <h3 className="font-bold text-[#1a2d5a] mb-2 text-base">Questions?</h3>
             <p className="text-sm text-gray-600 mb-3">Call or text us — we're happy to help.</p>
             <a href="tel:+17702773009" className="block text-[#c41e3a] font-semibold text-sm hover:underline">(770) 277-3009</a>
-            <button onClick={() => navigate("/afterschooltour")} className="mt-3 text-sm text-[#1a2d5a] hover:text-[#c41e3a] transition font-medium underline underline-offset-2">Schedule a tour instead →</button>
+            <button onClick={goToTour} className="mt-3 text-sm text-[#1a2d5a] hover:text-[#c41e3a] transition font-medium underline underline-offset-2">Schedule a tour instead →</button>
           </Card>
         </div>
       </div>

@@ -21,11 +21,21 @@ function getUtmParams() {
 }
 
 export default function AfterschoolTour() {
-  const [parentName, setParentName] = useState("");
-  const [kidName,    setKidName]    = useState("");
+  // If the parent came from the registration page via "Schedule a tour instead",
+  // carry over what they already typed. Read once, then clear it.
+  const prefill = useMemo(() => {
+    try {
+      const p = JSON.parse(localStorage.getItem("tma_afterschool_prefill") || "{}");
+      localStorage.removeItem("tma_afterschool_prefill");
+      return (p && typeof p === "object") ? p : {};
+    } catch { return {}; }
+  }, []);
+
+  const [parentName, setParentName] = useState(prefill.parentName || "");
+  const [kidName,    setKidName]    = useState(prefill.kidName || "");
   const [grade,      setGrade]      = useState("");
-  const [phone,      setPhone]      = useState("");
-  const [email,      setEmail]      = useState("");
+  const [phone,      setPhone]      = useState(prefill.phone || "");
+  const [email,      setEmail]      = useState(prefill.email || "");
   const [days,       setDays]       = useState<string[]>([]);
   const [smsConsent, setSmsConsent] = useState(false);
   const [submitted,  setSubmitted]  = useState(false);
