@@ -2720,6 +2720,37 @@ export async function insertAfterschoolRegistration(params: {
   return result?.insertId ?? 0;
 }
 
+export type AfterschoolRegistrationRow = {
+  id: number;
+  parentName: string;
+  childName: string;
+  childAge: number | null;
+  email: string;
+  phone: string;
+  planType: string;
+  registrationFee: number;
+  uniformFee: number;
+  supplyFee: number;
+  earlyBird: number;
+  totalAmountCents: number;
+  stripePaymentStatus: string;
+  paidAt: string | Date | null;
+};
+
+/** Paid after-school registrations (written by afterschool.confirm). Read-only
+ *  for the dashboard so these enrollments + payments are actually visible. */
+export async function getAfterschoolRegistrations(): Promise<AfterschoolRegistrationRow[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const [rows] = await db.execute(
+    sql`SELECT id, parentName, childName, childAge, email, phone, planType,
+        registrationFee, uniformFee, supplyFee, earlyBird, totalAmountCents,
+        stripePaymentStatus, paidAt
+        FROM afterschoolRegistrations ORDER BY paidAt DESC`
+  ) as unknown as [AfterschoolRegistrationRow[]];
+  return Array.isArray(rows) ? rows : [];
+}
+
 // ─── Camp Waivers ─────────────────────────────────────────────────────────────
 /** Insert a new camp waiver submission row. Returns the new row id. */
 export async function insertCampWaiver(params: {

@@ -232,9 +232,12 @@ Every alert (Telegram/email) links straight to the right section.
 - [x] Dedicated **Enrolled Families** view (recordType 'enrolled'), distinct from the Students roster.
 - [x] Regrouped the dashboard nav into the five clean sections: **Prospects** (Today's Calls, Calendar, Leads, Trial Check-in), **Customers** (Enrolled Families, Students, Orders, Camp), **Forms & Calls** (Waivers, Call Log, Voice Test), **Growth**, **System**.
 
-### Deferred to Phase 3
-- Align the n8n email sender to `hello@tmatkd.com` (match the app).
-- Consolidate the two Retell inbound handlers (app vs n8n) after confirming the Retell webhook URL.
-- Decide + wire the single no-show policy (email vs email + one call).
-- Capture the standalone After-School Care payment as a real record.
-- Rewrite `docs/WORKFLOWS.md` as the single current source of truth (all 11 workflows + app crons).
+### Phase 3 (in progress)
+- [x] Surfaced paid After-School registrations (the `afterschoolRegistrations` table was written but never read) in the Enrolled Families view via a new `afterschool.listRegistrations` query. (The old `createIntent` path is orphaned; the live flow is `submitIntake` -> `confirm`, both of which persist.)
+- [x] Rewrote `docs/WORKFLOWS.md` as the single current source of truth: all 11 n8n workflows + the app's 9 scheduled jobs + the Retell webhook, with the known overlaps called out.
+
+### Phase 3 (needs your input / external config)
+- Align every n8n workflow's email from-name to `Top Martial Arts <hello@tmatkd.com>` (n8n side).
+- Consolidate the two Retell inbound handlers (app `call_analyzed` vs n8n `call_ended`) after confirming which URL Retell points at.
+- Decide + wire the single no-show policy (email only vs email + one Retell call).
+- Fix the Facebook Lead Ads Sync "Summer Camp 2026" default so FB leads are not mislabeled as camp.

@@ -5,6 +5,7 @@ import { publicProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import {
   createLead, getLeadById, getLeadByEmail, getAllLeads, updateLeadStage, updateLeadProgram, updateLeadNotes, updateLeadTags, deleteLead,
+  getAfterschoolRegistrations,
   upsertLeadFromFacebook, createLeadActivity, getLeadActivities,
   createCampRegistration, updateCampRegistrationPayment,
   getCampRegistrationByPaymentIntentId, getCampRegistrationById, getAllCampRegistrations,
@@ -2465,6 +2466,9 @@ export const appRouter = router({
         }
         return { status: pi.status };
       }),
+    // Paid after-school registrations, so they are visible in the dashboard
+    // (Enrolled Families) instead of only existing in Stripe + the DB.
+    listRegistrations: publicProcedure.query(async () => getAfterschoolRegistrations()),
   }),
 
   // ─── Call Log (2026-06-11) ────────────────────────────────────────────────

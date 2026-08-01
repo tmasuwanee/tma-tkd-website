@@ -1,124 +1,121 @@
-# TMA n8n Workflows
+# TMA Automations — Source of Truth
 
-Running log of all active n8n workflows. Updated by Claude every time a workflow is created or changed.
-Claude's n8n instance: https://n8n.arfaconsults.com
+Every automated job in the TMA system, across BOTH brains that run them:
+1. The app's own scheduled jobs (Heartbeat crons hitting `/api/scheduled/*`) and the Retell voice webhook.
+2. The n8n workflows on `https://n8n.arfaconsults.com`.
 
-**Important URL gotcha:** The deployed Manus build mounts tRPC at `/api/trpc/`, NOT `/trpc/`. Hitting `/trpc/` returns the SPA HTML with status 200 — silent failure. Always use `/api/trpc/<procedure>` for tRPC calls. REST routes live at `/api/leads/...`, `/api/ads/...`.
+Last rewritten 2026-07-25 (previously listed only 5 of the 11 n8n workflows). Update this file whenever a job is added, changed, or retired, in either system.
+
+**URL gotcha:** the deployed Manus build mounts tRPC at `/api/trpc/`, NOT `/trpc/`. Hitting `/trpc/` returns the SPA HTML with status 200 (silent failure). REST routes live at `/api/leads/...`, `/api/ads/...`.
+
+**Ownership rule (target):** real-time + staff-facing + voice = the app; customer-facing email sequences + external syncs = n8n. See "Known overlaps" for where this is not yet clean.
 
 ---
 
-## Active Workflows
+## A. App scheduled jobs (Heartbeat crons)
 
-### TMA — Lead Intake v2
+Registered in `server/_core/index.ts`; each callback path starts with `/api/scheduled/`. Times are America/New_York.
+
+| Job | Endpoint | Schedule | What it does |
+|---|---|---|---|
+| Morning report | `/api/scheduled/morning-report` | ~11:30 AM daily | Blast-health / ops summary to staff (Telegram). |
+| Trial reminders (AM) | `/api/scheduled/trial-reminders-am` | ~8:00 AM daily | Staff Telegram: today's trials + 7/3/2/1-day trial-ending reminders. |
+| Trial check-in (PM) | `/api/scheduled/trial-checkin-pm` | ~8:30 PM daily | Staff Telegram "did they show?" prompt for today's trials. |
+| Daily call queue | `/api/scheduled/daily-call-queue` | ~8:00 AM daily | Scored top-N call list to Telegram. Prospects/trials only (recordType filter, 2026-07-25). |
+| Outbound: speed-to-lead | `/api/scheduled/outbound-speed-to-lead` | frequent | Retell outbound call to brand-new leads. Gated by the `voice_agent_outbound` kill switch + calling hours (8am-9pm ET) + `noOutboundCalls`. |
+| Outbound: no-show | `/api/scheduled/outbound-noshow` | daily | Retell outbound call to trial no-shows. |
+| Outbound: post-trial | `/api/scheduled/outbound-posttrial` | daily | Retell outbound call after an attended trial to close. |
+| Outbound: afterschool tour | `/api/scheduled/outbound-afterschool-tour` | daily | Retell outbound call to afterschool tour requests. |
+| FB ad-insights sync | `/api/scheduled/sync-fb-ads` | daily | Pulls TMA ad performance into the dashboard (Ad Performance view). |
+
+Plus the Retell voice webhook (not a cron): `POST /api/voice/retell-webhook` (secured by `?secret=VOICE_AGENT_SHARED_SECRET`) acts on `call_analyzed`, Telegrams every call, upserts `callLogs` (idempotent by callId), matches the lead by phone, applies a program tag, and auto-transitions to `trial_scheduled` if the agent booked. Inbound agent tools live at `/api/voice/resolve-date | check-availability | book-trial | route-to-human | notify-pickup` and outbound tools at `/api/voice/lead-context | log-call-outcome | schedule-retry | request-human-followup`.
+
+---
+
+## B. n8n workflows (11)
+
+### 1. TMA — Lead Intake v3 (Lifecycle) — ACTIVE
+- **ID:** `xFSKbA4gxDckbQOT`
+- **Trigger:** Webhook `https://n8n.arfaconsults.com/webhook/tma-lead`, fired by the website on lead submit (`N8N_WEBHOOK_URL` -> `fireN8nWebhook()` in `server/routers.ts`).
+- **Does:** routes the inbound lead via `rules.route` -> either sends a booking confirmation immediately, alerts staff if unsegmented, or fans out to `leadSequenceQueue` via `sequence.enqueueSequence`. Supersedes v2.
+
+### 2. TMA — Lead Intake v2 — INACTIVE (retired, replaced by v3)
 - **ID:** `9jcQQpZGvrYMdi8B`
-- **Status:** Active (Published)
-- **Trigger:** Webhook — `https://n8n.arfaconsults.com/webhook/tma-lead` — fires when a new lead submits the form on tmatkd.com
-- **What it does:**
-  1. Sends staff alert email to `tmasuwanee@gmail.com` (via Gmail)
-  2. Waits 48 hours
-  3. **Pre-send checks** (added 2026-05-18):
-     - Calls `GET /api/leads/:leadId/status` — skip if stage in `[enrolled, lost, no_show_final, trial_paid, trial_attended]`
-     - Calls `GET /api/trpc/leads.getActivity` — skip if any activity in last 48h where `sentBy` does NOT start with `n8n_` (meaning a human or other system touched the lead)
-  4. If checks pass: sends Day 2 follow-up email via Resend
-  5. Logs activity to `/api/trpc/leads.logActivity` with `status='sent'` or `status='skipped'` + reason
-  6. Waits 48 more hours
-  7. Repeats pre-send checks → sends Day 4 follow-up → logs
-- **Email provider:** Resend (from: hello@tmatkd.com)
-- **Connected to website via:** `N8N_WEBHOOK_URL` env var → `ENV.n8nWebhookUrl` → `fireN8nWebhook()` in `server/routers.ts`
-- **Last updated:** 2026-05-18 — added stage + staff-activity pre-send checks; fixed log URLs from `/trpc/` to `/api/trpc/`
+- **Was:** webhook -> staff alert email -> 48h waits -> Day 2 + Day 4 nurture with pre-send checks (`GET /api/leads/:leadId/status`, `GET /api/trpc/leads.getActivity`). Kept for reference; not running.
 
----
+### 3. TMA - Sequence Dispatcher — ACTIVE
+- **ID:** `1tW0c9L9y65TYuAR`
+- **Trigger:** Schedule, every 5 minutes.
+- **Does:** fetches due touches from `leadSequenceQueue`, claims, evaluates pre-send checks, sends/skips/fails, logs to `leadActivities`.
 
-### TMA — Trial No-Show Recovery
+### 4. TMA - Trial No-Show Recovery — ACTIVE
 - **ID:** `NilRfiqzUOBGRbU2`
-- **Status:** Active (Published)
-- **Trigger:** Schedule — daily at 9:00 AM
-- **What it does:**
-  1. **Day 1 node:** Calls `GET /api/leads?stages=new_lead,contacted&hasTrialDate=true`, filters for leads whose `trialClassDate` was yesterday → sends "We missed you at Top Martial Arts!" email → PATCHes stage to `no_show`
-  2. **Day 3 node:** Calls same endpoint filtered for `stage=no_show`, finds leads whose trial was 3 days ago → sends "Still want to try a class?" email → PATCHes stage to `no_show_final`
-- **Email provider:** Resend (from: hello@tmatkd.com)
-- **REST endpoints used:**
-  - `GET https://www.tmatkd.com/api/leads?stages=...&hasTrialDate=true`
-  - `PATCH https://www.tmatkd.com/api/leads/:leadId/stage`
-- **Last updated:** 2026-05-12 — initial build and publish
+- **Trigger:** Schedule, daily 9:00 AM.
+- **Does:** Day 1 - finds yesterday's trial no-shows, sends "We missed you" email, PATCHes stage to `no_show`. Day 3 - finds `no_show` leads 3 days out, sends "Still want to try?" email, PATCHes to `no_show_final`.
+- **Endpoints:** `GET /api/leads?stages=...&hasTrialDate=true`, `PATCH /api/leads/:leadId/stage`.
 
----
+### 5. TMA - Trial Reminders (24h) — ACTIVE
+- **ID:** `IrgfZmEUBAvpnYHr`
+- **Trigger:** Schedule, daily 9:00 AM ET.
+- **Does:** finds leads with a trial booked for tomorrow, sends the branded reminder email (what to bring + Get Directions). Idempotent via a `leadActivities` check.
 
-### TMA — Weekly Ad Intelligence
-- **ID:** `MNRiKau55C4S0RHp`
-- **Status:** Active (Published)
-- **Trigger:** Schedule — every Monday at 8:00 AM
-- **What it does:**
-  1. Pulls TMA's last 7 days of ad performance from `GET /api/ads/insights?days=7`
-  2. Searches Facebook Ad Library API for competitor ads across 5 keywords: "taekwondo", "martial arts for kids", "bjj kids", "karate kids", "kids martial arts"
-  3. Filters to ads running 30+ days (proven profitable creatives), deduplicates, caps at 20
-  4. Feeds both TMA performance + competitor data to GPT-4o
-  5. GPT-4o outputs: top 3 competitor angles + 3 TMA-specific creative briefs (hook, body, CTA, why it works)
-  6. Emails full report to tmasuwanee@gmail.com via Resend
-- **Email provider:** Resend (from: hello@tmatkd.com)
-- **AI model:** OpenAI GPT-4o
-- **APIs used:** Facebook Ad Library (`/v19.0/ads_archive`), OpenAI Chat Completions, TMA `/api/ads/insights`
-- **Last updated:** 2026-05-13 — initial build
-
----
-
-### TMA - Facebook Lead Ads Sync
-- **ID:** `lJwUNK9XpYbPDBBn`
-- **Status:** Active (Published) — 2026-05-18
-- **Trigger:** Schedule — every 15 minutes
-- **What it does:**
-  1. Reads last sync timestamp from workflow static data (defaults to 90 days ago on first run if not bootstrapped)
-  2. Calls `GET https://graph.facebook.com/v19.0/1636738774021598/leads?since=...&fields=id,created_time,field_data` (form ID hardcoded; access token is a Meta Business System User token, never-expires)
-  3. **Two-layer idempotency:**
-     - `lastSyncTimestamp` advances after every successful batch — FB API filters out anything older
-     - `seenFbLeadIds` Set in static data filters out any lead ID already processed (5000-entry FIFO cap)
-     - On first activation, the 75 existing FB lead IDs were pre-seeded via bootstrap — they will never trigger emails
-  4. Maps each lead's `field_data` array (full_name, email, phone, date_of_birth) to the TMA lead schema. Missing fields default to `kidName='TBD'`, `kidAge='Unknown'`, `programInterest='Summer Camp 2026'`
-  5. Sets `utmSource=facebook`, `utmMedium=lead_ad`, `utmCampaign=summer_camp_2026`
-  6. Sets `tags=["facebook_lead", "summer_camp_2026"]` on each lead
-  7. POSTs each lead to `POST https://tmatkd.com/api/trpc/leads.upsertFromFacebook` — email-based upsert, never overwrites notes/stage/existing tags
-  8. After each successful upsert, adds the FB lead ID to `seenFbLeadIds` static data
-  9. After all batches done, advances `lastSyncTimestamp` to now
-- **tRPC endpoint used:** `leads.upsertFromFacebook` (in `server/routers.ts`)
-- **Meta credentials:** System user "Conversions API System User" in TMA Top Martial Arts Business Portfolio. Token has assets: Ad Account `1008273610146745` (Full Control) + Facebook Page `474607123330465` (Tmasuwanee, Full Control). Permissions: `ads_management`, `ads_read`, `leads_retrieval`, `pages_read_engagement`, `pages_show_list`, `pages_manage_ads`.
-- **Last updated:** 2026-05-18 — initial build, fixed tRPC URL prefix (`/trpc/` → `/api/trpc/`), added two-layer idempotency, bootstrapped with 75 existing lead IDs
-
----
-
-### TMA - Enrollment Auto-Reconciler
+### 6. TMA - Enrollment Auto-Reconciler — ACTIVE
 - **ID:** `XfMkEGETzimiEmwN`
-- **Status:** Active (Published) — 2026-05-18
-- **Trigger:** Schedule — daily at 8:00 AM
-- **What it does:**
-  1. Calls `GET /api/trpc/leads.getAll` and `GET /api/trpc/students.getAll`
-  2. Builds normalized sets of student emails (lowercased) and phones (digits-only, leading-1 stripped, must be 10+ digits)
-  3. Iterates leads where `pipelineStage !== 'enrolled'`, matching on `email` OR `phone`
-  4. For each match: PATCHes lead to `stage='enrolled'` via `/api/leads/:leadId/stage`, then logs activity to `/api/trpc/leads.logActivity` with `sentBy=n8n_enrollment_reconciler` and a body explaining match type
-  5. First-run result (2026-05-18): 3 leads auto-enrolled (2 email+phone match, 1 phone-only)
-- **Why it exists:** Closes the loop between manual student onboarding (Manus dashboard) and the lead pipeline. Without this, a lead who enrolled via in-person walk-in (added to Students by staff) would remain in `new_lead` stage and keep receiving nurture emails. The `enrolled` stage stop is honored by Lead Intake v2's pre-send check.
-- **Last updated:** 2026-05-18 — initial build
+- **Trigger:** Schedule, daily 8:00 AM.
+- **Does:** cross-references `leads.getAll` vs `students.getAll` by normalized email/phone, marks matching leads `enrolled`, logs activity, sends the welcome + referral email.
+
+### 7. TMA - Facebook Lead Ads Sync — ACTIVE
+- **ID:** `lJwUNK9XpYbPDBBn`
+- **Trigger:** Schedule, every 15 minutes.
+- **Does:** polls FB Lead Ads, two-layer idempotency (`seenFbLeadIds` + `lastSyncTimestamp`), maps fields, POSTs each to `leads.upsertFromFacebook`.
+- **KNOWN ISSUE:** defaults `programInterest='Summer Camp 2026'`, `utmCampaign=summer_camp_2026`, tags `summer_camp_2026` (leftover from the summer campaign), so FB leads look like camp leads. Fix in Phase 3.
+
+### 8. TMA - Duplicate Lead Detector — ACTIVE
+- **ID:** `vaJFXIRwQAtIqEBN`
+- **Trigger:** Schedule, daily 7:00 AM ET.
+- **Does:** counts leads grouped by lowercased email, alerts staff if duplicates exist. This is a safety alarm; the real dedupe now happens at submit time in the app (2026-07-25).
+
+### 9. TMA - Retell Inbound Call Handler — ACTIVE
+- **ID:** `LlE5tPSR35lRma2C`
+- **Trigger:** Webhook, Retell `call_ended`.
+- **Does:** parses caller data, upserts the lead, logs the transcript, sends an HTML staff alert.
+- **OVERLAP:** the app also handles Retell (`/api/voice/retell-webhook`, `call_analyzed`). Confirm which URL Retell is actually pointed at; if both fire, staff get double alerts. Resolve in Phase 3.
+
+### 10. TMA - Camp Waiver Capture — ACTIVE
+- **ID:** `o7D3nodpRgGTaDJe`
+- **Trigger:** Webhook from the camp waiver form.
+- **Does:** formats the camp waiver submission into a branded email to `tmasuwanee@gmail.com` via Resend.
+
+### 11. TMA — Weekly Ad Intelligence — ACTIVE
+- **ID:** `MNRiKau55C4S0RHp`
+- **Trigger:** Schedule, Monday 8:00 AM.
+- **Does:** pulls TMA ad performance (`/api/ads/insights?days=7`) + FB Ad Library competitor ads, feeds GPT for angle analysis + 3 creative briefs, emails the report.
 
 ---
 
-## Retired / Inactive Workflows
+## C. Known overlaps to resolve (Phase 3)
 
-None yet.
+1. **Two Retell inbound handlers** (app `call_analyzed` + n8n #9 `call_ended`). Pick one.
+2. **No-show handled three ways** with no shared owner: app `trial-checkin-pm` Telegram + n8n #4 recovery emails + app `outbound-noshow` Retell call. Consolidate into one coordinated flow.
+3. **Two intake alert paths** on a new lead: the app fires Slack + a staff email on `leads.submit`, and n8n #1 also alerts staff. Decide one owner.
+4. **Two email sender identities:** the app sends as `Top Martial Arts <hello@tmatkd.com>` (2026-07-25); n8n sends from `hello@tmatkd.com` too but confirm every workflow uses that from-name consistently.
 
 ---
 
-## Endpoint Reference
+## Endpoint reference
 
-All endpoints n8n workflows call on the website. tRPC URL prefix is `/api/trpc/`, REST is `/api/`.
+tRPC prefix is `/api/trpc/`, REST is `/api/`.
 
-| Endpoint | Workflow(s) | Notes |
+| Endpoint | Used by | Notes |
 |---|---|---|
-| `POST /webhook/tma-lead` (on n8n) | (incoming from website) Lead Intake v2 | Website fires this on form submit |
-| `GET /api/leads?stages=...&hasTrialDate=true` | No-Show Recovery | Bulk lead query (filtered) |
-| `GET /api/leads/:leadId/status` | Lead Intake v2 | Stage check before sending nurture emails |
-| `PATCH /api/leads/:leadId/stage` | No-Show Recovery, Enrollment Reconciler | Stage updates |
-| `GET /api/ads/insights?days=N` | Ad Intelligence | TMA's own ad performance |
-| `GET /api/trpc/leads.getAll` | Enrollment Reconciler | Full lead list |
-| `GET /api/trpc/leads.getActivity?input=...` | Lead Intake v2 | Recent activity check (staff-pause logic) |
-| `POST /api/trpc/leads.upsertFromFacebook` | FB Lead Ads Sync | Email-based upsert, idempotent |
-| `POST /api/trpc/leads.logActivity` | Lead Intake v2, Enrollment Reconciler | Activity log entry |
-| `GET /api/trpc/students.getAll` | Enrollment Reconciler | Full student list for cross-ref |
+| `POST /webhook/tma-lead` (on n8n) | website -> Lead Intake v3 | fired on form submit via `fireN8nWebhook()` |
+| `GET /api/leads?stages=...&hasTrialDate=true` | No-Show Recovery | filtered bulk lead query |
+| `GET /api/leads/:leadId/status` | (legacy v2) | stage pre-send check |
+| `PATCH /api/leads/:leadId/stage` | No-Show Recovery, Enrollment Reconciler | stage updates |
+| `GET /api/ads/insights?days=N` | Ad Intelligence, app ad-sync | TMA ad performance |
+| `GET /api/trpc/leads.getAll` | Enrollment Reconciler | full lead list |
+| `GET /api/trpc/leads.getActivity?input=...` | (legacy v2) | recent-activity / staff-pause check |
+| `POST /api/trpc/leads.upsertFromFacebook` | FB Lead Ads Sync | email-based upsert, idempotent |
+| `POST /api/trpc/leads.logActivity` | Sequence Dispatcher, Reconciler | activity log entry |
+| `GET /api/trpc/students.getAll` | Enrollment Reconciler | roster cross-ref |
+| `GET /api/automation/status` (or controls) | all n8n schedules | kill-switch check before running |

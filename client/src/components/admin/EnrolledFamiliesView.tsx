@@ -30,9 +30,12 @@ const PROGRAM_DISPLAY: Record<string, string> = {
   "Summer Camp 2026": "Summer Camp",
 };
 const prettyProgram = (p: string) => PROGRAM_DISPLAY[p] ?? p;
+const PLAN_LABEL: Record<string, string> = { "4_5_day": "4-5 Day/Week", "2_3_day": "2-3 Day/Week" };
 
 export default function EnrolledFamiliesView() {
   const { data, isLoading } = trpc.leads.getAll.useQuery();
+  const { data: afterschoolRegs } = trpc.afterschool.listRegistrations.useQuery();
+  const regs = afterschoolRegs ?? [];
 
   const families = useMemo(
     () => ((data ?? []) as unknown as LeadRow[])
@@ -64,6 +67,55 @@ export default function EnrolledFamiliesView() {
           </p>
         </div>
       </div>
+
+      {/* Paid after-school registrations (from afterschoolRegistrations, previously invisible) */}
+      {regs.length > 0 && (
+        <Card>
+          <CardContent className="p-4 sm:p-5">
+            <h2 className="text-sm font-bold text-[#1a2d5a] mb-3">Paid After-School Registrations ({regs.length})</h2>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm min-w-[620px]">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-200 text-left">
+                    <th className="font-semibold text-gray-600 px-3 py-2.5">Child</th>
+                    <th className="font-semibold text-gray-600 px-3 py-2.5">Plan</th>
+                    <th className="font-semibold text-gray-600 px-3 py-2.5">Paid</th>
+                    <th className="font-semibold text-gray-600 px-3 py-2.5">Status</th>
+                    <th className="font-semibold text-gray-600 px-3 py-2.5">Contact</th>
+                    <th className="font-semibold text-gray-600 px-3 py-2.5">Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {regs.map(r => (
+                    <tr key={r.id} className="border-b border-gray-100 hover:bg-gray-50 align-top">
+                      <td className="px-3 py-2.5">
+                        <div className="font-medium text-gray-900">{r.childName}</div>
+                        <div className="text-xs text-gray-500">Parent: {r.parentName}</div>
+                      </td>
+                      <td className="px-3 py-2.5 text-gray-700">{PLAN_LABEL[r.planType] ?? r.planType}{r.earlyBird ? <span className="ml-1 text-xs text-green-700">· early bird</span> : null}</td>
+                      <td className="px-3 py-2.5 font-semibold text-gray-900 tabular-nums">${(r.totalAmountCents / 100).toFixed(2)}</td>
+                      <td className="px-3 py-2.5">
+                        <span className={`inline-block text-xs px-2 py-0.5 rounded-full border font-medium ${r.stripePaymentStatus === "succeeded" ? "bg-green-100 text-green-800 border-green-200" : "bg-yellow-100 text-yellow-800 border-yellow-200"}`}>
+                          {r.stripePaymentStatus === "succeeded" ? "Paid" : r.stripePaymentStatus}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <div className="flex flex-col gap-1 text-xs">
+                          {r.phone && <a href={`tel:${r.phone}`} className="inline-flex items-center gap-1 text-[#1a2d5a] hover:underline"><Phone className="w-3 h-3" />{r.phone}</a>}
+                          {r.email && <a href={`mailto:${r.email}`} className="inline-flex items-center gap-1 text-[#1a2d5a] hover:underline"><Mail className="w-3 h-3" />{r.email}</a>}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2.5 text-xs text-gray-500 whitespace-nowrap">
+                        {r.paidAt ? new Date(r.paidAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardContent className="p-0">
