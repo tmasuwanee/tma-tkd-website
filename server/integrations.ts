@@ -75,9 +75,11 @@ export async function sendToGoogleSheets(lead: Lead) {
  * Send notification to Slack
  */
 /**
- * Derives a human, source-accurate title for staff notifications, so a
- * back-to-school signup or a walk-in waiver is not mislabeled "New Free Class
- * Inquiry." Reads the lead's tags (JSON string or array) and programInterest.
+ * Derives a human, pipeline-accurate title for staff notifications, so every
+ * alert names where the person actually came from (pro shop, summer camp, day
+ * camp, a martial-arts program, a free-class inquiry, a special offer, etc.)
+ * instead of the old blanket "New Free Class Inquiry." Reads the lead's tags
+ * (JSON string or array) and programInterest. Order matters: most specific first.
  */
 export function leadSourceLabel(lead: Lead): { emoji: string; title: string } {
   const raw = (lead as { tags?: unknown }).tags;
@@ -87,11 +89,24 @@ export function leadSourceLabel(lead: Lead): { emoji: string; title: string } {
   const has = (t: string) => tags.includes(t);
   const prog = (lead.programInterest || "").toLowerCase();
 
+  // Orders (a purchase, not a person to chase)
   if (has("proshop_order") || prog.includes("pro shop")) return { emoji: "🛍️", title: "New Pro Shop Order" };
-  if (has("back_to_school_2026") || prog.includes("back to school")) return { emoji: "🎒", title: "New Back-to-School Signup" };
-  if (has("walk_in_waiver") || has("walk_in_manual") || prog.includes("in-person")) return { emoji: "📝", title: "New In-Person Sign-up" };
+  // Specials / promos
+  if (has("christmas_july_2026") || prog.includes("christmas")) return { emoji: "🎁", title: "New Christmas in July Order" };
+  if (has("back_to_school_2026") || prog.includes("back to school")) return { emoji: "🎒", title: "New Back-to-School Special" };
+  // Camps
+  if (prog.includes("day camp") || has("day_camp")) return { emoji: "☀️", title: "New Day Camp Inquiry" };
+  if (prog.includes("camp") || has("summer_camp") || has("summer_camp_2026")) return { emoji: "🏕️", title: "New Summer Camp Inquiry" };
+  // After-school program
   if (prog.includes("afterschool") || prog.includes("after school")) return { emoji: "🏫", title: "New After-School Inquiry" };
-  if (prog.includes("camp")) return { emoji: "🏕️", title: "New Camp Inquiry" };
+  // In-person sign-ups / waivers
+  if (has("walk_in_waiver") || has("walk_in_manual") || prog.includes("in-person")) return { emoji: "📝", title: "New In-Person Sign-up" };
+  // Martial-arts program inquiries name the specific art
+  if (prog.includes("taekwondo") || prog.includes("tkd")) return { emoji: "🥋", title: "New Taekwondo Inquiry" };
+  if (prog.includes("bjj") || prog.includes("jiu")) return { emoji: "🥋", title: "New Brazilian Jiu-Jitsu Inquiry" };
+  if (prog.includes("kickbox")) return { emoji: "🥊", title: "New Kickboxing Inquiry" };
+  if (prog.includes("multiple")) return { emoji: "🥋", title: "New Multi-Program Inquiry" };
+  // Default: a general free-class inquiry
   return { emoji: "🥋", title: "New Free Class Inquiry" };
 }
 

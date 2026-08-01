@@ -159,6 +159,12 @@ export async function getLeadByEmail(email: string): Promise<Lead | null> {
   return result[0] ?? null;
 }
 
+export async function setLeadRecordType(id: number, recordType: Lead["recordType"]) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(leads).set({ recordType }).where(eq(leads.id, id));
+}
+
 export async function getAllLeads(): Promise<Lead[]> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -456,15 +462,24 @@ export async function submitWaiver(input: {
   pdfUrl?: string | null;
   smsConsent?: boolean;
   smsConsentText?: string | null;
+  // Waiver signers are not cold leads; default them out of the prospect pile.
+  // After-school registrations pass "enrolled" so they land with paying families.
+  recordType?: "prospect" | "trial" | "enrolled" | "order" | "form_only";
 }): Promise<{ leadId: number; waiverId: number; matchedExisting: boolean }> {
   const primary = input.students[0];
   const existing = await getLeadByEmail(input.email);
+  const recordType = input.recordType ?? "form_only";
   let leadId: number;
   let matchedExisting = false;
 
   if (existing) {
     leadId = existing.id;
     matchedExisting = true;
+    // Only ever UPGRADE an existing lead to enrolled (a prospect who registers).
+    // Never demote a real prospect to form_only just because they signed a form.
+    if (recordType === "enrolled" && existing.recordType !== "enrolled") {
+      await setLeadRecordType(leadId, "enrolled");
+    }
   } else {
     const interestTags = input.interests.map(i => `interest_${i}`);
     leadId = await createLead({
@@ -476,6 +491,7 @@ export async function submitWaiver(input: {
       phone: input.phone,
       additionalNotes: input.address ? `Address: ${input.address}` : undefined,
       tags: JSON.stringify(["walk_in_waiver", ...interestTags]),
+      recordType,
       ...(input.smsConsent
         ? { smsConsent: 1, smsConsentAt: new Date(), smsConsentText: input.smsConsentText ?? null, smsConsentIp: input.ip ? String(input.ip).slice(0, 64) : null }
         : {}),
@@ -2058,6 +2074,7 @@ export async function getCallBoard(): Promise<{ today: CallBoardItem[]; thisWeek
   if (!db) return { today: [], thisWeek: [] };
   const candidates = await db.select().from(leads).where(
     sql`pipelineStage NOT IN ('enrolled','lost','no_show_final')
+        AND recordType IN ('prospect','trial')
         AND (automationPaused IS NULL OR automationPaused = 0)`
   );
   // "Today" in America/New_York, matching the calendar and check-in pages.
@@ -2135,6 +2152,7 @@ export async function generateDailyCallQueue(opts: {
   // rather than wrestling MySQL into ranking expressions.
   const candidates = await db.select().from(leads).where(
     sql`pipelineStage NOT IN ('enrolled','lost','no_show_final')
+        AND recordType IN ('prospect','trial')
         AND (automationPaused IS NULL OR automationPaused = 0)`
   );
 

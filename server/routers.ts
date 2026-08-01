@@ -4,7 +4,7 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import {
-  createLead, getLeadById, getAllLeads, updateLeadStage, updateLeadProgram, updateLeadNotes, updateLeadTags, deleteLead,
+  createLead, getLeadById, getLeadByEmail, getAllLeads, updateLeadStage, updateLeadProgram, updateLeadNotes, updateLeadTags, deleteLead,
   upsertLeadFromFacebook, createLeadActivity, getLeadActivities,
   createCampRegistration, updateCampRegistrationPayment,
   getCampRegistrationByPaymentIntentId, getCampRegistrationById, getAllCampRegistrations,
@@ -473,7 +473,12 @@ export const appRouter = router({
           const initialStage = input.trialClassDate ? 'trial_scheduled' as const : undefined;
           const email = input.email?.trim() || `no-email-${input.phone.replace(/\D/g, "") || "unknown"}-${Date.now()}@no-email.tma`;
 
-          const newLeadId = await createLead({
+          // Dedupe: a real email that already exists reuses that lead instead of
+          // inserting a second row (the leads.email UNIQUE index would otherwise
+          // reject the insert, failing the submission). Existing fields are left
+          // intact so we never clobber pipeline progress or staff notes.
+          const existingByEmail = input.email?.trim() ? await getLeadByEmail(email) : null;
+          const newLeadId = existingByEmail ? existingByEmail.id : await createLead({
             parentName: input.parentName,
             kidName: input.kidName,
             kidAge: input.kidAge,
@@ -508,6 +513,7 @@ export const appRouter = router({
             phone: input.phone,
             additionalNotes: input.additionalNotes ?? null,
             pipelineStage: "new_lead" as const,
+            recordType: "prospect" as const,
             trialPaidAmount: 0,
             internalNotes: null,
             utmSource: input.utmSource ?? null,
@@ -1964,6 +1970,7 @@ export const appRouter = router({
           email: input.email ?? "",
           phone: input.phone,
           pipelineStage: "new_lead",
+          recordType: "trial",
           additionalNotes: `Back to School Special: 2 weeks of ${input.program} for $${(AMOUNT / 100).toFixed(2)}. Online payment PENDING.`,
           tags: JSON.stringify(["back_to_school_2026"]),
           utmSource: input.utmSource,
@@ -2088,6 +2095,7 @@ export const appRouter = router({
           email: input.email ?? "",
           phone: input.phone,
           pipelineStage: "new_lead",
+          recordType: "order",
           additionalNotes: `${summary}\n\nOnline payment PENDING ($${(amountCents / 100).toFixed(2)}).`,
           tags: JSON.stringify(["proshop_order", "christmas_july_2026"]),
           utmSource: input.utmSource,
@@ -2288,6 +2296,7 @@ export const appRouter = router({
             signedDate: input.signedDate,
             disclaimerText: summary,
             source: "afterschool-registration",
+            recordType: "enrolled",
             pdfUrl,
             ip: ip ? String(ip) : null,
             ...(input.smsConsentText ? { smsConsent: true, smsConsentText: input.smsConsentText } : {}),

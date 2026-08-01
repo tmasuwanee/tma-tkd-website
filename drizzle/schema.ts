@@ -46,6 +46,18 @@ export const leads = mysqlTable("leads", {
   utmContent: varchar("utmContent", { length: 255 }),
   // Tags array stored as JSON string, e.g. '["facebook_lead","summer_camp_2026"]'
   tags: text("tags"),
+  // 2026-07-25: first-class record type so different populations stay separate.
+  // prospect  = a real lead to work (web free-class, tour, FB, martial-arts inquiry)
+  // trial     = paid/booked trial buyer (e.g. $49 back-to-school) still worth calling
+  // enrolled  = already a paying customer (after-school registration, converted lead)
+  // order     = pro-shop / seasonal sale purchase, not a person to chase
+  // form_only = signed a waiver / transportation form, not a cold lead
+  // The Leads pipeline + call board default to prospect+trial so customers never
+  // resurface in the "call these new leads" pile. Set at every creation path;
+  // migrate.ts backfills existing rows by tag / stage.
+  recordType: mysqlEnum("recordType", [
+    "prospect", "trial", "enrolled", "order", "form_only"
+  ]).default("prospect").notNull(),
   // Lead Conductor (2026-05-19): structured automation pause flag.
   // Workflows check this boolean directly instead of parsing internalNotes for '[AUTOMATION_PAUSED]'.
   automationPaused: tinyint("automationPaused").default(0).notNull(),

@@ -209,13 +209,25 @@ Every alert (Telegram/email) links straight to the right section.
 4. **Staff visual map: LOCKED (yes).** A one-page front-desk "where do I look" guide. Built as `docs/tma-crm-map.html`; best final home is a `/admin` page inside the dashboard (or an Artifact once publishing is re-authorized) so staff can actually reach it.
 5. Still open: Retell inbound handler (app vs n8n) needs a look at the Retell dashboard webhook URL before consolidating. Google Sheets export (finish signing or retire) can be decided in Phase 3.
 
-## 7. Phase 1 build scope (next up)
-Locked and ready to build:
-- Add `record_type` to `leads` (idempotent migration) and set it at every creation path.
-- Filter the Leads pipeline + Today's Calls + daily call queue to `record_type IN (prospect, trial)`.
-- Change the app email sender to `Top Martial Arts <hello@tmatkd.com>`; align n8n later.
-- Specialize the generic staff + Slack notification titles by source.
-- Fix the three malformed `<\b>` Telegram tags (`routers.ts:1783`, `routers.ts:2308`, `voice-routes.ts:448`).
-- Add badge labels for `In-person sign-up`, `Pro Shop`, `summer_camp`; remove the duplicate `back_to_school_2026` branch.
-- Add submit-time dedupe (match by email/phone) on the free-class and order paths.
-- Remove the hardcoded admin credentials from `pages/AdminRegistrations.tsx`.
+## 7. Phase 1 build log
+
+### Phase 1a (shipped, commit 53402bd)
+- [x] Email sender -> `Top Martial Arts <hello@tmatkd.com>` (was "TMA Summer Camp").
+- [x] Staff email + Slack titles specialized by source (`leadSourceLabel`).
+- [x] Pipeline badge labels for Pro Shop / In-person / Summer Camp + walk-in tags; removed the duplicate `back_to_school_2026` branch.
+- [x] Front Desk Playbook page at `/admin/playbook`.
+- [x] Removed the hardcoded admin credentials + dead login shell from `AdminRegistrations.tsx`.
+- [x] Confirmed the "malformed `<\b>` Telegram tags" were an audit escaping artifact; real code already uses `</b>`.
+
+### Phase 1b (shipped)
+- [x] `recordType` enum on `leads` (prospect/trial/enrolled/order/form_only) via idempotent boot migration + backfill of existing rows by tag/stage.
+- [x] Set `recordType` at every creation path: back-to-school -> trial, pro-shop/Christmas -> order, after-school registration -> enrolled, waivers/transportation -> form_only, everything else -> prospect.
+- [x] Filtered Today's Calls + daily call queue to `recordType IN ('prospect','trial')`.
+- [x] Leads pipeline: record-type view toggle (Prospects & Trials / Enrolled / Orders / Forms / All), default to prospects+trials.
+- [x] Submit-time dedupe on the free-class path (reuse existing lead by email instead of a duplicate insert).
+- [x] Broadened `leadSourceLabel` to name the exact pipeline (pro shop, Christmas, back-to-school, summer/day camp, after-school, Taekwondo/BJJ/Kickboxing, free class).
+
+### Deferred to Phase 2 / 3
+- Dedicated Orders + Enrolled Families views (Phase 2).
+- Align n8n email sender to hello@ (Phase 3).
+- Retell inbound handler consolidation + no-show policy (Phase 3).

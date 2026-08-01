@@ -32,6 +32,31 @@ const MIGRATIONS: { name: string; sql: string }[] = [
     name: "waivers.pdfUrl",
     sql: "ALTER TABLE waivers ADD COLUMN IF NOT EXISTS pdfUrl VARCHAR(1024)",
   },
+  {
+    // 2026-07-25: record type separates prospects from customers/orders/forms so
+    // the pipeline + call board stop surfacing already-paying people as cold leads.
+    // Stored as VARCHAR to keep the ADD COLUMN idempotent across MySQL/TiDB.
+    name: "leads.recordType",
+    sql: "ALTER TABLE leads ADD COLUMN IF NOT EXISTS recordType VARCHAR(20) NOT NULL DEFAULT 'prospect'",
+  },
+  // ── One-time backfill of existing rows (idempotent: only promotes rows still at
+  //    the 'prospect' default, so re-running never overrides a set value). ──
+  {
+    name: "leads.recordType backfill: orders",
+    sql: "UPDATE leads SET recordType='order' WHERE recordType='prospect' AND (tags LIKE '%proshop_order%' OR tags LIKE '%christmas_july%')",
+  },
+  {
+    name: "leads.recordType backfill: back-to-school trials",
+    sql: "UPDATE leads SET recordType='trial' WHERE recordType='prospect' AND tags LIKE '%back_to_school_2026%'",
+  },
+  {
+    name: "leads.recordType backfill: enrolled (stage or after-school registration)",
+    sql: "UPDATE leads SET recordType='enrolled' WHERE recordType='prospect' AND (pipelineStage='enrolled' OR (tags LIKE '%walk_in_waiver%' AND tags LIKE '%interest_afterschool%'))",
+  },
+  {
+    name: "leads.recordType backfill: form-only waiver/transportation signers",
+    sql: "UPDATE leads SET recordType='form_only' WHERE recordType='prospect' AND tags LIKE '%walk_in_waiver%'",
+  },
 ];
 
 export async function runStartupMigrations(): Promise<void> {

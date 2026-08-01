@@ -786,6 +786,10 @@ export default function LeadsPipeline() {
   const [programFilter, setProgramFilter] = useState("all");
   const [tagFilter, setTagFilter] = useState("all");
   const [search, setSearch] = useState("");
+  // Default to the working pile: real prospects + paid trials. Customers, orders,
+  // and form-only signers are hidden here (they have their own sections) so the
+  // pipeline never mixes people who already paid with people to chase.
+  const [recordTypeFilter, setRecordTypeFilter] = useState<"active" | "enrolled" | "order" | "form_only" | "all">("active");
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
 
   const { data: leads = [], isLoading, refetch } = trpc.leads.getAll.useQuery();
@@ -803,6 +807,9 @@ export default function LeadsPipeline() {
 
   const filteredLeads = useMemo(() => {
     let result = leads as Lead[];
+    const rt = (l: unknown) => (l as { recordType?: string }).recordType ?? "prospect";
+    if (recordTypeFilter === "active") result = result.filter(l => rt(l) === "prospect" || rt(l) === "trial");
+    else if (recordTypeFilter !== "all") result = result.filter(l => rt(l) === recordTypeFilter);
     if (programFilter !== "all") result = result.filter(l => l.programInterest === programFilter);
     if (tagFilter !== "all") result = result.filter(l => (l.tags ?? []).includes(tagFilter));
     const q = search.trim().toLowerCase();
@@ -813,7 +820,13 @@ export default function LeadsPipeline() {
       );
     }
     return result;
-  }, [leads, programFilter, tagFilter, search]);
+  }, [leads, recordTypeFilter, programFilter, tagFilter, search]);
+
+  const recordTypeCount = (t: "active" | "enrolled" | "order" | "form_only") => {
+    const rt = (l: unknown) => (l as { recordType?: string }).recordType ?? "prospect";
+    if (t === "active") return leads.filter(l => rt(l) === "prospect" || rt(l) === "trial").length;
+    return leads.filter(l => rt(l) === t).length;
+  };
 
   const handleMove = (lead: Lead, direction: "forward" | "back") => {
     const idx = STAGES.findIndex(s => s.value === lead.pipelineStage);
@@ -862,6 +875,30 @@ export default function LeadsPipeline() {
             <p className="text-3xl font-bold text-blue-700">{newToday}</p>
           </CardContent>
         </Card>
+      </div>
+
+      {/* Record-type view: keep customers/orders/forms out of the prospect pile */}
+      <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1 gap-1 flex-wrap">
+        {([
+          { key: "active", label: "Prospects & Trials" },
+          { key: "enrolled", label: "Enrolled" },
+          { key: "order", label: "Orders" },
+          { key: "form_only", label: "Forms" },
+          { key: "all", label: "All" },
+        ] as const).map(opt => (
+          <button
+            key={opt.key}
+            onClick={() => setRecordTypeFilter(opt.key)}
+            className={`text-xs font-medium px-3 py-1.5 rounded-md transition-colors ${
+              recordTypeFilter === opt.key
+                ? "bg-[#1a2d5a] text-white"
+                : "text-gray-600 hover:bg-gray-200"
+            }`}
+          >
+            {opt.label}
+            {opt.key !== "all" && <span className="ml-1 opacity-70">({recordTypeCount(opt.key)})</span>}
+          </button>
+        ))}
       </div>
 
       {/* Search */}
