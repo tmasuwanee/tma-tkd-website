@@ -53,7 +53,21 @@ const PROGRAM_COLORS: Record<string, string> = {
   "Kickboxing":        "bg-orange-600 text-white",
   "Afterschool":       "bg-purple-700 text-white",
   "Multiple Programs": "bg-teal-700 text-white",
+  "Pro Shop":          "bg-amber-600 text-white",
+  "In-person sign-up": "bg-slate-600 text-white",
+  "summer_camp":       "bg-green-700 text-white",
+  "Summer Camp 2026":  "bg-green-700 text-white",
 };
+
+// Tidy up raw/legacy program values so the badge never shows a slug.
+const PROGRAM_DISPLAY: Record<string, string> = {
+  "summer_camp":      "Summer Camp",
+  "Summer Camp 2026": "Summer Camp",
+  "In-person sign-up":"In-Person Sign-up",
+};
+function programLabel(program: string): string {
+  return PROGRAM_DISPLAY[program] ?? program;
+}
 
 // Tag color mapping
 function getTagColor(tag: string): string {
@@ -63,7 +77,7 @@ function getTagColor(tag: string): string {
   if (tag === "proshop_order") return "bg-amber-100 text-amber-900 border-amber-300 font-bold";
   if (tag === "christmas_july_2026") return "bg-red-100 text-red-800 border-red-300";
   if (tag === "back_to_school_2026") return "bg-indigo-100 text-indigo-800 border-indigo-300 font-bold";
-  if (tag === "back_to_school_2026") return "bg-indigo-100 text-indigo-800 border-indigo-300 font-bold";
+  if (tag === "walk_in_waiver" || tag === "walk_in_manual") return "bg-slate-100 text-slate-700 border-slate-300";
   return "bg-gray-100 text-gray-700 border-gray-200";
 }
 
@@ -74,6 +88,8 @@ const TAG_LABELS: Record<string, string> = {
   back_to_school_2026: "🎒 Back to School",
   facebook_lead: "Facebook Lead",
   tour_request: "Tour Request",
+  walk_in_waiver: "📝 In-Person Sign-up",
+  walk_in_manual: "📝 Walk-in Booking",
 };
 
 function tagLabel(tag: string): string {
@@ -159,7 +175,7 @@ function LeadCard({ lead, stageIndex, totalStages, onOpen, onMove }: {
           <p className="text-xs text-gray-500 truncate">{lead.parentName}</p>
         </div>
         <span className={`text-xs px-1.5 py-0.5 rounded font-medium shrink-0 ${programColor}`}>
-          {lead.programInterest}
+          {programLabel(lead.programInterest)}
         </span>
       </div>
 

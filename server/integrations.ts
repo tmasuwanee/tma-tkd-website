@@ -74,6 +74,27 @@ export async function sendToGoogleSheets(lead: Lead) {
 /**
  * Send notification to Slack
  */
+/**
+ * Derives a human, source-accurate title for staff notifications, so a
+ * back-to-school signup or a walk-in waiver is not mislabeled "New Free Class
+ * Inquiry." Reads the lead's tags (JSON string or array) and programInterest.
+ */
+export function leadSourceLabel(lead: Lead): { emoji: string; title: string } {
+  const raw = (lead as { tags?: unknown }).tags;
+  const tags: string[] = Array.isArray(raw)
+    ? (raw as string[])
+    : (() => { try { return JSON.parse((raw as string) || "[]"); } catch { return []; } })();
+  const has = (t: string) => tags.includes(t);
+  const prog = (lead.programInterest || "").toLowerCase();
+
+  if (has("proshop_order") || prog.includes("pro shop")) return { emoji: "🛍️", title: "New Pro Shop Order" };
+  if (has("back_to_school_2026") || prog.includes("back to school")) return { emoji: "🎒", title: "New Back-to-School Signup" };
+  if (has("walk_in_waiver") || has("walk_in_manual") || prog.includes("in-person")) return { emoji: "📝", title: "New In-Person Sign-up" };
+  if (prog.includes("afterschool") || prog.includes("after school")) return { emoji: "🏫", title: "New After-School Inquiry" };
+  if (prog.includes("camp")) return { emoji: "🏕️", title: "New Camp Inquiry" };
+  return { emoji: "🥋", title: "New Free Class Inquiry" };
+}
+
 export async function sendToSlack(lead: Lead) {
   try {
     if (!ENV.slackWebhookUrl) {
@@ -81,14 +102,15 @@ export async function sendToSlack(lead: Lead) {
       return;
     }
 
+    const { emoji, title } = leadSourceLabel(lead);
     const message = {
-      text: '🥋 New Free Class Inquiry',
+      text: `${emoji} ${title}`,
       blocks: [
         {
           type: 'header',
           text: {
             type: 'plain_text',
-            text: '🥋 New Free Class Inquiry',
+            text: `${emoji} ${title}`,
           },
         },
         {
@@ -185,7 +207,7 @@ async function sendEmail(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      from: 'TMA Summer Camp <noreply@tmatkd.com>',
+      from: 'Top Martial Arts <hello@tmatkd.com>',
       to,
       subject,
       html,
@@ -335,10 +357,11 @@ export async function sendEmailNotification(lead: Lead) {
       return;
     }
 
+    const { emoji, title } = leadSourceLabel(lead);
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <div style="background: #1a2d5a; padding: 20px; text-align: center;">
-          <h1 style="color: white; margin: 0;">🥋 New Free Class Inquiry</h1>
+          <h1 style="color: white; margin: 0;">${emoji} ${title}</h1>
         </div>
         <div style="padding: 24px; background: #f9f9f9;">
           <table style="width: 100%; border-collapse: collapse;">
@@ -359,7 +382,7 @@ export async function sendEmailNotification(lead: Lead) {
       </div>
     `;
 
-    await sendEmail(ENV.leadNotificationEmail, `New Free Class Inquiry - ${lead.kidName}`, html);
+    await sendEmail(ENV.leadNotificationEmail, `${title} - ${lead.kidName}`, html);
     console.log('[Email] Admin notification sent to:', ENV.leadNotificationEmail);
   } catch (error) {
     console.error('[Email] Error sending admin notification:', error);

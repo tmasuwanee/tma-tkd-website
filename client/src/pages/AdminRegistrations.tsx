@@ -1,7 +1,5 @@
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -18,95 +16,16 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   Loader2, Users, DollarSign, CheckCircle, Clock, XCircle,
-  Trash2, RotateCcw, Calendar, Eye, EyeOff, LogOut,
-  LayoutDashboard, Kanban, GraduationCap, BarChart2, Mail, Route,
+  Trash2, RotateCcw, Calendar, Eye, EyeOff, Mail,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import LeadsPipeline from "@/components/admin/LeadsPipeline";
-import StudentsRoster from "@/components/admin/StudentsRoster";
-import AdsInsightsDashboard from "@/components/admin/AdsInsightsDashboard";
-import SequencesEditor from "@/components/admin/SequencesEditor";
-import IntakeRulesEditor from "@/components/admin/IntakeRulesEditor";
 
-// ─── Auth ─────────────────────────────────────────────────────────────────────
-
-const ADMIN_EMAIL = "tmasuwanee@gmail.com";
-const ADMIN_PASSWORD = "Keep9oing!";
-const SESSION_KEY = "tma_admin_session";
-
-function LoginGate({ onLogin }: { onLogin: () => void }) {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPw, setShowPw] = useState(false);
-  const [error, setError] = useState("");
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (email.trim() === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
-      sessionStorage.setItem(SESSION_KEY, "1");
-      onLogin();
-    } else {
-      setError("Incorrect email or password.");
-    }
-  };
-
-  return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-      <Card className="w-full max-w-sm shadow-lg">
-        <CardHeader className="text-center pb-2">
-          <div className="w-12 h-12 bg-[#1a2d5a] rounded-xl flex items-center justify-center mx-auto mb-3">
-            <span className="text-white font-bold text-lg">TMA</span>
-          </div>
-          <CardTitle className="text-xl text-[#1a2d5a]">Admin Access</CardTitle>
-          <p className="text-sm text-gray-500">Top Martial Arts Suwanee</p>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4 mt-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                placeholder="tmasuwanee@gmail.com"
-                autoComplete="email"
-                required
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="password">Password</Label>
-              <div className="relative">
-                <Input
-                  id="password"
-                  type={showPw ? "text" : "password"}
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  autoComplete="current-password"
-                  required
-                />
-                <button
-                  type="button"
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  onClick={() => setShowPw(v => !v)}
-                  tabIndex={-1}
-                >
-                  {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
-            {error && <p className="text-sm text-red-600">{error}</p>}
-            <Button type="submit" className="w-full bg-[#1a2d5a] hover:bg-[#1a2d5a]/90">
-              Sign In
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
+// NOTE: This file used to also export a standalone admin shell (default export)
+// with its own hardcoded login gate. That shell was unrouted (/admin/registrations
+// redirects to /admin/leads) and shipped an admin password in the client bundle,
+// so it was removed 2026-07-25. The dashboard now lives entirely in AdminShell;
+// only CampRegistrationsTab is consumed from here.
 
 // ─── Camp Registrations Tab ───────────────────────────────────────────────────
 
@@ -413,89 +332,6 @@ export function CampRegistrationsTab() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
-  );
-}
-
-// ─── Tab definitions ──────────────────────────────────────────────────────────
-
-const TABS = [
-  { id: "registrations", label: "Camp Registrations", icon: LayoutDashboard },
-  { id: "pipeline",      label: "Leads Pipeline",     icon: Kanban },
-  { id: "students",      label: "Students",            icon: GraduationCap },
-  { id: "sequences",     label: "Email Sequences",     icon: Mail },
-  { id: "rules",         label: "Routing Rules",       icon: Route },
-  { id: "ads",           label: "Ad Performance",      icon: BarChart2 },
-] as const;
-
-type TabId = typeof TABS[number]["id"];
-
-// ─── Main Page ────────────────────────────────────────────────────────────────
-
-export default function AdminRegistrations() {
-  const [isAuthed, setIsAuthed] = useState(() => sessionStorage.getItem(SESSION_KEY) === "1");
-  const [activeTab, setActiveTab] = useState<TabId>("registrations");
-
-  const handleLogout = () => {
-    sessionStorage.removeItem(SESSION_KEY);
-    setIsAuthed(false);
-  };
-
-  if (!isAuthed) {
-    return <LoginGate onLogin={() => setIsAuthed(true)} />;
-  }
-
-  return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-[#1a2d5a] text-white px-6 py-4">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold">TMA Admin</h1>
-            <p className="text-white/60 text-xs mt-0.5">Top Martial Arts Suwanee</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <a href="/" className="text-white/60 hover:text-white text-sm">← Back to Site</a>
-            <Button variant="outline" size="sm" onClick={handleLogout} className="bg-transparent border-white/30 text-white hover:bg-white/10 gap-1.5">
-              <LogOut className="w-3.5 h-3.5" />Sign Out
-            </Button>
-          </div>
-        </div>
-      </div>
-
-      {/* Tab Bar */}
-      <div className="bg-white border-b border-gray-200 px-6">
-        <div className="max-w-7xl mx-auto flex gap-0">
-          {TABS.map(tab => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-4 py-3.5 text-sm font-medium border-b-2 transition-colors ${
-                  isActive
-                    ? "border-[#1a2d5a] text-[#1a2d5a]"
-                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                }`}
-              >
-                <Icon className="w-4 h-4" />
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Tab Content */}
-      <div className="max-w-7xl mx-auto px-6 py-8">
-        {activeTab === "registrations" && <CampRegistrationsTab />}
-        {activeTab === "pipeline"      && <LeadsPipeline />}
-        {activeTab === "students"      && <StudentsRoster />}
-        {activeTab === "sequences"     && <SequencesEditor />}
-        {activeTab === "rules"         && <IntakeRulesEditor />}
-        {activeTab === "ads"           && <AdsInsightsDashboard />}
-      </div>
     </div>
   );
 }
