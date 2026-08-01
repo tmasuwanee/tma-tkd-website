@@ -1,0 +1,323 @@
+<title>TMA Front Desk Playbook — Where Everything Lives</title>
+<style>
+  :root {
+    --ground: #f6f8fc;
+    --card: #ffffff;
+    --card-2: #f0f3fa;
+    --ink: #1a2233;
+    --ink-soft: #384258;
+    --navy: #1a2d5a;
+    --navy-soft: #33456f;
+    --muted: #63708a;
+    --line: #dfe4ee;
+    --line-strong: #c7cee0;
+    --accent: #c41e3a;
+    --accent-soft: #f7e4e7;
+    --good: #2f7a57;
+    --good-bg: #e6f2eb;
+    --warn: #b47613;
+    --warn-bg: #f7eede;
+    --shadow: 0 1px 2px rgba(26,45,90,.06), 0 4px 16px rgba(26,45,90,.05);
+    --radius: 12px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground: #0d1424;
+      --card: #15203a;
+      --card-2: #1b2842;
+      --ink: #e7ecf6;
+      --ink-soft: #b7c1d8;
+      --navy: #9fb4dd;
+      --navy-soft: #c3d0ea;
+      --muted: #8896b3;
+      --line: #263250;
+      --line-strong: #33436a;
+      --accent: #e34c63;
+      --accent-soft: #35202a;
+      --good: #5cbf90;
+      --good-bg: #142a20;
+      --warn: #d6a24a;
+      --warn-bg: #2a2213;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 6px 20px rgba(0,0,0,.28);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #0d1424; --card: #15203a; --card-2: #1b2842; --ink: #e7ecf6;
+    --ink-soft: #b7c1d8; --navy: #9fb4dd; --navy-soft: #c3d0ea; --muted: #8896b3;
+    --line: #263250; --line-strong: #33436a; --accent: #e34c63; --accent-soft: #35202a;
+    --good: #5cbf90; --good-bg: #142a20; --warn: #d6a24a; --warn-bg: #2a2213;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 6px 20px rgba(0,0,0,.28);
+  }
+  :root[data-theme="light"] {
+    --ground: #f6f8fc; --card: #ffffff; --card-2: #f0f3fa; --ink: #1a2233;
+    --ink-soft: #384258; --navy: #1a2d5a; --navy-soft: #33456f; --muted: #63708a;
+    --line: #dfe4ee; --line-strong: #c7cee0; --accent: #c41e3a; --accent-soft: #f7e4e7;
+    --good: #2f7a57; --good-bg: #e6f2eb; --warn: #b47613; --warn-bg: #f7eede;
+    --shadow: 0 1px 2px rgba(26,45,90,.06), 0 4px 16px rgba(26,45,90,.05);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1060px; margin: 0 auto; padding: clamp(20px, 4vw, 56px) clamp(16px, 4vw, 40px) 72px; }
+
+  .eyebrow {
+    font-size: 11px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--accent); margin: 0 0 10px;
+  }
+  h1 {
+    font-size: clamp(28px, 5vw, 44px); line-height: 1.05; letter-spacing: -.02em;
+    font-weight: 800; margin: 0 0 12px; color: var(--navy); text-wrap: balance;
+  }
+  .lede { font-size: clamp(15px, 2vw, 17.5px); color: var(--ink-soft); max-width: 62ch; margin: 0; }
+
+  .section { margin-top: clamp(40px, 6vw, 68px); }
+  .section-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+  h2 {
+    font-size: clamp(18px, 2.4vw, 23px); letter-spacing: -.01em; font-weight: 750; font-weight: 700;
+    margin: 0; color: var(--navy);
+  }
+  .section-note { font-size: 13.5px; color: var(--muted); margin: 0; }
+
+  /* Where do I look — cards */
+  .lookup { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 18px 18px 16px; box-shadow: var(--shadow); position: relative;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .card .tag {
+    display: inline-flex; align-items: center; gap: 7px; align-self: flex-start;
+    font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+    color: var(--navy); background: var(--card-2); border: 1px solid var(--line);
+    padding: 4px 9px; border-radius: 999px;
+  }
+  .card .dot { width: 8px; height: 8px; border-radius: 2px; background: var(--accent); }
+  .card h3 { margin: 2px 0 0; font-size: 16px; font-weight: 700; color: var(--ink); }
+  .card .use { font-size: 13px; color: var(--ink-soft); }
+  .card .use b { color: var(--ink); font-weight: 650; font-weight: 600; }
+  .card .holds { font-size: 12px; color: var(--muted); margin-top: auto; padding-top: 8px; border-top: 1px dashed var(--line); }
+
+  /* Lifecycle flow */
+  .flow { display: flex; flex-wrap: wrap; align-items: stretch; gap: 8px; }
+  .stage {
+    flex: 1 1 130px; background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+    padding: 12px 13px; box-shadow: var(--shadow); min-width: 0;
+  }
+  .stage .k { font-size: 10.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+  .stage .v { font-size: 14.5px; font-weight: 700; color: var(--navy); margin-top: 3px; }
+  .stage .d { font-size: 12px; color: var(--ink-soft); margin-top: 5px; }
+  .stage.branch { border-color: var(--line-strong); }
+  .stage.win { background: var(--good-bg); border-color: color-mix(in srgb, var(--good) 35%, var(--line)); }
+  .stage.win .v { color: var(--good); }
+  .stage.lose .v { color: var(--accent); }
+  .flow-arrow { align-self: center; color: var(--line-strong); font-weight: 700; padding: 0 2px; }
+
+  /* Current vs proposed */
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .panel { border-radius: var(--radius); padding: 20px; border: 1px solid var(--line); background: var(--card); box-shadow: var(--shadow); }
+  .panel.now { border-color: color-mix(in srgb, var(--warn) 30%, var(--line)); }
+  .panel h3 { margin: 0 0 4px; font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+  .panel.now h3 { color: var(--warn); }
+  .panel.next h3 { color: var(--good); }
+  .panel .sub { font-size: 12.5px; color: var(--muted); margin: 0 0 14px; }
+  .panel ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; }
+  .panel li { font-size: 13.5px; color: var(--ink-soft); padding-left: 22px; position: relative; }
+  .panel.now li::before { content: "×"; position: absolute; left: 0; top: -1px; color: var(--warn); font-weight: 800; }
+  .panel.next li::before { content: "✓"; position: absolute; left: 0; top: 0; color: var(--good); font-weight: 800; font-size: 12px; }
+  .panel li b { color: var(--ink); font-weight: 650; font-weight: 600; }
+
+  /* Populations table */
+  .table-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+  table { border-collapse: collapse; width: 100%; min-width: 640px; background: var(--card); font-size: 13px; }
+  thead th {
+    text-align: left; font-size: 10.5px; letter-spacing: .09em; text-transform: uppercase; color: var(--muted);
+    font-weight: 700; padding: 12px 16px; background: var(--card-2); border-bottom: 1px solid var(--line);
+  }
+  tbody td { padding: 12px 16px; border-bottom: 1px solid var(--line); color: var(--ink-soft); vertical-align: top; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody td b { color: var(--ink); font-weight: 600; }
+  .pill { display: inline-block; font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
+  .pill.prospect { color: var(--navy); background: color-mix(in srgb, var(--navy) 12%, transparent); }
+  .pill.enrolled { color: var(--good); background: var(--good-bg); }
+  .pill.order { color: var(--accent); background: var(--accent-soft); }
+  .pill.camp { color: var(--warn); background: var(--warn-bg); }
+  .pill.form { color: var(--muted); background: var(--card-2); }
+
+  /* Behind the scenes */
+  .bts { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+  .bts .card h3 { font-size: 14.5px; }
+  .bts .card p { margin: 0; font-size: 13px; color: var(--ink-soft); }
+
+  .foot { margin-top: 56px; padding-top: 18px; border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .brandmark { display: inline-flex; align-items: center; gap: 9px; font-weight: 800; color: var(--navy); letter-spacing: -.01em; }
+  .brandmark .sq { width: 22px; height: 22px; border-radius: 6px; background: var(--navy); color: var(--card); display: grid; place-items: center; font-size: 10px; font-weight: 800; }
+
+  @media (max-width: 680px) {
+    .split { grid-template-columns: 1fr; }
+    .flow-arrow { display: none; }
+  }
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Top Martial Arts Suwanee &middot; Front Desk Playbook</p>
+    <h1>Where everything lives in the new system</h1>
+    <p class="lede">One place to look up any person who touches TMA. Every lead, family, order, and form has one home now, so nobody gets cold-called after they have already signed up, and every alert points you to the right screen.</p>
+  </header>
+
+  <!-- WHERE DO I LOOK -->
+  <section class="section">
+    <div class="section-head">
+      <h2>Where do I look?</h2>
+      <p class="section-note">Start here. Pick the row that matches the person in front of you.</p>
+    </div>
+    <div class="lookup">
+      <div class="card">
+        <span class="tag"><span class="dot"></span>Prospects</span>
+        <h3>Someone interested, not signed up yet</h3>
+        <p class="use">Use when a <b>new person wants info or a trial</b>, or you need to call people back and book them in.</p>
+        <p class="holds">Holds: web inquiries, tour requests, Facebook leads, $99 &amp; $49 trials. This is the call list and the calendar.</p>
+      </div>
+      <div class="card">
+        <span class="tag"><span class="dot" style="background:var(--good)"></span>Enrolled Families</span>
+        <h3>Already a paying student</h3>
+        <p class="use">Use for <b>current members</b>: belts, attendance, after-school enrolled families, contact info.</p>
+        <p class="holds">Holds: the student roster and after-school enrollments. These never show up in the call list.</p>
+      </div>
+      <div class="card">
+        <span class="tag"><span class="dot" style="background:var(--accent)"></span>Orders</span>
+        <h3>Bought gear or a package</h3>
+        <p class="use">Use when someone <b>paid for pro-shop items, a bundle, or a sale</b> and you need to fulfill it.</p>
+        <p class="holds">Holds: pro-shop and seasonal sale orders. A purchase, not a person to chase.</p>
+      </div>
+      <div class="card">
+        <span class="tag"><span class="dot" style="background:var(--warn)"></span>Camp</span>
+        <h3>Summer / seasonal camp</h3>
+        <p class="use">Use for <b>camp registrations and camp field-trip payments</b>.</p>
+        <p class="holds">Holds: camp registrations (already kept separate today, the model for the rest).</p>
+      </div>
+      <div class="card">
+        <span class="tag"><span class="dot" style="background:var(--muted)"></span>Forms &amp; Calls</span>
+        <h3>Paperwork and phone history</h3>
+        <p class="use">Use to find a <b>signed waiver, a transportation form, or a call recording</b>.</p>
+        <p class="holds">Holds: waivers, transportation forms, the voice-agent call log, and the test-call tool.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- LIFECYCLE -->
+  <section class="section">
+    <div class="section-head">
+      <h2>The trial journey</h2>
+      <p class="section-note">How a prospect moves from first contact to enrolled. Check-in decides "showed up" vs "no-show."</p>
+    </div>
+    <div class="flow">
+      <div class="stage"><div class="k">Step 1</div><div class="v">New lead</div><div class="d">Came in from a form, ad, or call.</div></div>
+      <span class="flow-arrow">&rarr;</span>
+      <div class="stage"><div class="k">Step 2</div><div class="v">Contacted</div><div class="d">We reached out. Text or call logged.</div></div>
+      <span class="flow-arrow">&rarr;</span>
+      <div class="stage"><div class="k">Step 3</div><div class="v">Trial booked</div><div class="d">Day and time set. Shows on the calendar.</div></div>
+      <span class="flow-arrow">&rarr;</span>
+      <div class="stage branch"><div class="k">Step 4 &middot; Check-in</div><div class="v">Showed up?</div><div class="d">Marked at the door: attended or no-show.</div></div>
+      <span class="flow-arrow">&rarr;</span>
+      <div class="stage win"><div class="k">Step 5</div><div class="v">Enrolled</div><div class="d">Signed up. Moves to Enrolled Families.</div></div>
+    </div>
+    <div class="flow" style="margin-top:8px">
+      <div class="stage lose" style="flex:0 1 280px"><div class="k">If no-show</div><div class="v">No-show &rarr; recovery</div><div class="d">Automatic follow-up brings them back to book again, then closes out if there is no reply.</div></div>
+    </div>
+  </section>
+
+  <!-- CURRENT VS PROPOSED -->
+  <section class="section">
+    <div class="section-head">
+      <h2>What is changing</h2>
+      <p class="section-note">Same information, organized so it is obvious who is who.</p>
+    </div>
+    <div class="split">
+      <div class="panel now">
+        <h3>Before &middot; everything in one pile</h3>
+        <p class="sub">Every type of person landed in the same lead list.</p>
+        <ul>
+          <li>Pro-shop buyers and enrolled families showed up in the <b>"call these new leads"</b> list.</li>
+          <li>Staff could not tell a hot prospect from a paying customer at a glance.</li>
+          <li>Emails went out as <b>"TMA Summer Camp"</b> even to martial-arts families.</li>
+          <li>The same person could appear in two or three places with no clear home.</li>
+          <li>Follow-ups fired from two different systems, sometimes twice.</li>
+        </ul>
+      </div>
+      <div class="panel next">
+        <h3>After &middot; one home each</h3>
+        <p class="sub">Five clear sections, driven by a record type on every entry.</p>
+        <ul>
+          <li>The call list shows <b>only real prospects</b>. Customers never resurface there.</li>
+          <li>Prospects, Enrolled, Orders, Camp, and Forms each have their own screen.</li>
+          <li>All email comes from one identity: <b>Top Martial Arts &lt;hello@tmatkd.com&gt;</b>.</li>
+          <li>Every alert names the real source and links to the right section.</li>
+          <li>Each automation has a single owner, so nothing double-fires.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- POPULATIONS TABLE -->
+  <section class="section">
+    <div class="section-head">
+      <h2>Every entry, sorted</h2>
+      <p class="section-note">Where each thing comes from, what it really is, and where it now lives.</p>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>Comes from</th><th>What it is</th><th>Lives in</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><b>Free class</b> form &middot; tour request &middot; Facebook lead</td><td><span class="pill prospect">Prospect</span></td><td>Prospects (call list + calendar)</td></tr>
+          <tr><td><b>$99 trial</b> &middot; <b>$49 back-to-school</b></td><td><span class="pill prospect">Trial</span></td><td>Prospects (in a trial)</td></tr>
+          <tr><td><b>After-School registration</b> + waiver</td><td><span class="pill enrolled">Enrolled</span></td><td>Enrolled Families</td></tr>
+          <tr><td><b>Pro-shop</b> &middot; Christmas / seasonal sale</td><td><span class="pill order">Order</span></td><td>Orders</td></tr>
+          <tr><td><b>Camp registration</b> &middot; camp field trip</td><td><span class="pill camp">Camp</span></td><td>Camp</td></tr>
+          <tr><td><b>Waiver</b> &middot; <b>transportation</b> form</td><td><span class="pill form">Form</span></td><td>Forms &amp; Calls</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- BEHIND THE SCENES -->
+  <section class="section">
+    <div class="section-head">
+      <h2>Behind the scenes</h2>
+      <p class="section-note">What the system now does for you automatically, without stepping on itself.</p>
+    </div>
+    <div class="bts">
+      <div class="card">
+        <h3>One sender, correct labels</h3>
+        <p>All email goes out as Top Martial Arts. Staff alerts and Telegram pings name the real program, not a generic title.</p>
+      </div>
+      <div class="card">
+        <h3>Prospects only on the call board</h3>
+        <p>Orders and enrolled families are filtered out, so "call fast" never points at someone who already paid.</p>
+      </div>
+      <div class="card">
+        <h3>One owner per automation</h3>
+        <p>Reminders, no-show recovery, and call alerts each run from a single place, so nobody gets contacted twice.</p>
+      </div>
+      <div class="card">
+        <h3>No duplicate people</h3>
+        <p>Submitting a form twice updates the same record instead of creating a second one to clean up later.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="foot">
+    <span class="brandmark"><span class="sq">TMA</span> Top Martial Arts Suwanee</span>
+    <span>Front desk reference &middot; new CRM structure</span>
+  </div>
+</div>
