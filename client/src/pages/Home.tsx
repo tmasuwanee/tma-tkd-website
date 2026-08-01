@@ -194,24 +194,24 @@ export default function Home() {
       </section>
 
 
-      {/* Summer Camp Banner */}
+      {/* Back to School Special Banner */}
       <section className="bg-[#c41e3a] text-white py-4">
         <div className="container mx-auto px-4">
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 text-center sm:text-left">
             <div className="flex items-center gap-3">
-              <span className="text-2xl">☀️</span>
+              <span className="text-2xl">🎒</span>
               <div>
-                <span className="font-bold text-lg">TMA Summer Camp 2026</span>
+                <span className="font-bold text-lg">Back to School Special</span>
                 <span className="mx-3 text-white/70">|</span>
-                <span className="text-white/90">Starts May 26 &bull; 9:00 AM – 4:00 PM &bull; Full Week $239 &bull; 3-Day $199</span>
+                <span className="text-white/90">3 Weeks of Classes + Taekwondo Uniform &bull; Only $99</span>
               </div>
             </div>
             <Button
-              onClick={() => navigate('/camp-registration')}
+              onClick={() => navigate('/free-class')}
               size="sm"
               className="bg-white text-[#c41e3a] hover:bg-white/90 font-bold shrink-0"
             >
-              Register Now
+              Claim Offer
             </Button>
           </div>
         </div>
@@ -226,7 +226,7 @@ export default function Home() {
               <div>
                 <span className="font-bold text-lg">After School Care 2026–27</span>
                 <span className="mx-3 text-white/70">|</span>
-                <span className="text-white/90">4–5 Days $500/mo &bull; 2–3 Days $400/mo &bull; Register by Jul 31 for 50% off first month</span>
+                <span className="text-white/90">4–5 Days $500/mo &bull; 2–3 Days $400/mo &bull; School pickup included</span>
               </div>
             </div>
             <div className="flex gap-2 shrink-0">
@@ -349,12 +349,7 @@ export default function Home() {
                 image: "https://private-us-east-1.manuscdn.com/user_upload_by_module/session_file/310519663276898689/ANroMGYLoSYGifIh.PNG?Expires=1804092394&Signature=Pn3WDt2ZLgoS0duJZWlKd4ty0vPUhPVSZe5d-bZuPXFYIHgsZiXbXE-qlPRvIbQ9Gz31qErBC9vWLXds8BtNmN6O43zDdqo92B3fGPXuv~PDHcmDfHVECt7JGgEppEo6LQ5Me1qs1RVAfCvwH5WNCXbCAV4XBvgxtzrugl0zXaMd4UN5hleEUs6jfYnN4kD4ecP2THBQRE2mFq5SiJh5Mp-FFTNCwtTr4VD-kjmTBLUXl3qu08iG4PBUzfeJMaMuJaTIoQ0XxquagopwY5RlB1luPsSVX8tnCfgkvoc6BjWK-yCHNWfVdnH1SHh8-2OQa9nVaj1AAGCLvcCXR8YFiA__&Key-Pair-Id=K2HSFNDJXOU9YS",
                 link: "/afterschool"
               },
-              {
-                title: "Summer Camps",
-                description: "Summer fun with martial arts training, field trips, activities, and new friends. Full days of action-packed learning and adventure in a supportive community.",
-                image: "https://d2xsxph8kpxj0f.cloudfront.net/310519663276898689/XZyF96feSckHUgem3ipsHV/summer-camps-hero-WdXpwTRnJvTrCZMFGrwwUM.webp",
-                link: "/summer-camps"
-              },
+
             ].map((program, idx) => (
               <Card key={idx} className="bg-white border-0 shadow-lg overflow-hidden hover:shadow-xl transition">
                 <div className="h-48 overflow-hidden">
@@ -560,7 +555,7 @@ export default function Home() {
                           <SelectItem value="bjj">Brazilian Jiu-Jitsu</SelectItem>
                           <SelectItem value="kickboxing">Kickboxing</SelectItem>
                           <SelectItem value="afterschool">Afterschool Program</SelectItem>
-                          <SelectItem value="summer">Summer Camp</SelectItem>
+
                         </SelectContent>
                       </Select>
                     </div>
