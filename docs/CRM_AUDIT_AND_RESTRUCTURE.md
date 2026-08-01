@@ -227,7 +227,14 @@ Every alert (Telegram/email) links straight to the right section.
 - [x] Submit-time dedupe on the free-class path (reuse existing lead by email instead of a duplicate insert).
 - [x] Broadened `leadSourceLabel` to name the exact pipeline (pro shop, Christmas, back-to-school, summer/day camp, after-school, Taekwondo/BJJ/Kickboxing, free class).
 
-### Deferred to Phase 2 / 3
-- Dedicated Orders + Enrolled Families views (Phase 2).
-- Align n8n email sender to hello@ (Phase 3).
-- Retell inbound handler consolidation + no-show policy (Phase 3).
+### Phase 2 (shipped)
+- [x] Dedicated **Orders** view (recordType 'order') with customer, order details, amount, contact.
+- [x] Dedicated **Enrolled Families** view (recordType 'enrolled'), distinct from the Students roster.
+- [x] Regrouped the dashboard nav into the five clean sections: **Prospects** (Today's Calls, Calendar, Leads, Trial Check-in), **Customers** (Enrolled Families, Students, Orders, Camp), **Forms & Calls** (Waivers, Call Log, Voice Test), **Growth**, **System**.
+
+### Deferred to Phase 3
+- Align the n8n email sender to `hello@tmatkd.com` (match the app).
+- Consolidate the two Retell inbound handlers (app vs n8n) after confirming the Retell webhook URL.
+- Decide + wire the single no-show policy (email vs email + one call).
+- Capture the standalone After-School Care payment as a real record.
+- Rewrite `docs/WORKFLOWS.md` as the single current source of truth (all 11 workflows + app crons).

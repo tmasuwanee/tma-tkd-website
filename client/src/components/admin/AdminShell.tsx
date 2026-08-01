@@ -6,6 +6,7 @@ import {
   Kanban, ClipboardCheck, Phone, PhoneOutgoing, Mail, Route as RouteIcon,
   BarChart2, GraduationCap, CalendarCheck, ShieldAlert, Camera, LogOut,
   Menu, PhoneCall, CalendarDays, CheckSquare, FileSignature, Link2, BookOpen,
+  ShoppingBag, Users,
 } from "lucide-react";
 import { CallsApp } from "@/pages/AdminTodaysCalls";
 import { CallLogApp } from "@/pages/AdminCallLog";
@@ -24,23 +25,32 @@ import MyTasks from "@/components/admin/MyTasks";
 import WaiversView from "@/components/admin/WaiversView";
 import LinksView from "@/components/admin/LinksView";
 import PlaybookView from "@/components/admin/PlaybookView";
+import OrdersView from "@/components/admin/OrdersView";
+import EnrolledFamiliesView from "@/components/admin/EnrolledFamiliesView";
 
 // Keys double as URL segments (/admin/<key>). They match the old standalone
 // routes where possible (/admin/calls, /admin/checkin, /admin/call-log,
 // /admin/voice-test, /admin/controls) so those URLs still land in the shell.
 type ViewKey =
   | "calls" | "calendar" | "leads" | "checkin" | "waivers" | "call-log" | "voice-test"
-  | "sequences" | "rules" | "ads" | "students" | "camp" | "controls" | "studio" | "tasks" | "links" | "playbook";
+  | "sequences" | "rules" | "ads" | "students" | "camp" | "controls" | "studio" | "tasks" | "links" | "playbook"
+  | "orders" | "enrolled";
 
 const NAV: { group: string; items: { key: ViewKey; label: string; icon: any }[] }[] = [
-  { group: "Leads", items: [
+  { group: "Prospects", items: [
     { key: "calls", label: "Today's Calls", icon: PhoneCall },
     { key: "calendar", label: "Calendar", icon: CalendarDays },
     { key: "leads", label: "Leads", icon: Kanban },
     { key: "checkin", label: "Trial Check-in", icon: ClipboardCheck },
-    { key: "waivers", label: "Waivers", icon: FileSignature },
   ]},
-  { group: "Calls", items: [
+  { group: "Customers", items: [
+    { key: "enrolled", label: "Enrolled Families", icon: Users },
+    { key: "students", label: "Students", icon: GraduationCap },
+    { key: "orders", label: "Orders", icon: ShoppingBag },
+    { key: "camp", label: "Camp Registrations", icon: CalendarCheck },
+  ]},
+  { group: "Forms & Calls", items: [
+    { key: "waivers", label: "Waivers", icon: FileSignature },
     { key: "call-log", label: "Call Log", icon: Phone },
     { key: "voice-test", label: "Voice Test", icon: PhoneOutgoing },
   ]},
@@ -48,10 +58,6 @@ const NAV: { group: string; items: { key: ViewKey; label: string; icon: any }[] 
     { key: "sequences", label: "Email Sequences", icon: Mail },
     { key: "rules", label: "Routing Rules", icon: RouteIcon },
     { key: "ads", label: "Ad Performance", icon: BarChart2 },
-  ]},
-  { group: "Roster", items: [
-    { key: "students", label: "Students", icon: GraduationCap },
-    { key: "camp", label: "Camp Registrations", icon: CalendarCheck },
   ]},
   { group: "System", items: [
     { key: "playbook", label: "Front Desk Playbook", icon: BookOpen },
@@ -77,6 +83,8 @@ function renderView(key: ViewKey, email: string) {
     case "rules": return <IntakeRulesEditor />;
     case "ads": return <AdsInsightsDashboard />;
     case "students": return <StudentsRoster />;
+    case "enrolled": return <EnrolledFamiliesView />;
+    case "orders": return <OrdersView />;
     case "camp": return <CampRegistrationsTab />;
     case "controls": return <ControlsApp email={email} embedded />;
     case "studio": return <StudioApp email={email} embedded />;
