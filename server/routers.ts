@@ -45,7 +45,7 @@ import {
   // Manual calendar booking (2026-06-15)
   manualBookTrial,
   // $99 3-week trial enrollments (2026-06-15)
-  createTrialEnrollment, getTrialByPaymentIntent, activateTrial, listTrialEnrollments, updateTrialStatus,
+  createTrialEnrollment, getTrialByPaymentIntent, activateTrial, listTrialEnrollments, updateTrialStatus, updateTrialStartDate,
   // Camp Waivers (2026-07-21)
   insertCampWaiver,
 } from "./db";
@@ -1933,6 +1933,11 @@ export const appRouter = router({
     setStatus: publicProcedure
       .input(z.object({ id: z.number().int().positive(), status: z.enum(["active", "converted", "expired", "canceled"]) }))
       .mutation(async ({ input }) => { await updateTrialStatus(input.id, input.status); return { success: true }; }),
+    // Reschedule the first day. Recomputes the end date (start + 21) and resets
+    // the end-of-trial reminder milestones so the 7/3/2/1-day pings track the new window.
+    updateStartDate: publicProcedure
+      .input(z.object({ id: z.number().int().positive(), startDate: z.string().min(1).max(20) }))
+      .mutation(async ({ input }) => updateTrialStartDate(input.id, input.startDate)),
   }),
 
   // ─── Back to School $49 two-week special (online payment) ──────────────────
