@@ -2801,3 +2801,72 @@ export async function insertCampWaiver(params: {
   ) as unknown as [{ insertId: number }];
   return result?.insertId ?? 0;
 }
+
+// ─── Afterschool Roster ───────────────────────────────────────────────────────
+export type RosterStudent = {
+  id: number;
+  schoolName: string;
+  childName: string;
+  grade: string | null;
+  groupLabel: string | null;
+  phone: string | null;
+  active: number;
+  sortOrder: number;
+};
+
+export async function getRosterStudents(): Promise<RosterStudent[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const [rows] = await db.execute(
+    sql`SELECT id, schoolName, childName, grade, groupLabel, phone, active, sortOrder
+        FROM afterschoolRoster
+        WHERE active = 1
+        ORDER BY sortOrder ASC, schoolName ASC, childName ASC`
+  ) as unknown as [RosterStudent[]];
+  return Array.isArray(rows) ? rows : [];
+}
+
+export async function addRosterStudent(params: {
+  schoolName: string;
+  childName: string;
+  grade?: string | null;
+  groupLabel?: string | null;
+  phone?: string | null;
+}): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+  const [result] = await db.execute(
+    sql`INSERT INTO afterschoolRoster (schoolName, childName, grade, groupLabel, phone, sortOrder)
+        VALUES (${params.schoolName}, ${params.childName}, ${params.grade ?? null},
+                ${params.groupLabel ?? null}, ${params.phone ?? null},
+                (SELECT COALESCE(MAX(s.sortOrder), 0) + 10 FROM afterschoolRoster s))`
+  ) as unknown as [{ insertId: number }];
+  return result?.insertId ?? 0;
+}
+
+export async function updateRosterStudent(id: number, params: {
+  schoolName?: string;
+  childName?: string;
+  grade?: string | null;
+  groupLabel?: string | null;
+  phone?: string | null;
+}): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+  const sets: string[] = [];
+  const vals: unknown[] = [];
+  if (params.schoolName !== undefined) { sets.push('schoolName = ?'); vals.push(params.schoolName); }
+  if (params.childName !== undefined) { sets.push('childName = ?'); vals.push(params.childName); }
+  if (params.grade !== undefined) { sets.push('grade = ?'); vals.push(params.grade); }
+  if (params.groupLabel !== undefined) { sets.push('groupLabel = ?'); vals.push(params.groupLabel); }
+  if (params.phone !== undefined) { sets.push('phone = ?'); vals.push(params.phone); }
+  if (!sets.length) return;
+  vals.push(id);
+  await db.execute(sql`UPDATE afterschoolRoster SET ${sql.raw(sets.join(', '))} WHERE id = ${id}`);
+}
+
+export async function removeRosterStudent(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+  await db.execute(sql`UPDATE afterschoolRoster SET active = 0 WHERE id = ${id}`);
+}

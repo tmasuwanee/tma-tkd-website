@@ -6,7 +6,7 @@ import {
   Kanban, ClipboardCheck, Phone, PhoneOutgoing, Mail, Route as RouteIcon,
   BarChart2, GraduationCap, CalendarCheck, ShieldAlert, Camera, LogOut,
   Menu, PhoneCall, CalendarDays, CheckSquare, FileSignature, Link2, BookOpen,
-  ShoppingBag, Users,
+  ShoppingBag, Users, ClipboardList,
 } from "lucide-react";
 import { CallsApp } from "@/pages/AdminTodaysCalls";
 import { CallLogApp } from "@/pages/AdminCallLog";
@@ -27,6 +27,7 @@ import LinksView from "@/components/admin/LinksView";
 import PlaybookView from "@/components/admin/PlaybookView";
 import OrdersView from "@/components/admin/OrdersView";
 import EnrolledFamiliesView from "@/components/admin/EnrolledFamiliesView";
+import AfterschoolRosterView from "@/components/admin/AfterschoolRosterView";
 
 // Keys double as URL segments (/admin/<key>). They match the old standalone
 // routes where possible (/admin/calls, /admin/checkin, /admin/call-log,
@@ -34,7 +35,7 @@ import EnrolledFamiliesView from "@/components/admin/EnrolledFamiliesView";
 type ViewKey =
   | "calls" | "calendar" | "leads" | "checkin" | "waivers" | "call-log" | "voice-test"
   | "sequences" | "rules" | "ads" | "students" | "camp" | "controls" | "studio" | "tasks" | "links" | "playbook"
-  | "orders" | "enrolled";
+  | "orders" | "enrolled" | "afterschool-roster";
 
 const NAV: { group: string; items: { key: ViewKey; label: string; icon: any }[] }[] = [
   { group: "Prospects", items: [
@@ -45,6 +46,7 @@ const NAV: { group: string; items: { key: ViewKey; label: string; icon: any }[] 
   ]},
   { group: "Customers", items: [
     { key: "enrolled", label: "Enrolled Families", icon: Users },
+    { key: "afterschool-roster", label: "Afterschool Roster", icon: ClipboardList },
     { key: "students", label: "Students", icon: GraduationCap },
     { key: "orders", label: "Orders", icon: ShoppingBag },
     { key: "camp", label: "Camp Registrations", icon: CalendarCheck },
@@ -91,6 +93,7 @@ function renderView(key: ViewKey, email: string) {
     case "tasks": return <MyTasks />;
     case "links": return <LinksView />;
     case "playbook": return <PlaybookView />;
+    case "afterschool-roster": return <AfterschoolRosterView />;
   }
 }
 

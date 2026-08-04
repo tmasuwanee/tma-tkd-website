@@ -48,6 +48,8 @@ import {
   createTrialEnrollment, getTrialByPaymentIntent, activateTrial, listTrialEnrollments, updateTrialStatus,
   // Camp Waivers (2026-07-21)
   insertCampWaiver,
+  // Afterschool Roster (2026-08-04)
+  getRosterStudents, addRosterStudent, updateRosterStudent, removeRosterStudent,
 } from "./db";
 import { sendTelegramMessage } from "./telegram";
 import { storagePut, storageGet } from "./storage";
@@ -2471,6 +2473,42 @@ export const appRouter = router({
     listRegistrations: publicProcedure.query(async () => getAfterschoolRegistrations()),
   }),
 
+  // ─── Afterschool Roster (2026-08-04) ──────────────────────────────────────
+  roster: router({
+    list: publicProcedure.query(async () => getRosterStudents()),
+    add: publicProcedure
+      .input(z.object({
+        schoolName: z.string().min(1).max(100),
+        childName: z.string().min(1).max(255),
+        grade: z.string().max(20).nullable().optional(),
+        groupLabel: z.string().max(50).nullable().optional(),
+        phone: z.string().max(30).nullable().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const id = await addRosterStudent(input);
+        return { id };
+      }),
+    update: publicProcedure
+      .input(z.object({
+        id: z.number().int().positive(),
+        schoolName: z.string().min(1).max(100).optional(),
+        childName: z.string().min(1).max(255).optional(),
+        grade: z.string().max(20).nullable().optional(),
+        groupLabel: z.string().max(50).nullable().optional(),
+        phone: z.string().max(30).nullable().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { id, ...params } = input;
+        await updateRosterStudent(id, params);
+        return { ok: true };
+      }),
+    remove: publicProcedure
+      .input(z.object({ id: z.number().int().positive() }))
+      .mutation(async ({ input }) => {
+        await removeRosterStudent(input.id);
+        return { ok: true };
+      }),
+  }),
   // ─── Call Log (2026-06-11) ────────────────────────────────────────────────
   // Read-only view of Retell voice calls (inbound + outbound) captured by
   // /api/voice/retell-webhook. Powers /admin/call-log (Gmail-style list +
