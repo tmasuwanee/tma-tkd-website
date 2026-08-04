@@ -6,7 +6,7 @@ import {
   Kanban, ClipboardCheck, Phone, PhoneOutgoing, Mail, Route as RouteIcon,
   BarChart2, GraduationCap, CalendarCheck, ShieldAlert, Camera, LogOut,
   Menu, PhoneCall, CalendarDays, CheckSquare, FileSignature, Link2, BookOpen,
-  ShoppingBag, Users, ClipboardList,
+  ShoppingBag, Users, ClipboardList, FileText,
 } from "lucide-react";
 import { CallsApp } from "@/pages/AdminTodaysCalls";
 import { CallLogApp } from "@/pages/AdminCallLog";
@@ -28,6 +28,7 @@ import PlaybookView from "@/components/admin/PlaybookView";
 import OrdersView from "@/components/admin/OrdersView";
 import EnrolledFamiliesView from "@/components/admin/EnrolledFamiliesView";
 import AfterschoolRosterView from "@/components/admin/AfterschoolRosterView";
+import InvoicesView from "@/components/admin/InvoicesView";
 
 // Keys double as URL segments (/admin/<key>). They match the old standalone
 // routes where possible (/admin/calls, /admin/checkin, /admin/call-log,
@@ -35,7 +36,7 @@ import AfterschoolRosterView from "@/components/admin/AfterschoolRosterView";
 type ViewKey =
   | "calls" | "calendar" | "leads" | "checkin" | "waivers" | "call-log" | "voice-test"
   | "sequences" | "rules" | "ads" | "students" | "camp" | "controls" | "studio" | "tasks" | "links" | "playbook"
-  | "orders" | "enrolled" | "afterschool-roster";
+  | "orders" | "enrolled" | "afterschool-roster" | "invoices";
 
 const NAV: { group: string; items: { key: ViewKey; label: string; icon: any }[] }[] = [
   { group: "Prospects", items: [
@@ -50,6 +51,7 @@ const NAV: { group: string; items: { key: ViewKey; label: string; icon: any }[] 
     { key: "students", label: "Students", icon: GraduationCap },
     { key: "orders", label: "Orders", icon: ShoppingBag },
     { key: "camp", label: "Camp Registrations", icon: CalendarCheck },
+    { key: "invoices", label: "Invoice Generator", icon: FileText },
   ]},
   { group: "Forms & Calls", items: [
     { key: "waivers", label: "Waivers", icon: FileSignature },
@@ -88,6 +90,7 @@ function renderView(key: ViewKey, email: string) {
     case "enrolled": return <EnrolledFamiliesView />;
     case "orders": return <OrdersView />;
     case "camp": return <CampRegistrationsTab />;
+    case "invoices": return <InvoicesView />;
     case "controls": return <ControlsApp email={email} embedded />;
     case "studio": return <StudioApp email={email} embedded />;
     case "tasks": return <MyTasks />;

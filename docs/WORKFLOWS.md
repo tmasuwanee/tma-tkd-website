@@ -77,9 +77,9 @@ Plus the Retell voice webhook (not a cron): `POST /api/voice/retell-webhook` (se
 
 ### 9. TMA - Retell Inbound Call Handler — ACTIVE
 - **ID:** `LlE5tPSR35lRma2C`
-- **Trigger:** Webhook, Retell `call_ended`.
+- **Trigger:** Webhook `https://n8n.arfaconsults.com/webhook/tma-retell-call`, Retell `call_ended`.
 - **Does:** parses caller data, upserts the lead, logs the transcript, sends an HTML staff alert.
-- **OVERLAP:** the app also handles Retell (`/api/voice/retell-webhook`, `call_analyzed`). Confirm which URL Retell is actually pointed at; if both fire, staff get double alerts. Resolve in Phase 3.
+- **NO overlap (verified 2026-08-03 via the Retell API):** the INBOUND agent ("TMA After-Hours Receptionist", `agent_367644...`) points here (n8n). The OUTBOUND agent ("TMA Outbound Agent", `agent_5b972b...`) points at the APP (`https://tmatkd.com/api/voice/retell-webhook`). Each agent has exactly one webhook, so inbound and outbound are cleanly split. Do NOT "consolidate" them.
 
 ### 10. TMA - Camp Waiver Capture — ACTIVE
 - **ID:** `o7D3nodpRgGTaDJe`
@@ -95,7 +95,7 @@ Plus the Retell voice webhook (not a cron): `POST /api/voice/retell-webhook` (se
 
 ## C. Known overlaps to resolve (Phase 3)
 
-1. **Two Retell inbound handlers** (app `call_analyzed` + n8n #9 `call_ended`). Pick one.
+1. ~~Two Retell inbound handlers~~ **RESOLVED (2026-08-03):** the inbound agent points at n8n, the outbound agent points at the app. Cleanly split by agent, not a conflict. See #9 above.
 2. **No-show handled three ways** with no shared owner: app `trial-checkin-pm` Telegram + n8n #4 recovery emails + app `outbound-noshow` Retell call. Consolidate into one coordinated flow.
 3. **Two intake alert paths** on a new lead: the app fires Slack + a staff email on `leads.submit`, and n8n #1 also alerts staff. Decide one owner.
 4. **Two email sender identities:** the app sends as `Top Martial Arts <hello@tmatkd.com>` (2026-07-25); n8n sends from `hello@tmatkd.com` too but confirm every workflow uses that from-name consistently.

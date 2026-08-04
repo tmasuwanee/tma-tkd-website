@@ -659,6 +659,11 @@ function TrialSection() {
   const utils = trpc.useUtils();
   const { data: trials = [] } = trpc.trial.list.useQuery();
   const setStatus = trpc.trial.setStatus.useMutation({ onSuccess: () => utils.trial.list.invalidate() });
+  const [editing, setEditing] = useState<{ id: number; startDate: string } | null>(null);
+  const updateStartDate = trpc.trial.updateStartDate.useMutation({
+    onSuccess: () => { utils.trial.list.invalidate(); setEditing(null); toast.success("Trial start date updated. Reminders rescheduled."); },
+    onError: (e) => toast.error(e.message ?? "Could not update the start date."),
+  });
   const active = (trials as any[]).filter(t => t.status === "active" || t.status === "pending");
 
   if (active.length === 0) return null;
@@ -677,6 +682,7 @@ function TrialSection() {
               <TableRow className="bg-gray-50">
                 <TableHead className="font-semibold">Student</TableHead>
                 <TableHead className="font-semibold">Program</TableHead>
+                <TableHead className="font-semibold">Starts</TableHead>
                 <TableHead className="font-semibold">Ends</TableHead>
                 <TableHead className="font-semibold">Status</TableHead>
                 <TableHead className="font-semibold text-right">Actions</TableHead>
@@ -685,13 +691,51 @@ function TrialSection() {
             <TableBody>
               {active.map((t: any) => {
                 const left = daysLeft(t.endDate);
+                const rowEditing = editing && editing.id === t.id ? editing : null;
                 return (
                   <TableRow key={t.id}>
                     <TableCell>
-                      <p className="font-medium text-gray-900">{t.studentName}</p>
+                      <button
+                        type="button"
+                        onClick={() => setEditing({ id: t.id, startDate: t.startDate || "" })}
+                        className="font-medium text-gray-900 hover:text-[#c41e3a] hover:underline decoration-dotted text-left"
+                        title="Click to edit the trial start date"
+                      >
+                        {t.studentName}
+                      </button>
                       {t.phone && <p className="text-xs text-gray-500">{t.phone}</p>}
                     </TableCell>
                     <TableCell className="text-sm capitalize">{t.programInterest || "-"}</TableCell>
+                    <TableCell>
+                      {rowEditing ? (
+                        <div className="flex items-center gap-1.5">
+                          <Input
+                            type="date"
+                            value={rowEditing.startDate}
+                            onChange={e => setEditing({ id: t.id, startDate: e.target.value })}
+                            className="h-8 w-[9.5rem] text-xs"
+                          />
+                          <Button
+                            size="sm"
+                            className="h-8 text-xs bg-[#1a2d5a] hover:bg-[#1a2d5a]/90"
+                            disabled={!rowEditing.startDate || updateStartDate.isPending}
+                            onClick={() => updateStartDate.mutate({ id: t.id, startDate: rowEditing.startDate })}
+                          >
+                            Save
+                          </Button>
+                          <Button size="sm" variant="ghost" className="h-8 text-xs text-gray-400" onClick={() => setEditing(null)}>Cancel</Button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setEditing({ id: t.id, startDate: t.startDate || "" })}
+                          className="text-sm text-gray-700 hover:text-[#c41e3a] hover:underline decoration-dotted"
+                          title="Click to edit"
+                        >
+                          {t.startDate || "set date"}
+                        </button>
+                      )}
+                    </TableCell>
                     <TableCell>
                       <div className="text-sm text-gray-700">{t.endDate || "-"}</div>
                       {left !== null && (

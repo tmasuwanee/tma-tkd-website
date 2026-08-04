@@ -422,6 +422,22 @@ export async function listTrialEnrollments(): Promise<TrialEnrollment[]> {
   return db.select().from(trialEnrollments).orderBy(desc(trialEnrollments.createdAt));
 }
 
+// Reschedule a trial's start date. Recomputes endDate (start + 21 days) and
+// clears remindersSent so the end-of-trial pings re-fire against the new window
+// (a milestone already past for the OLD end date should not stay "sent" if the
+// new end date pushes it back into the future).
+export async function updateTrialStartDate(id: number, startDate: string): Promise<{ startDate: string; endDate: string }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const start = new Date(startDate + "T12:00:00");
+  const end = new Date(start.getTime() + 21 * 86400000);
+  const endDate = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}-${String(end.getDate()).padStart(2, "0")}`;
+  await db.update(trialEnrollments)
+    .set({ startDate, endDate, remindersSent: null })
+    .where(eq(trialEnrollments.id, id));
+  return { startDate, endDate };
+}
+
 // Active trials with an end date. The 8am cron computes daysLeft per trial and pings
 // at 7, 3, 2, and 1 days before endDate, tracking fired milestones in remindersSent.
 export async function getActiveTrialsForReminders(): Promise<TrialEnrollment[]> {

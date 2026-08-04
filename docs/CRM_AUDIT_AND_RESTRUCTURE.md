@@ -236,8 +236,9 @@ Every alert (Telegram/email) links straight to the right section.
 - [x] Surfaced paid After-School registrations (the `afterschoolRegistrations` table was written but never read) in the Enrolled Families view via a new `afterschool.listRegistrations` query. (The old `createIntent` path is orphaned; the live flow is `submitIntake` -> `confirm`, both of which persist.)
 - [x] Rewrote `docs/WORKFLOWS.md` as the single current source of truth: all 11 n8n workflows + the app's 9 scheduled jobs + the Retell webhook, with the known overlaps called out.
 
-### Phase 3 (needs your input / external config)
-- Align every n8n workflow's email from-name to `Top Martial Arts <hello@tmatkd.com>` (n8n side).
-- Consolidate the two Retell inbound handlers (app `call_analyzed` vs n8n `call_ended`) after confirming which URL Retell points at.
-- Decide + wire the single no-show policy (email only vs email + one Retell call).
-- Fix the Facebook Lead Ads Sync "Summer Camp 2026" default so FB leads are not mislabeled as camp.
+### Phase 3
+- [x] Fixed the Facebook Lead Ads Sync "Summer Camp 2026" default (n8n, published 2026-08-03): defaults to "Martial Arts", tags `facebook_lead` only.
+- [x] Retell handlers: verified via the Retell API they are cleanly split by agent (inbound -> n8n, outbound -> app). No consolidation needed.
+- [ ] Align every n8n workflow's email from-name to `Top Martial Arts <hello@tmatkd.com>` (n8n side, low priority).
+- [ ] Decide + wire the single no-show policy (email only vs email + one Retell call). **Needs owner decision.**
+- [ ] Rotate the Facebook access token (plaintext in the FB sync workflow) in Meta Business Settings, then move it to an n8n credential. **Needs owner (Meta access).**
