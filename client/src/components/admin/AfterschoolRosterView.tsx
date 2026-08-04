@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -200,7 +200,7 @@ export default function AfterschoolRosterView() {
             </thead>
             <tbody>
               {Object.entries(bySchool).map(([school, schoolStudents]) => (
-                <>
+                <React.Fragment key={school}>
                   {/* School header row */}
                   <tr key={`school-${school}`} className="bg-[#4a90d9]">
                     <td colSpan={13} className="border border-gray-300 px-3 py-1 text-center font-bold text-white text-sm tracking-wide uppercase">
@@ -257,7 +257,7 @@ export default function AfterschoolRosterView() {
                       </tr>
                     );
                   })}
-                </>
+                </React.Fragment>
               ))}
               {/* Empty buffer rows for printing */}
               {Array.from({ length: Math.max(0, 5 - students.length) }).map((_, i) => (
