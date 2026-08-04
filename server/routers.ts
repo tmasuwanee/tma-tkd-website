@@ -54,6 +54,7 @@ import { storagePut, storageGet } from "./storage";
 import { sendToGoogleSheets, sendToSlack, sendEmailNotification, sendProShopOrderNotification, sendCampRegistrationConfirmation, sendCampWaiverEmail, sendFieldTripConfirmation, sendTransportationForm, sendTrialReceipt, sendAfterschoolConfirmation, sendAfterschoolIntake } from "./integrations";
 import { fillTransportationPdf } from "./transportation-pdf";
 import { buildAfterschoolIntakePdf } from "./afterschool-intake-pdf";
+import { buildInvoicePdf } from "./invoice-pdf";
 import { afterschoolWaiverPlainText } from "@shared/afterschoolWaiver";
 import { fireLeadEvent, firePurchaseEvent } from "./meta-capi";
 import { computeOrderCents, buildOrderSummary } from "../shared/christmasPricing";
@@ -2474,6 +2475,90 @@ export const appRouter = router({
     // Paid after-school registrations, so they are visible in the dashboard
     // (Enrolled Families) instead of only existing in Stripe + the DB.
     listRegistrations: publicProcedure.query(async () => getAfterschoolRegistrations()),
+  }),
+
+  // ─── Invoices (2026-08-03) ────────────────────────────────────────────────
+  // Per-customer invoice / paid-receipt generator. searchPayments pulls a
+  // customer's TMA Stripe charges as line items; the dashboard lets staff edit
+  // them and add payments made another way (ZenPlanner, cash) before generating
+  // the branded PDF. NOTE: like the rest of the admin API this is a
+  // publicProcedure gated only by the client password; the whole admin surface
+  // should move to real server auth (tracked separately).
+  invoices: router({
+    searchPayments: publicProcedure
+      .input(z.object({ query: z.string().min(2).max(120) }))
+      .query(async ({ input }) => {
+        const stripe = getStripe();
+        const q = input.query.trim().toLowerCase();
+        const gte = Math.floor(Date.now() / 1000) - 18 * 30 * 86400; // ~18 months
+        const fmt = (created: number) =>
+          new Date(created * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "America/New_York" });
+        const desc = (c: any): string => {
+          const md = c.metadata || {};
+          if (md.selectedWeeks) return `Summer Camp - ${md.selectedWeeks}${md.programType ? ` (${md.programType})` : ""}`;
+          if (md.product === "afterschool_registration") return `After School Registration${md.plan ? ` (${md.plan})` : ""}`;
+          if (md.product === "3_week_99") return "3-Week Trial";
+          if (md.product) return String(md.product).replace(/_/g, " ");
+          return c.description || c.calculated_statement_descriptor || "Payment";
+        };
+        const names = new Map<string, number>();
+        const emails = new Map<string, number>();
+        const rows: { created: number; date: string; description: string; ref: string; amountCents: number }[] = [];
+        let startingAfter: string | undefined;
+        for (let page = 0; page < 6; page++) {
+          const res = await stripe.charges.list({ limit: 100, created: { gte }, ...(startingAfter ? { starting_after: startingAfter } : {}) });
+          for (const c of res.data) {
+            if (c.status !== "succeeded" || c.refunded) continue;
+            const md = (c.metadata || {}) as Record<string, string>;
+            const name = c.billing_details?.name || md.camper1Name || md.studentName || md.parentName || "";
+            const email = c.billing_details?.email || md.parentEmail || md.email || c.receipt_email || "";
+            const hay = `${name} ${email} ${JSON.stringify(md)}`.toLowerCase();
+            if (!hay.includes(q)) continue;
+            if (name) names.set(name, (names.get(name) || 0) + 1);
+            if (email) emails.set(email, (emails.get(email) || 0) + 1);
+            rows.push({ created: c.created, date: fmt(c.created), description: desc(c), ref: "Card", amountCents: c.amount });
+          }
+          if (!res.has_more || res.data.length === 0) break;
+          startingAfter = res.data[res.data.length - 1].id;
+        }
+        rows.sort((a, b) => a.created - b.created);
+        const top = (m: Map<string, number>) => Array.from(m.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] || "";
+        return {
+          items: rows.map(({ created, ...r }) => r),
+          suggestedBillTo: top(names),
+          suggestedEmail: top(emails),
+        };
+      }),
+    generate: publicProcedure
+      .input(z.object({
+        billTo: z.string().min(1).max(200),
+        subtitle: z.string().max(120).optional(),
+        invoiceNo: z.string().max(60).optional(),
+        invoiceDate: z.string().max(60).optional(),
+        status: z.string().max(60).optional(),
+        notes: z.array(z.string().max(120)).max(6).optional(),
+        items: z.array(z.object({
+          date: z.string().max(40),
+          description: z.string().max(120),
+          ref: z.string().max(40).optional(),
+          amountCents: z.number().int(),
+        })).min(1).max(60),
+      }))
+      .mutation(async ({ input }) => {
+        const bytes = await buildInvoicePdf({
+          billTo: input.billTo,
+          subtitle: input.subtitle,
+          invoiceNo: input.invoiceNo || `TMA-${new Date().toISOString().slice(2, 10).replace(/-/g, "")}`,
+          invoiceDate: input.invoiceDate || new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "America/New_York" }),
+          status: input.status,
+          notes: input.notes,
+          items: input.items,
+        });
+        return {
+          base64: Buffer.from(bytes).toString("base64"),
+          filename: `TMA-Invoice-${input.billTo.replace(/[^a-z0-9]+/gi, "-")}.pdf`,
+        };
+      }),
   }),
 
   // ─── Call Log (2026-06-11) ────────────────────────────────────────────────
