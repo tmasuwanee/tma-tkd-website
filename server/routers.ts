@@ -204,6 +204,10 @@ export const appRouter = router({
         const paymentIntent = await stripe.paymentIntents.create({
           amount: serverAmount,
           currency: "usd",
+          // Card only (card also surfaces Apple Pay + Google Pay in the Payment
+          // Element). This removes Klarna / Affirm / Amazon Pay / Cash App that
+          // Stripe's automatic payment methods would otherwise pull in.
+          payment_method_types: ["card"],
           metadata: {
             camper1Name: input.camper1Name,
             parentEmail: input.email,
@@ -1819,6 +1823,10 @@ export const appRouter = router({
         const paymentIntent = await stripe.paymentIntents.create({
           amount,
           currency: "usd",
+          // Card only (card also surfaces Apple Pay + Google Pay in the Payment
+          // Element). This removes Klarna / Affirm / Amazon Pay / Cash App that
+          // Stripe's automatic payment methods would otherwise pull in.
+          payment_method_types: ["card"],
           // Stripe emails the payer a receipt on success (live mode) when set.
           ...(input.email ? { receipt_email: input.email } : {}),
           metadata: {
@@ -1882,6 +1890,10 @@ export const appRouter = router({
         const paymentIntent = await stripe.paymentIntents.create({
           amount: AMOUNT,
           currency: "usd",
+          // Card only (card also surfaces Apple Pay + Google Pay in the Payment
+          // Element). This removes Klarna / Affirm / Amazon Pay / Cash App that
+          // Stripe's automatic payment methods would otherwise pull in.
+          payment_method_types: ["card"],
           metadata: { product: "3_week_99", studentName: input.studentName, email: input.email ?? "" },
         });
         const trialId = await createTrialEnrollment({
@@ -1995,6 +2007,10 @@ export const appRouter = router({
         const paymentIntent = await stripe.paymentIntents.create({
           amount: AMOUNT,
           currency: "usd",
+          // Card only (card also surfaces Apple Pay + Google Pay in the Payment
+          // Element). This removes Klarna / Affirm / Amazon Pay / Cash App that
+          // Stripe's automatic payment methods would otherwise pull in.
+          payment_method_types: ["card"],
           receipt_email: input.email ?? undefined,
           metadata: {
             product: "back_to_school_49",
@@ -2121,6 +2137,10 @@ export const appRouter = router({
         const paymentIntent = await stripe.paymentIntents.create({
           amount: amountCents,
           currency: "usd",
+          // Card only (card also surfaces Apple Pay + Google Pay in the Payment
+          // Element). This removes Klarna / Affirm / Amazon Pay / Cash App that
+          // Stripe's automatic payment methods would otherwise pull in.
+          payment_method_types: ["card"],
           receipt_email: input.email ?? undefined,
           metadata: {
             product: "christmas_july_2026",
@@ -2340,6 +2360,10 @@ export const appRouter = router({
         const paymentIntent = await stripe.paymentIntents.create({
           amount,
           currency: "usd",
+          // Card only (card also surfaces Apple Pay + Google Pay in the Payment
+          // Element). This removes Klarna / Affirm / Amazon Pay / Cash App that
+          // Stripe's automatic payment methods would otherwise pull in.
+          payment_method_types: ["card"],
           receipt_email: input.parentEmail,
           metadata: {
             product: "afterschool_registration",
@@ -2393,6 +2417,10 @@ export const appRouter = router({
         const paymentIntent = await stripe.paymentIntents.create({
           amount,
           currency: "usd",
+          // Card only (card also surfaces Apple Pay + Google Pay in the Payment
+          // Element). This removes Klarna / Affirm / Amazon Pay / Cash App that
+          // Stripe's automatic payment methods would otherwise pull in.
+          payment_method_types: ["card"],
           ...(input.email ? { receipt_email: input.email } : {}),
           metadata: {
             product: "afterschool_registration",
