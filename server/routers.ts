@@ -1866,6 +1866,51 @@ export const appRouter = router({
       }),
   }),
 
+  // ─── After-School supply fee ($65) one-off (2026-08-03) ───────────────────
+  // Private payment link for the annual after-school supply fee, for families
+  // who completed registration without it (includeSupplyFee=false). Fixed $65
+  // server-side so a tampered URL cannot change the price. Metadata is the
+  // record; confirm pings staff. Card only (+ Apple/Google Pay wallets).
+  supplyFee: router({
+    createIntent: publicProcedure
+      .input(z.object({
+        payerName: z.string().min(1).max(255),
+        email: z.string().email().nullable().optional(),
+        studentName: z.string().max(255).optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const amount = 65_00;
+        const stripe = getStripe();
+        const paymentIntent = await stripe.paymentIntents.create({
+          amount,
+          currency: "usd",
+          payment_method_types: ["card"],
+          ...(input.email ? { receipt_email: input.email } : {}),
+          metadata: {
+            product: "afterschool_supply_fee",
+            payerName: input.payerName,
+            studentName: input.studentName ?? "",
+            email: input.email ?? "",
+          },
+        });
+        return { clientSecret: paymentIntent.client_secret, paymentIntentId: paymentIntent.id, amount };
+      }),
+    confirm: publicProcedure
+      .input(z.object({ paymentIntentId: z.string() }))
+      .mutation(async ({ input }) => {
+        const stripe = getStripe();
+        const pi = await stripe.paymentIntents.retrieve(input.paymentIntentId);
+        if (pi.status === "succeeded") {
+          const m = pi.metadata || {};
+          void sendTelegramMessage(
+            `🎒 <b>After-school supply fee paid</b>\n` +
+            `${m.payerName || "Parent"}${m.studentName ? ` · ${m.studentName}` : ""} · $${(pi.amount / 100).toFixed(2)}`
+          ).catch(() => {});
+        }
+        return { status: pi.status };
+      }),
+  }),
+
   // ─── $99 3-Week Trial enrollments (2026-06-15) ────────────────────────────
   // "Add Trial Student" in the Students tab. createIntent makes a $99 Stripe
   // PaymentIntent (same path as camp) + a pending enrollment; the client pays via

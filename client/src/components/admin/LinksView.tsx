@@ -27,6 +27,7 @@ const LINK_GROUPS: LinkGroup[] = [
       { label: "Afterschool Registration", path: "/afterschool-register", desc: "Paid afterschool enrollment (registration, uniform, supply fees)." },
       { label: "Summer Camp Registration", path: "/camp-registration", desc: "Paid summer camp signup." },
       { label: "Camp Field Trip Payment", path: "/field-trip", desc: "Self-serve $25/field-trip payment. Sends a confirmation email." },
+      { label: "After-School Supply Fee ($65)", path: "/supply-fee", desc: "Private link for families who skipped the $65 annual supply fee. Prefill: /supply-fee?name=..&email=..&student=.." },
     ],
   },
   {
