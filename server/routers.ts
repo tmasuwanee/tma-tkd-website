@@ -49,7 +49,7 @@ import {
   // Camp Waivers (2026-07-21)
   insertCampWaiver,
   // Afterschool Roster (2026-08-04)
-  getRosterStudents, addRosterStudent, updateRosterStudent, removeRosterStudent,
+  getRosterStudents, addRosterStudent, updateRosterStudent, removeRosterStudent, removeRosterSchool,
 } from "./db";
 import { sendTelegramMessage } from "./telegram";
 import { storagePut, storageGet } from "./storage";
@@ -2585,6 +2585,12 @@ export const appRouter = router({
       .input(z.object({ id: z.number().int().positive() }))
       .mutation(async ({ input }) => {
         await removeRosterStudent(input.id);
+        return { ok: true };
+      }),
+    removeSchool: publicProcedure
+      .input(z.object({ schoolName: z.string().min(1).max(100) }))
+      .mutation(async ({ input }) => {
+        await removeRosterSchool(input.schoolName);
         return { ok: true };
       }),
   }),

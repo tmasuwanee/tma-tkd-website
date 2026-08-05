@@ -40,10 +40,12 @@ type Student = {
 // ─── Add / Edit modal ─────────────────────────────────────────────────────────
 function StudentForm({
   initial,
+  schools,
   onSave,
   onCancel,
 }: {
   initial?: Partial<Student>;
+  schools: string[];
   onSave: (v: Omit<Student, "id">) => void;
   onCancel: () => void;
 }) {
@@ -62,7 +64,11 @@ function StudentForm({
         <div className="space-y-3">
           <div>
             <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">School *</label>
-            <Input value={schoolName} onChange={e => setSchoolName(e.target.value)} placeholder="e.g. Jackson" />
+            <Input list="roster-school-list" value={schoolName} onChange={e => setSchoolName(e.target.value)} placeholder="Pick a school or type a new one" />
+            <datalist id="roster-school-list">
+              {schools.map(s => <option key={s} value={s} />)}
+            </datalist>
+            <p className="text-[11px] text-gray-400 mt-0.5">Type a new school name to add a new school.</p>
           </div>
           <div>
             <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Child's Name *</label>
@@ -111,6 +117,7 @@ export default function AfterschoolRosterView() {
   const addMut = trpc.roster.add.useMutation({ onSuccess: () => { refetch(); setAdding(false); } });
   const updateMut = trpc.roster.update.useMutation({ onSuccess: () => { refetch(); setEditing(null); } });
   const removeMut = trpc.roster.remove.useMutation({ onSuccess: () => refetch() });
+  const removeSchoolMut = trpc.roster.removeSchool.useMutation({ onSuccess: () => refetch() });
 
   // Group by school
   const bySchool = useMemo(() => {
@@ -121,9 +128,11 @@ export default function AfterschoolRosterView() {
     }
     return map;
   }, [students]);
+  const schoolNames = useMemo(() => Object.keys(bySchool), [bySchool]);
 
-  const toggleAttendance = (studentId: number, dayIdx: number) => {
-    const key = `${studentId}-${dayIdx}`;
+  // Each day has two independent marks: check-in and check-out.
+  const toggleAttendance = (studentId: number, dayIdx: number, which: "in" | "out") => {
+    const key = `${studentId}-${dayIdx}-${which}`;
     setAttendance(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
@@ -183,19 +192,27 @@ export default function AfterschoolRosterView() {
           <table className="w-full text-xs border-collapse">
             <thead>
               <tr className="bg-white">
-                <th className="border border-gray-300 px-2 py-1 text-center w-8">#</th>
-                <th className="border border-gray-300 px-2 py-1 text-left min-w-[110px]">Phone</th>
-                <th className="border border-gray-300 px-2 py-1 text-center w-14">Grade</th>
-                <th className="border border-gray-300 px-2 py-1 text-center w-14">Group</th>
-                <th className="border border-gray-300 px-2 py-1 text-left min-w-[140px] text-[#c0392b] font-bold">CHILD'S NAME</th>
+                <th rowSpan={2} className="border border-gray-300 px-2 py-1 text-center w-8">#</th>
+                <th rowSpan={2} className="border border-gray-300 px-2 py-1 text-left min-w-[110px]">Phone</th>
+                <th rowSpan={2} className="border border-gray-300 px-2 py-1 text-center w-14">Grade</th>
+                <th rowSpan={2} className="border border-gray-300 px-2 py-1 text-center w-14">Group</th>
+                <th rowSpan={2} className="border border-gray-300 px-2 py-1 text-left min-w-[140px] text-[#c0392b] font-bold">CHILD'S NAME</th>
                 {dayLabels.map((d, i) => (
-                  <th key={d} className="border border-gray-300 px-1 py-1 text-center text-[#c0392b] font-bold w-14">
+                  <th key={d} colSpan={2} className="border border-gray-300 px-1 py-1 text-center text-[#c0392b] font-bold w-24">
                     <div>{d}</div>
                     <div className="font-normal text-gray-500 text-[10px]">{fmt(weekDays[i])}</div>
                   </th>
                 ))}
-                <th className="border border-gray-300 px-1 py-1 text-center w-10 print:hidden">SMS</th>
-                <th className="border border-gray-300 px-1 py-1 text-center w-16 print:hidden">Edit</th>
+                <th rowSpan={2} className="border border-gray-300 px-1 py-1 text-center w-10 print:hidden">SMS</th>
+                <th rowSpan={2} className="border border-gray-300 px-1 py-1 text-center w-16 print:hidden">Edit</th>
+              </tr>
+              <tr className="bg-white">
+                {dayLabels.map(d => (
+                  <React.Fragment key={`io-${d}`}>
+                    <th className="border border-gray-300 px-1 py-0.5 text-center font-semibold text-gray-500 text-[10px] w-12">In</th>
+                    <th className="border border-gray-300 px-1 py-0.5 text-center font-semibold text-gray-500 text-[10px] w-12">Out</th>
+                  </React.Fragment>
+                ))}
               </tr>
             </thead>
             <tbody>
@@ -203,8 +220,17 @@ export default function AfterschoolRosterView() {
                 <React.Fragment key={school}>
                   {/* School header row */}
                   <tr key={`school-${school}`} className="bg-[#4a90d9]">
-                    <td colSpan={13} className="border border-gray-300 px-3 py-1 text-center font-bold text-white text-sm tracking-wide uppercase">
-                      {school}
+                    <td colSpan={17} className="border border-gray-300 px-3 py-1 font-bold text-white text-sm tracking-wide uppercase">
+                      <div className="flex items-center">
+                        <span className="flex-1 text-center">{school}</span>
+                        <button
+                          title={`Remove ${school} and all its students`}
+                          onClick={() => { if (confirm(`Remove the entire "${school}" school and all of its students from the roster?`)) removeSchoolMut.mutate({ schoolName: school }); }}
+                          className="print:hidden text-white/80 hover:text-white ml-2"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                   {/* Student rows */}
@@ -217,18 +243,21 @@ export default function AfterschoolRosterView() {
                         <td className="border border-gray-300 px-2 py-1.5 text-center text-gray-700">{student.grade ?? ""}</td>
                         <td className="border border-gray-300 px-2 py-1.5 text-center text-gray-700">{student.groupLabel ?? ""}</td>
                         <td className="border border-gray-300 px-2 py-1.5 font-semibold text-gray-900">{student.childName}</td>
-                        {[0,1,2,3,4].map(dayIdx => {
-                          const key = `${student.id}-${dayIdx}`;
-                          const checked = !!attendance[key];
-                          return (
-                            <td key={dayIdx} className="border border-gray-300 px-1 py-1.5 text-center cursor-pointer select-none"
-                              onClick={() => toggleAttendance(student.id, dayIdx)}>
-                              {checked
-                                ? <Check className="w-4 h-4 mx-auto text-[#1a2d5a]" />
-                                : <span className="inline-block w-4 h-4 border border-gray-300 rounded-sm mx-auto" />}
-                            </td>
-                          );
-                        })}
+                        {[0,1,2,3,4].map(dayIdx => (
+                          <React.Fragment key={dayIdx}>
+                            {(["in", "out"] as const).map(which => {
+                              const checked = !!attendance[`${student.id}-${dayIdx}-${which}`];
+                              return (
+                                <td key={which} className="border border-gray-300 px-1 py-1.5 text-center cursor-pointer select-none"
+                                  onClick={() => toggleAttendance(student.id, dayIdx, which)}>
+                                  {checked
+                                    ? <Check className="w-4 h-4 mx-auto text-[#1a2d5a]" />
+                                    : <span className="inline-block w-4 h-4 border border-gray-300 rounded-sm mx-auto" />}
+                                </td>
+                              );
+                            })}
+                          </React.Fragment>
+                        ))}
                         {/* SMS button */}
                         <td className="border border-gray-300 px-1 py-1.5 text-center print:hidden">
                           <button
@@ -267,7 +296,7 @@ export default function AfterschoolRosterView() {
                   <td className="border border-gray-300 px-2 py-3" />
                   <td className="border border-gray-300 px-2 py-3" />
                   <td className="border border-gray-300 px-2 py-3" />
-                  {[0,1,2,3,4].map(d => <td key={d} className="border border-gray-300 px-2 py-3" />)}
+                  {Array.from({ length: 10 }).map((_, d) => <td key={d} className="border border-gray-300 px-2 py-3" />)}
                   <td className="border border-gray-300 print:hidden" />
                   <td className="border border-gray-300 print:hidden" />
                 </tr>
@@ -292,6 +321,7 @@ export default function AfterschoolRosterView() {
       {/* ── Modals ── */}
       {adding && (
         <StudentForm
+          schools={schoolNames}
           onSave={v => addMut.mutate(v)}
           onCancel={() => setAdding(false)}
         />
@@ -299,6 +329,7 @@ export default function AfterschoolRosterView() {
       {editing && (
         <StudentForm
           initial={editing}
+          schools={schoolNames}
           onSave={v => updateMut.mutate({ id: editing.id, ...v })}
           onCancel={() => setEditing(null)}
         />

@@ -57,6 +57,16 @@ const MIGRATIONS: { name: string; sql: string }[] = [
     name: "leads.recordType backfill: form-only waiver/transportation signers",
     sql: "UPDATE leads SET recordType='form_only' WHERE recordType='prospect' AND tags LIKE '%walk_in_waiver%'",
   },
+  {
+    // 2026-08-03: seed Elias Gray (waiver already on file) onto the afterschool
+    // roster under Benefield Elementary. Idempotent via NOT EXISTS (also matches a
+    // soft-deleted row, so a later removal is not resurrected). Added by request.
+    name: "afterschoolRoster seed: Elias Gray (Benefield Elementary)",
+    sql: "INSERT INTO afterschoolRoster (schoolName, childName, phone, grade, groupLabel, active, sortOrder) " +
+         "SELECT 'Benefield Elementary','Elias Gray','470-554-1991',NULL,NULL,1," +
+         "(SELECT COALESCE(MAX(r2.sortOrder),0)+10 FROM afterschoolRoster r2) FROM DUAL " +
+         "WHERE NOT EXISTS (SELECT 1 FROM afterschoolRoster r WHERE r.childName='Elias Gray' AND r.phone='470-554-1991')",
+  },
 ];
 
 export async function runStartupMigrations(): Promise<void> {

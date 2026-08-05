@@ -2869,20 +2869,28 @@ export async function updateRosterStudent(id: number, params: {
 }): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error('DB not available');
-  const sets: string[] = [];
-  const vals: unknown[] = [];
-  if (params.schoolName !== undefined) { sets.push('schoolName = ?'); vals.push(params.schoolName); }
-  if (params.childName !== undefined) { sets.push('childName = ?'); vals.push(params.childName); }
-  if (params.grade !== undefined) { sets.push('grade = ?'); vals.push(params.grade); }
-  if (params.groupLabel !== undefined) { sets.push('groupLabel = ?'); vals.push(params.groupLabel); }
-  if (params.phone !== undefined) { sets.push('phone = ?'); vals.push(params.phone); }
+  // Build the SET clause from properly-parameterized sql fragments. The prior
+  // version pushed literal "col = ?" strings via sql.raw() but never bound the
+  // values, so every edit (e.g. changing a grade) silently updated nothing.
+  const sets = [];
+  if (params.schoolName !== undefined) sets.push(sql`schoolName = ${params.schoolName}`);
+  if (params.childName !== undefined) sets.push(sql`childName = ${params.childName}`);
+  if (params.grade !== undefined) sets.push(sql`grade = ${params.grade}`);
+  if (params.groupLabel !== undefined) sets.push(sql`groupLabel = ${params.groupLabel}`);
+  if (params.phone !== undefined) sets.push(sql`phone = ${params.phone}`);
   if (!sets.length) return;
-  vals.push(id);
-  await db.execute(sql`UPDATE afterschoolRoster SET ${sql.raw(sets.join(', '))} WHERE id = ${id}`);
+  await db.execute(sql`UPDATE afterschoolRoster SET ${sql.join(sets, sql`, `)} WHERE id = ${id}`);
 }
 
 export async function removeRosterStudent(id: number): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error('DB not available');
   await db.execute(sql`UPDATE afterschoolRoster SET active = 0 WHERE id = ${id}`);
+}
+
+// Remove an entire school (soft-delete every active student under it).
+export async function removeRosterSchool(schoolName: string): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+  await db.execute(sql`UPDATE afterschoolRoster SET active = 0 WHERE schoolName = ${schoolName} AND active = 1`);
 }
