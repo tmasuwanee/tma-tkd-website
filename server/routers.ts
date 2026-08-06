@@ -50,6 +50,7 @@ import {
   insertCampWaiver,
   // Afterschool Roster (2026-08-04)
   getRosterStudents, addRosterStudent, updateRosterStudent, removeRosterStudent, removeRosterSchool,
+  getRosterAttendance, upsertRosterAttendance,
 } from "./db";
 import { sendTelegramMessage } from "./telegram";
 import { storagePut, storageGet } from "./storage";
@@ -2668,6 +2669,21 @@ export const appRouter = router({
       .input(z.object({ schoolName: z.string().min(1).max(100) }))
       .mutation(async ({ input }) => {
         await removeRosterSchool(input.schoolName);
+        return { ok: true };
+      }),
+    getAttendance: publicProcedure
+      .input(z.object({ weekStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }))
+      .query(async ({ input }) => getRosterAttendance(input.weekStart)),
+    setAttendance: publicProcedure
+      .input(z.object({
+        rosterId: z.number().int().positive(),
+        weekStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        dayIdx: z.number().int().min(0).max(4),
+        which: z.enum(['in', 'out']),
+        checked: z.boolean(),
+      }))
+      .mutation(async ({ input }) => {
+        await upsertRosterAttendance(input.rosterId, input.weekStart, input.dayIdx, input.which, input.checked);
         return { ok: true };
       }),
   }),

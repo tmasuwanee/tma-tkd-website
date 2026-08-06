@@ -108,7 +108,6 @@ function StudentForm({
 export default function AfterschoolRosterView() {
   const [weekOffset, setWeekOffset] = useState(0);
   const weekDays = useMemo(() => getWeekDates(weekOffset), [weekOffset]);
-  const [attendance, setAttendance] = useState<Record<string, boolean>>({});
   const [notes, setNotes] = useState("");
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<Student | null>(null);
@@ -118,6 +117,41 @@ export default function AfterschoolRosterView() {
   const updateMut = trpc.roster.update.useMutation({ onSuccess: () => { refetch(); setEditing(null); } });
   const removeMut = trpc.roster.remove.useMutation({ onSuccess: () => refetch() });
   const removeSchoolMut = trpc.roster.removeSchool.useMutation({ onSuccess: () => refetch() });
+  // Compute Monday ISO date for this week (used as DB key)
+  const weekStart = useMemo(() => {
+    // Compute directly from weekOffset so the value is stable (Date objects
+    // from weekDays are new references each render and would cause infinite loops)
+    const now = new Date();
+    const day = now.getDay();
+    const diffToMon = day === 0 ? -6 : 1 - day;
+    const mon = new Date(now);
+    mon.setDate(now.getDate() + diffToMon + weekOffset * 7);
+    return `${mon.getFullYear()}-${String(mon.getMonth()+1).padStart(2,'0')}-${String(mon.getDate()).padStart(2,'0')}`;
+  }, [weekOffset]);
+  // Persisted attendance for this week
+  const { data: attRows = [] } = trpc.roster.getAttendance.useQuery({ weekStart });
+  const setAttMut = trpc.roster.setAttendance.useMutation();
+  const utils = trpc.useUtils();
+  // Local overrides for optimistic updates (cleared when weekStart changes)
+  const [localOverrides, setLocalOverrides] = useState<Record<string, boolean>>({});
+  // Reset overrides when navigating to a different week
+  const prevWeekStart = React.useRef(weekStart);
+  if (prevWeekStart.current !== weekStart) {
+    prevWeekStart.current = weekStart;
+    // Can't call setState during render, so we use an effect below
+  }
+  React.useEffect(() => {
+    setLocalOverrides({});
+  }, [weekStart]);
+  // Merge DB rows with local overrides
+  const attendance = useMemo(() => {
+    const map: Record<string, boolean> = {};
+    for (const r of attRows) {
+      map[`${r.rosterId}-${r.dayIdx}-${r.which}`] = r.checked;
+    }
+    // Local overrides win
+    return { ...map, ...localOverrides };
+  }, [attRows, localOverrides]);
 
   // Group by school
   const bySchool = useMemo(() => {
@@ -133,7 +167,17 @@ export default function AfterschoolRosterView() {
   // Each day has two independent marks: check-in and check-out.
   const toggleAttendance = (studentId: number, dayIdx: number, which: "in" | "out") => {
     const key = `${studentId}-${dayIdx}-${which}`;
-    setAttendance(prev => ({ ...prev, [key]: !prev[key] }));
+    const newVal = !attendance[key];
+    // Optimistic: update local state immediately so the checkbox responds instantly
+    setLocalOverrides(prev => ({ ...prev, [key]: newVal }));
+    // Persist to DB in background; on error revert the optimistic update
+    setAttMut.mutate(
+      { rosterId: studentId, weekStart, dayIdx, which, checked: newVal },
+      {
+        onSuccess: () => utils.roster.getAttendance.invalidate({ weekStart }),
+        onError: () => setLocalOverrides(prev => ({ ...prev, [key]: !newVal })),
+      }
+    );
   };
 
   const sendSms = (student: Student) => {

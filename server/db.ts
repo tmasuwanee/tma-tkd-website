@@ -2894,3 +2894,32 @@ export async function removeRosterSchool(schoolName: string): Promise<void> {
   if (!db) throw new Error('DB not available');
   await db.execute(sql`UPDATE afterschoolRoster SET active = 0 WHERE schoolName = ${schoolName} AND active = 1`);
 }
+
+// ─── Roster Attendance (persisted check-in/out boxes) ─────────────────────
+export async function getRosterAttendance(weekStart: string): Promise<{ rosterId: number; dayIdx: number; which: string; checked: boolean }[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db.execute(sql`SELECT rosterId, dayIdx, which, checked FROM rosterAttendance WHERE weekStart = ${weekStart}`);
+  return (rows as any[]).map((r: any) => ({
+    rosterId: Number(r.rosterId),
+    dayIdx: Number(r.dayIdx),
+    which: String(r.which),
+    checked: Boolean(Number(r.checked)),
+  }));
+}
+
+export async function upsertRosterAttendance(
+  rosterId: number,
+  weekStart: string,
+  dayIdx: number,
+  which: 'in' | 'out',
+  checked: boolean,
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+  await db.execute(sql`
+    INSERT INTO rosterAttendance (rosterId, weekStart, dayIdx, which, checked)
+    VALUES (${rosterId}, ${weekStart}, ${dayIdx}, ${which}, ${checked ? 1 : 0})
+    ON DUPLICATE KEY UPDATE checked = ${checked ? 1 : 0}
+  `);
+}
