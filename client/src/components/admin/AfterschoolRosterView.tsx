@@ -132,14 +132,26 @@ export default function AfterschoolRosterView() {
   const { data: attRows = [] } = trpc.roster.getAttendance.useQuery({ weekStart });
   const setAttMut = trpc.roster.setAttendance.useMutation();
   const utils = trpc.useUtils();
-  // Build a lookup map from the DB rows
+  // Local overrides for optimistic updates (cleared when weekStart changes)
+  const [localOverrides, setLocalOverrides] = useState<Record<string, boolean>>({});
+  // Reset overrides when navigating to a different week
+  const prevWeekStart = React.useRef(weekStart);
+  if (prevWeekStart.current !== weekStart) {
+    prevWeekStart.current = weekStart;
+    // Can't call setState during render, so we use an effect below
+  }
+  React.useEffect(() => {
+    setLocalOverrides({});
+  }, [weekStart]);
+  // Merge DB rows with local overrides
   const attendance = useMemo(() => {
     const map: Record<string, boolean> = {};
     for (const r of attRows) {
       map[`${r.rosterId}-${r.dayIdx}-${r.which}`] = r.checked;
     }
-    return map;
-  }, [attRows]);
+    // Local overrides win
+    return { ...map, ...localOverrides };
+  }, [attRows, localOverrides]);
 
   // Group by school
   const bySchool = useMemo(() => {
@@ -156,10 +168,15 @@ export default function AfterschoolRosterView() {
   const toggleAttendance = (studentId: number, dayIdx: number, which: "in" | "out") => {
     const key = `${studentId}-${dayIdx}-${which}`;
     const newVal = !attendance[key];
-    // Optimistic update via cache invalidation after mutation
+    // Optimistic: update local state immediately so the checkbox responds instantly
+    setLocalOverrides(prev => ({ ...prev, [key]: newVal }));
+    // Persist to DB in background; on error revert the optimistic update
     setAttMut.mutate(
       { rosterId: studentId, weekStart, dayIdx, which, checked: newVal },
-      { onSuccess: () => utils.roster.getAttendance.invalidate({ weekStart }) }
+      {
+        onSuccess: () => utils.roster.getAttendance.invalidate({ weekStart }),
+        onError: () => setLocalOverrides(prev => ({ ...prev, [key]: !newVal })),
+      }
     );
   };
 
