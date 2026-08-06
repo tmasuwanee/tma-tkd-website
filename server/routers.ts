@@ -54,7 +54,7 @@ import {
 } from "./db";
 import { sendTelegramMessage } from "./telegram";
 import { storagePut, storageGet } from "./storage";
-import { sendToGoogleSheets, sendToSlack, sendEmailNotification, sendProShopOrderNotification, sendCampRegistrationConfirmation, sendCampWaiverEmail, sendFieldTripConfirmation, sendTransportationForm, sendTrialReceipt, sendAfterschoolConfirmation, sendAfterschoolIntake } from "./integrations";
+import { sendToGoogleSheets, sendToSlack, sendEmailNotification, sendProShopOrderNotification, sendCampRegistrationConfirmation, sendCampWaiverEmail, sendFieldTripConfirmation, sendTransportationForm, sendTrialReceipt, sendAfterschoolConfirmation, sendAfterschoolIntake, sendWaiverNotification } from "./integrations";
 import { fillTransportationPdf } from "./transportation-pdf";
 import { buildAfterschoolIntakePdf } from "./afterschool-intake-pdf";
 import { buildInvoicePdf } from "./invoice-pdf";
@@ -1680,6 +1680,13 @@ export const appRouter = router({
             (result.matchedExisting ? `\n(matched an existing lead)` : "") +
             `\n${adminLink("/admin/waivers")}`
           ).catch(() => {});
+          void sendWaiverNotification({
+            parentName: input.parentName,
+            studentName: kids || input.parentName,
+            phone: input.phone,
+            email: input.email,
+            sourceLabel: "In-person sign-up",
+          });
           return { success: true, leadId: result.leadId, matchedExisting: result.matchedExisting };
         } catch (error) {
           console.error("Waiver submission error:", error);
@@ -1984,6 +1991,13 @@ export const appRouter = router({
         void sendTelegramMessage(
           `📝 <b>After-school waiver signed</b>\n${input.parentName} · ${input.studentName}\n${adminLink("/admin/waivers")}`
         ).catch(() => {});
+        void sendWaiverNotification({
+          parentName: input.parentName,
+          studentName: input.studentName,
+          phone: input.phone,
+          email: input.email,
+          sourceLabel: "After-School Waiver",
+        });
 
         return { success: true, pdfUrl, waiverId };
       }),

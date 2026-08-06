@@ -1,6 +1,11 @@
 import { ENV } from './_core/env';
 import { Lead } from '../drizzle/schema';
 
+// Where staff notifications go. Falls back to the studio Gmail so a missing
+// LEAD_NOTIFICATION_EMAIL env var never silently drops staff alerts (a likely
+// cause of "we stopped getting notification emails").
+const STAFF_NOTIFY_EMAIL = ENV.leadNotificationEmail || 'tmasuwanee@gmail.com';
+
 // Online summer camp waiver (Cloudflare Pages). Parents complete it before the
 // first day: liability release, medical/allergy info, and authorized pickup.
 const CAMP_WAIVER_URL = 'https://tma-camp-waiver.pages.dev/';
@@ -367,11 +372,6 @@ export async function sendAfterschoolIntake(params: {
  */
 export async function sendEmailNotification(lead: Lead) {
   try {
-    if (!ENV.leadNotificationEmail) {
-      console.warn('[Email] Missing notification email, skipping');
-      return;
-    }
-
     const { emoji, title } = leadSourceLabel(lead);
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -397,10 +397,46 @@ export async function sendEmailNotification(lead: Lead) {
       </div>
     `;
 
-    await sendEmail(ENV.leadNotificationEmail, `${title} - ${lead.kidName}`, html);
-    console.log('[Email] Admin notification sent to:', ENV.leadNotificationEmail);
+    await sendEmail(STAFF_NOTIFY_EMAIL, `${title} - ${lead.kidName}`, html);
+    console.log('[Email] Admin notification sent to:', STAFF_NOTIFY_EMAIL);
   } catch (error) {
     console.error('[Email] Error sending admin notification:', error);
+  }
+}
+
+/**
+ * Staff email when a waiver is signed (walk-in, after-school, etc.). Previously
+ * a signed waiver only sent a Telegram ping and no email, so staff who rely on
+ * email never heard about it. Sends to STAFF_NOTIFY_EMAIL.
+ */
+export async function sendWaiverNotification(params: {
+  parentName: string;
+  studentName: string;
+  phone?: string | null;
+  email?: string | null;
+  sourceLabel: string;
+}) {
+  try {
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: #1a2d5a; padding: 20px; text-align: center;">
+          <h1 style="color: white; margin: 0; font-size: 20px;">📝 New Signed Waiver</h1>
+          <p style="color: #a0b4d6; margin: 6px 0 0; font-size: 13px;">${params.sourceLabel}</p>
+        </div>
+        <div style="padding: 24px; background: #f9f9f9;">
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr><td style="padding: 8px; font-weight: bold;">Student:</td><td style="padding: 8px;">${params.studentName}</td></tr>
+            <tr><td style="padding: 8px; font-weight: bold;">Parent:</td><td style="padding: 8px;">${params.parentName}</td></tr>
+            <tr><td style="padding: 8px; font-weight: bold;">Phone:</td><td style="padding: 8px;">${params.phone ?? "-"}</td></tr>
+            <tr><td style="padding: 8px; font-weight: bold;">Email:</td><td style="padding: 8px;">${params.email ?? "-"}</td></tr>
+          </table>
+          <p style="font-size: 13px; color: #555;">View it in the dashboard under Waivers.</p>
+        </div>
+      </div>`;
+    await sendEmail(STAFF_NOTIFY_EMAIL, `New signed waiver: ${params.studentName}`, html);
+    console.log('[Email] Waiver notification sent to:', STAFF_NOTIFY_EMAIL);
+  } catch (error) {
+    console.error('[Email] Error sending waiver notification:', error);
   }
 }
 
