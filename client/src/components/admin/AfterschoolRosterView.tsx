@@ -119,9 +119,15 @@ export default function AfterschoolRosterView() {
   const removeSchoolMut = trpc.roster.removeSchool.useMutation({ onSuccess: () => refetch() });
   // Compute Monday ISO date for this week (used as DB key)
   const weekStart = useMemo(() => {
-    const d = weekDays[0];
-    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-  }, [weekDays]);
+    // Compute directly from weekOffset so the value is stable (Date objects
+    // from weekDays are new references each render and would cause infinite loops)
+    const now = new Date();
+    const day = now.getDay();
+    const diffToMon = day === 0 ? -6 : 1 - day;
+    const mon = new Date(now);
+    mon.setDate(now.getDate() + diffToMon + weekOffset * 7);
+    return `${mon.getFullYear()}-${String(mon.getMonth()+1).padStart(2,'0')}-${String(mon.getDate()).padStart(2,'0')}`;
+  }, [weekOffset]);
   // Persisted attendance for this week
   const { data: attRows = [] } = trpc.roster.getAttendance.useQuery({ weekStart });
   const setAttMut = trpc.roster.setAttendance.useMutation();
