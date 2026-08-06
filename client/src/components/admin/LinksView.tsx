@@ -21,6 +21,7 @@ const LINK_GROUPS: LinkGroup[] = [
     group: "Sign-ups & Sales",
     items: [
       { label: "Free Class", path: "/free-class", desc: "Book a free intro class. Feeds the leads pipeline." },
+      { label: "Open House RSVP (Aug 29)", path: "/open-house", desc: "Back-to-School bring-a-friend open house. RSVPs become leads tagged open_house_2026. Referral link: /open-house?ref=MemberName" },
       { label: "$49 Back to School (2 weeks)", path: "/back-to-school", desc: "Pick a program, pay $49 online for two weeks." },
       { label: "Christmas in July Sale", path: "/christmas-in-july", desc: "Pro shop + bulk tuition + bundle order form." },
       { label: "Afterschool Tour Request", path: "/afterschooltour", desc: "Parents request a tour; staff calls to confirm." },
@@ -35,6 +36,7 @@ const LINK_GROUPS: LinkGroup[] = [
     items: [
       { label: "Guest / Walk-in Waiver", path: "/enroll", desc: "Liability waiver + sign-up. Alias: /waiver." },
       { label: "After-School Transportation Form", path: "/transportation", desc: "GCPS transportation authorization. Parent signs; a filled PDF is emailed + stored." },
+      { label: "After-School Waiver (sign only)", path: "/afterschool-waiver", desc: "Just the after-school waiver + policies, no registration questions. Parent signs; stored under Waivers. Prefill: /afterschool-waiver?student=.." },
       { label: "Walk-in Self Sign-up", path: "/walkin", desc: "Walk-in picks a trial class and signs on their own phone." },
       { label: "Walk-in QR Display (staff)", path: "/walkin-qr", desc: "Full-screen QR to hand a walk-in on a tablet.", staffOnly: true },
       { label: "Attendance Kiosk", path: "/attendance", desc: "In-studio attendance check-in kiosk.", staffOnly: true },

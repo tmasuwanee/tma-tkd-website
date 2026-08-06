@@ -57,6 +57,7 @@ import { sendToGoogleSheets, sendToSlack, sendEmailNotification, sendProShopOrde
 import { fillTransportationPdf } from "./transportation-pdf";
 import { buildAfterschoolIntakePdf } from "./afterschool-intake-pdf";
 import { buildInvoicePdf } from "./invoice-pdf";
+import { buildAfterschoolWaiverPdf } from "./afterschool-waiver-pdf";
 import { afterschoolWaiverPlainText } from "@shared/afterschoolWaiver";
 import { fireLeadEvent, firePurchaseEvent } from "./meta-capi";
 import { computeOrderCents, buildOrderSummary } from "../shared/christmasPricing";
@@ -1908,6 +1909,82 @@ export const appRouter = router({
           ).catch(() => {});
         }
         return { status: pi.status };
+      }),
+  }),
+
+  // ─── After-School waiver only (2026-08-05) ────────────────────────────────
+  // Standalone waiver signing (no registration questions / no payment) for a
+  // parent who just needs to sign the After-School waiver + policies. Stamps a
+  // signed PDF, stores it, and files it under the waivers system with source
+  // "afterschool-waiver" (recordType form_only, so it never enters the call pile).
+  afterschoolWaiver: router({
+    submit: publicProcedure
+      .input(z.object({
+        parentName: z.string().min(1).max(255),
+        email: z.string().email(),
+        phone: z.string().min(1).max(40),
+        studentName: z.string().min(1).max(255),
+        signedRelationship: z.string().max(120).optional(),
+        signedDate: z.string().min(1).max(40),
+        waiverInitials: z.record(z.string(), z.string().max(6)),
+        signaturePngDataUrl: z.string().min(1),
+        agreedToGuidelines: z.literal(true),
+        smsConsentText: z.string().max(2000).optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const ip = (ctx?.req as any)?.ip
+          || (ctx?.req as any)?.headers?.["cf-connecting-ip"]
+          || (ctx?.req as any)?.headers?.["x-forwarded-for"]
+          || null;
+
+        const pdfBytes = await buildAfterschoolWaiverPdf({
+          parentName: input.parentName,
+          studentName: input.studentName,
+          signedRelationship: input.signedRelationship,
+          signedDate: input.signedDate,
+          waiverInitials: input.waiverInitials,
+          signaturePngDataUrl: input.signaturePngDataUrl,
+        });
+        const pdfBuffer = Buffer.from(pdfBytes);
+
+        let pdfUrl: string | null = null;
+        try {
+          const safe = input.studentName.replace(/[^a-z0-9]+/gi, "-").toLowerCase();
+          const key = `afterschool-waiver/${new Date().toISOString().slice(0, 10)}-${safe}-${Math.floor(Math.random() * 1e6)}.pdf`;
+          const put = await storagePut(key, pdfBuffer, "application/pdf");
+          pdfUrl = put.url;
+        } catch (err) {
+          console.error("[afterschool-waiver] PDF storage failed (continuing):", err);
+        }
+
+        let waiverId: number | undefined;
+        try {
+          const result = await submitWaiver({
+            parentName: input.parentName,
+            email: input.email,
+            phone: input.phone,
+            students: [{ name: input.studentName, dob: "" }],
+            interests: ["afterschool"],
+            signatureData: input.signaturePngDataUrl,
+            signedName: input.parentName,
+            signedDate: input.signedDate,
+            disclaimerText: `After School Waiver & Policies\nStudent: ${input.studentName}\n\n${afterschoolWaiverPlainText()}`,
+            source: "afterschool-waiver",
+            recordType: "form_only",
+            pdfUrl,
+            ip: ip ? String(ip) : null,
+            ...(input.smsConsentText ? { smsConsent: true, smsConsentText: input.smsConsentText } : {}),
+          });
+          waiverId = result.waiverId;
+        } catch (err) {
+          console.error("[afterschool-waiver] waiver record failed (continuing):", err);
+        }
+
+        void sendTelegramMessage(
+          `📝 <b>After-school waiver signed</b>\n${input.parentName} · ${input.studentName}\n${adminLink("/admin/waivers")}`
+        ).catch(() => {});
+
+        return { success: true, pdfUrl, waiverId };
       }),
   }),
 
