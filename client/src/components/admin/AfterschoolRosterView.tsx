@@ -108,7 +108,6 @@ function StudentForm({
 export default function AfterschoolRosterView() {
   const [weekOffset, setWeekOffset] = useState(0);
   const weekDays = useMemo(() => getWeekDates(weekOffset), [weekOffset]);
-  const [attendance, setAttendance] = useState<Record<string, boolean>>({});
   const [notes, setNotes] = useState("");
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<Student | null>(null);
@@ -118,6 +117,23 @@ export default function AfterschoolRosterView() {
   const updateMut = trpc.roster.update.useMutation({ onSuccess: () => { refetch(); setEditing(null); } });
   const removeMut = trpc.roster.remove.useMutation({ onSuccess: () => refetch() });
   const removeSchoolMut = trpc.roster.removeSchool.useMutation({ onSuccess: () => refetch() });
+  // Compute Monday ISO date for this week (used as DB key)
+  const weekStart = useMemo(() => {
+    const d = weekDays[0];
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }, [weekDays]);
+  // Persisted attendance for this week
+  const { data: attRows = [] } = trpc.roster.getAttendance.useQuery({ weekStart });
+  const setAttMut = trpc.roster.setAttendance.useMutation();
+  const utils = trpc.useUtils();
+  // Build a lookup map from the DB rows
+  const attendance = useMemo(() => {
+    const map: Record<string, boolean> = {};
+    for (const r of attRows) {
+      map[`${r.rosterId}-${r.dayIdx}-${r.which}`] = r.checked;
+    }
+    return map;
+  }, [attRows]);
 
   // Group by school
   const bySchool = useMemo(() => {
@@ -133,7 +149,12 @@ export default function AfterschoolRosterView() {
   // Each day has two independent marks: check-in and check-out.
   const toggleAttendance = (studentId: number, dayIdx: number, which: "in" | "out") => {
     const key = `${studentId}-${dayIdx}-${which}`;
-    setAttendance(prev => ({ ...prev, [key]: !prev[key] }));
+    const newVal = !attendance[key];
+    // Optimistic update via cache invalidation after mutation
+    setAttMut.mutate(
+      { rosterId: studentId, weekStart, dayIdx, which, checked: newVal },
+      { onSuccess: () => utils.roster.getAttendance.invalidate({ weekStart }) }
+    );
   };
 
   const sendSms = (student: Student) => {
