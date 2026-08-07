@@ -6,7 +6,7 @@ import {
   Kanban, ClipboardCheck, Phone, PhoneOutgoing, Mail, Route as RouteIcon,
   BarChart2, GraduationCap, CalendarCheck, ShieldAlert, Camera, LogOut,
   Menu, PhoneCall, CalendarDays, CheckSquare, FileSignature, Link2, BookOpen,
-  ShoppingBag, Users, ClipboardList, FileText,
+  ShoppingBag, Users, ClipboardList, FileText, Home, ChevronDown, ChevronRight,
 } from "lucide-react";
 import { CallsApp } from "@/pages/AdminTodaysCalls";
 import { CallLogApp } from "@/pages/AdminCallLog";
@@ -29,26 +29,37 @@ import OrdersView from "@/components/admin/OrdersView";
 import EnrolledFamiliesView from "@/components/admin/EnrolledFamiliesView";
 import AfterschoolRosterView from "@/components/admin/AfterschoolRosterView";
 import InvoicesView from "@/components/admin/InvoicesView";
+import TodayView from "@/components/admin/TodayView";
 
 // Keys double as URL segments (/admin/<key>). They match the old standalone
 // routes where possible (/admin/calls, /admin/checkin, /admin/call-log,
 // /admin/voice-test, /admin/controls) so those URLs still land in the shell.
 type ViewKey =
-  | "calls" | "calendar" | "leads" | "checkin" | "waivers" | "call-log" | "voice-test"
+  | "today" | "calls" | "calendar" | "leads" | "checkin" | "waivers" | "call-log" | "voice-test"
   | "sequences" | "rules" | "ads" | "students" | "camp" | "controls" | "studio" | "tasks" | "links" | "playbook"
   | "orders" | "enrolled" | "afterschool-roster" | "invoices";
 
-const NAV: { group: string; items: { key: ViewKey; label: string; icon: any }[] }[] = [
+type NavItem = { key: ViewKey; label: string; icon: any };
+type NavGroup = { group: string; items: NavItem[]; collapsible?: boolean };
+
+// Front-desk-facing groups (always shown). Reorganized 2026-08-05 around the
+// three real daily jobs: work leads (Today/Prospects), manage people, handle money.
+const NAV: NavGroup[] = [
+  { group: "Main", items: [
+    { key: "today", label: "Today", icon: Home },
+  ]},
   { group: "Prospects", items: [
     { key: "calls", label: "Today's Calls", icon: PhoneCall },
     { key: "calendar", label: "Calendar", icon: CalendarDays },
     { key: "leads", label: "Leads", icon: Kanban },
     { key: "checkin", label: "Trial Check-in", icon: ClipboardCheck },
   ]},
-  { group: "Customers", items: [
+  { group: "People", items: [
     { key: "enrolled", label: "Enrolled Families", icon: Users },
     { key: "afterschool-roster", label: "Afterschool Roster", icon: ClipboardList },
     { key: "students", label: "Students", icon: GraduationCap },
+  ]},
+  { group: "Money", items: [
     { key: "orders", label: "Orders", icon: ShoppingBag },
     { key: "camp", label: "Camp Registrations", icon: CalendarCheck },
     { key: "invoices", label: "Invoice Generator", icon: FileText },
@@ -56,18 +67,20 @@ const NAV: { group: string; items: { key: ViewKey; label: string; icon: any }[] 
   { group: "Forms & Calls", items: [
     { key: "waivers", label: "Waivers", icon: FileSignature },
     { key: "call-log", label: "Call Log", icon: Phone },
-    { key: "voice-test", label: "Voice Test", icon: PhoneOutgoing },
   ]},
-  { group: "Growth", items: [
-    { key: "sequences", label: "Email Sequences", icon: Mail },
-    { key: "rules", label: "Routing Rules", icon: RouteIcon },
-    { key: "ads", label: "Ad Performance", icon: BarChart2 },
-  ]},
-  { group: "System", items: [
+  { group: "Tools", items: [
     { key: "playbook", label: "Front Desk Playbook", icon: BookOpen },
     { key: "links", label: "Links", icon: Link2 },
     { key: "tasks", label: "My Tasks", icon: CheckSquare },
+  ]},
+  // Owner / config tools — collapsed by default so the front desk isn't buried
+  // in settings. (Shared login, so this is decluttering, not access control.)
+  { group: "Owner tools", collapsible: true, items: [
+    { key: "sequences", label: "Email Sequences", icon: Mail },
+    { key: "rules", label: "Routing Rules", icon: RouteIcon },
+    { key: "ads", label: "Ad Performance", icon: BarChart2 },
     { key: "controls", label: "Automation", icon: ShieldAlert },
+    { key: "voice-test", label: "Voice Test", icon: PhoneOutgoing },
     { key: "studio", label: "Studio", icon: Camera },
   ]},
 ];
@@ -76,6 +89,7 @@ const ALL_ITEMS = NAV.flatMap(g => g.items);
 
 function renderView(key: ViewKey, email: string) {
   switch (key) {
+    case "today": return <TodayView />;
     case "calls": return <CallsApp email={email} embedded />;
     case "calendar": return <CalendarView />;
     case "leads": return <LeadsPipeline />;
@@ -104,15 +118,37 @@ export default function AdminShell() {
   const { email, ready, login, logout } = useAdminAuth();
   const [location, navigate] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [ownerOpen, setOwnerOpen] = useState(() => {
+    try { return localStorage.getItem("tma_admin_owner_open") === "1"; } catch { return false; }
+  });
 
   if (!ready) return null;
   if (!email) return <AdminLoginGate onLogin={login} />;
 
   const seg = location.replace(/^\/admin\/?/, "").split("/")[0];
-  const active: ViewKey = ALL_ITEMS.find(i => i.key === seg)?.key ?? "leads";
-  const activeLabel = ALL_ITEMS.find(i => i.key === active)?.label ?? "Leads";
+  const active: ViewKey = ALL_ITEMS.find(i => i.key === seg)?.key ?? "today";
+  const activeLabel = ALL_ITEMS.find(i => i.key === active)?.label ?? "Today";
 
   const go = (key: ViewKey) => { navigate(`/admin/${key}`); setMobileOpen(false); };
+  const toggleOwner = () => setOwnerOpen(v => {
+    const next = !v;
+    try { localStorage.setItem("tma_admin_owner_open", next ? "1" : "0"); } catch { /* noop */ }
+    return next;
+  });
+
+  const renderItem = (item: NavItem) => {
+    const Icon = item.icon;
+    const on = item.key === active;
+    return (
+      <button key={item.key} onClick={() => go(item.key)}
+        className={`w-full flex items-center gap-2.5 px-4 py-2 text-sm transition-colors ${
+          on ? "bg-[#1a2d5a]/10 text-[#1a2d5a] font-semibold border-r-2 border-[#1a2d5a]"
+             : "text-gray-600 hover:bg-gray-100"}`}>
+        <Icon className="w-4 h-4 shrink-0" />
+        {item.label}
+      </button>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
@@ -128,20 +164,16 @@ export default function AdminShell() {
         <nav className="flex-1 overflow-y-auto py-3">
           {NAV.map(group => (
             <div key={group.group} className="mb-3">
-              <div className="px-4 mb-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400">{group.group}</div>
-              {group.items.map(item => {
-                const Icon = item.icon;
-                const on = item.key === active;
-                return (
-                  <button key={item.key} onClick={() => go(item.key)}
-                    className={`w-full flex items-center gap-2.5 px-4 py-2 text-sm transition-colors ${
-                      on ? "bg-[#1a2d5a]/10 text-[#1a2d5a] font-semibold border-r-2 border-[#1a2d5a]"
-                         : "text-gray-600 hover:bg-gray-100"}`}>
-                    <Icon className="w-4 h-4 shrink-0" />
-                    {item.label}
-                  </button>
-                );
-              })}
+              {group.collapsible ? (
+                <button onClick={toggleOwner}
+                  className="w-full flex items-center justify-between px-4 mb-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400 hover:text-gray-600">
+                  <span>{group.group}</span>
+                  {ownerOpen ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                </button>
+              ) : (
+                group.group !== "Main" && <div className="px-4 mb-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400">{group.group}</div>
+              )}
+              {(!group.collapsible || ownerOpen) && group.items.map(renderItem)}
             </div>
           ))}
         </nav>
