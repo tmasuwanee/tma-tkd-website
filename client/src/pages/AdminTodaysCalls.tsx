@@ -251,8 +251,8 @@ function CallDetailModal({ row, email, onClose, onSaved }: {
             <div className="text-xs font-semibold text-gray-700 mb-1.5">Suggested opener</div>
             <div className="bg-blue-50 border border-blue-200 rounded p-3 text-xs text-blue-900 leading-relaxed">
               "Hi {lead?.parentName?.split(" ")[0]}, this is Master Arfa from TMA Suwanee.
-              We have early-bird pricing for summer camp running this week. {lead?.kidName} would be welcome
-              for any of the remaining weeks. Got a minute?"
+              I saw {lead?.kidName} was interested in our classes. I'd love to get them in for a
+              free intro class this week. Do you have a minute?"
             </div>
           </div>
 

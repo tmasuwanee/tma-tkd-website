@@ -50,11 +50,12 @@ import {
   insertCampWaiver,
   // Afterschool Roster (2026-08-04)
   getRosterStudents, addRosterStudent, updateRosterStudent, removeRosterStudent, removeRosterSchool,
+  // note: sendToSlack + sendToGoogleSheets retired (see leads.submit)
   getRosterAttendance, upsertRosterAttendance,
 } from "./db";
 import { sendTelegramMessage } from "./telegram";
 import { storagePut, storageGet } from "./storage";
-import { sendToGoogleSheets, sendToSlack, sendEmailNotification, sendProShopOrderNotification, sendCampRegistrationConfirmation, sendCampWaiverEmail, sendFieldTripConfirmation, sendTransportationForm, sendTrialReceipt, sendAfterschoolConfirmation, sendAfterschoolIntake, sendWaiverNotification } from "./integrations";
+import { sendEmailNotification, sendProShopOrderNotification, sendCampRegistrationConfirmation, sendCampWaiverEmail, sendFieldTripConfirmation, sendTransportationForm, sendTrialReceipt, sendAfterschoolConfirmation, sendAfterschoolIntake, sendWaiverNotification } from "./integrations";
 import { fillTransportationPdf } from "./transportation-pdf";
 import { buildAfterschoolIntakePdf } from "./afterschool-intake-pdf";
 import { buildInvoicePdf } from "./invoice-pdf";
@@ -581,9 +582,11 @@ export const appRouter = router({
           // Pro shop / sale orders get their own email template (order summary,
           // fulfillment framing) instead of the "New Free Class Inquiry" email.
           const isProShopOrder = (input.tags ?? []).includes("proshop_order");
+          // Slack + Google Sheets retired 2026-08-05: Slack duplicated the staff
+          // email for a single Telegram-based team, and the Sheets export never
+          // worked (unsigned JWT stub). Staff alert = email (Telegram covers
+          // real-time on paid/signed paths).
           await Promise.all([
-            sendToGoogleSheets(leadForIntegrations),
-            sendToSlack(leadForIntegrations),
             isProShopOrder
               ? sendProShopOrderNotification(leadForIntegrations)
               : sendEmailNotification(leadForIntegrations),
