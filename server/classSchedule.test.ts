@@ -12,7 +12,7 @@ describe("Class Schedule Eligibility", () => {
     const slots = getEligibleSlots("taekwondo", 16);
     expect(slots).toHaveLength(2);
     expect(slots.map(s => s.day)).toEqual(["Monday","Thursday"]);
-    expect(slots[0].startTime).toBe("7:10 PM");
+    expect(slots[0].startTime).toBe("6:30 PM");
   });
 
   it("TKD age 4-5 auto-routes to Little Tigers slots (3 slots: Mon/Tue/Thu)", () => {
@@ -31,10 +31,10 @@ describe("Class Schedule Eligibility", () => {
     expect(getEligibleSlots("little_tigers", 6)).toHaveLength(0);
   });
 
-  it("BJJ age 9+ gets 3 slots (Mon/Wed/Fri)", () => {
+  it("BJJ age 9+ gets 3 slots (Tue/Wed/Fri)", () => {
     const slots = getEligibleSlots("bjj", 10);
     expect(slots).toHaveLength(3);
-    expect(slots.map(s => s.day)).toEqual(["Monday","Wednesday","Friday"]);
+    expect(slots.map(s => s.day)).toEqual(["Tuesday","Wednesday","Friday"]);
   });
 
   it("BJJ age 8 returns slots (trial-for-fit, commit 15885ad)", () => {

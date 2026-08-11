@@ -1,12 +1,12 @@
 /**
  * TMA Class Schedule — Trial Class Eligibility
  *
- * Rules:
+ * Rules (updated to the Aug 10 2026 schedule):
  *  - Taekwondo kids (6–13): Mon 5:50–6:30 PM, Tue/Thu 4:40–5:20 PM, Wed/Fri 5:20–6:00 PM
- *  - Taekwondo teens/adults (14+): Mon/Thu All-Belts 7:10–7:50 PM
- *  - BJJ (9+): Mon 6:30–7:10 PM, Wed/Fri 6:00–6:40 PM
- *  - Kickboxing (ages 9+): Tue 7:10–8:10 PM, Wed 6:40–7:40 PM,
- *                                         Thu 6:30–7:10 PM, Fri 6:40–7:40 PM, Sat 12:00–1:00 PM
+ *  - Taekwondo teens/adults (14+): Mon All-Belts 6:30–7:10 PM, Thu All-Belts 7:15–7:55 PM
+ *  - BJJ (9+): Tue 6:30–7:15 PM, Wed/Fri 6:00–6:45 PM
+ *  - Kickboxing (ages 9+): Mon 7:10–8:10 PM, Wed 6:45–7:45 PM,
+ *                                         Thu 6:30–7:15 PM, Fri 6:45–7:45 PM, Sat 12:00–1:00 PM
  */
 
 export type DayOfWeek = "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday";
@@ -48,19 +48,19 @@ export const CLASS_SCHEDULE: Record<string, ClassSlot[]> = {
     slot("Friday",    "5:20 PM", "6:00 PM"),
   ],
   taekwondo_adult: [
-    slot("Monday",   "7:10 PM", "7:50 PM"),
-    slot("Thursday", "7:10 PM", "7:50 PM"),
+    slot("Monday",   "6:30 PM", "7:10 PM"),
+    slot("Thursday", "7:15 PM", "7:55 PM"),
   ],
   bjj: [
-    slot("Monday",    "6:30 PM", "7:10 PM"),
-    slot("Wednesday", "6:00 PM", "6:40 PM"),
-    slot("Friday",    "6:00 PM", "6:40 PM"),
+    slot("Tuesday",   "6:30 PM", "7:15 PM"),
+    slot("Wednesday", "6:00 PM", "6:45 PM"),
+    slot("Friday",    "6:00 PM", "6:45 PM"),
   ],
   kickboxing: [
-    slot("Tuesday",   "7:10 PM", "8:10 PM"),
-    slot("Wednesday", "6:40 PM", "7:40 PM"),
-    slot("Thursday",  "6:30 PM", "7:10 PM"),
-    slot("Friday",    "6:40 PM", "7:40 PM"),
+    slot("Monday",    "7:10 PM", "8:10 PM"),
+    slot("Wednesday", "6:45 PM", "7:45 PM"),
+    slot("Thursday",  "6:30 PM", "7:15 PM"),
+    slot("Friday",    "6:45 PM", "7:45 PM"),
     slot("Saturday",  "12:00 PM", "1:00 PM"),
   ],
 };
