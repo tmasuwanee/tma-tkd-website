@@ -401,6 +401,15 @@ export async function getTrialByPaymentIntent(piId: string): Promise<TrialEnroll
   return rows[0] ?? null;
 }
 
+/** Link a paid trial enrollment to its CRM lead (trialEnrollments.leadId). Set
+ *  on payment so the $99 trial buyer and the lead stop being two silos to
+ *  reconcile by hand. */
+export async function linkTrialLead(trialId: number, leadId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(trialEnrollments).set({ leadId }).where(eq(trialEnrollments.id, trialId));
+}
+
 // Flip a pending trial to active once Stripe confirms the $99 payment.
 export async function activateTrial(piId: string, paymentStatus: string): Promise<void> {
   const db = await getDb();

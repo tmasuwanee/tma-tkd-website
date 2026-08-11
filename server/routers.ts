@@ -46,6 +46,7 @@ import {
   manualBookTrial,
   // $99 3-week trial enrollments (2026-06-15)
   createTrialEnrollment, getTrialByPaymentIntent, activateTrial, listTrialEnrollments, updateTrialStatus, updateTrialStartDate,
+  linkTrialLead,
   // Camp Waivers (2026-07-21) + reader so signed camp waivers are visible (2026-08-11)
   insertCampWaiver, getCampWaivers,
   // Afterschool Roster (2026-08-04)
@@ -2101,6 +2102,20 @@ export const appRouter = router({
         // Run side effects only on the first successful confirm (idempotent).
         if (trial.status !== "active") {
           await activateTrial(input.paymentIntentId, pi.status);
+          // Link the paid trial to its CRM lead so it stops being a separate
+          // silo from the pipeline. Only touches an EXISTING lead (no fabricated
+          // placeholder leads) and never regresses a lead already past trial_paid.
+          try {
+            if (!trial.leadId && trial.email) {
+              const lead = await getLeadByEmail(trial.email);
+              if (lead) {
+                await linkTrialLead(trial.id, lead.id);
+                if (["new_lead", "contacted", "trial_scheduled"].includes(lead.pipelineStage)) {
+                  await updateLeadStage(lead.id, "trial_paid", trial.amountCents);
+                }
+              }
+            }
+          } catch (e) { console.error("[trial] lead link failed:", e); }
           if (trial.email) {
             void sendTrialReceipt({
               email: trial.email,
