@@ -31,6 +31,17 @@ const PROGRAM_DISPLAY: Record<string, string> = {
 };
 const prettyProgram = (p: string) => PROGRAM_DISPLAY[p] ?? p;
 const PLAN_LABEL: Record<string, string> = { "4_5_day": "4-5 Day/Week", "2_3_day": "2-3 Day/Week" };
+// Recurring tuition (Stripe subscription) status pill. Null status = not on
+// recurring billing yet (e.g. tuition not configured, or a legacy registration).
+const TUITION_LABEL: Record<string, string> = { active: "Active", trialing: "Scheduled", past_due: "Past due", canceled: "Canceled", incomplete: "Incomplete", paused: "Paused" };
+const TUITION_STYLE: Record<string, string> = {
+  active: "bg-green-100 text-green-800 border-green-200",
+  trialing: "bg-blue-100 text-blue-800 border-blue-200",
+  past_due: "bg-red-100 text-red-700 border-red-200",
+  canceled: "bg-gray-100 text-gray-600 border-gray-200",
+  incomplete: "bg-yellow-100 text-yellow-800 border-yellow-200",
+  paused: "bg-amber-100 text-amber-800 border-amber-200",
+};
 
 export default function EnrolledFamiliesView() {
   const { data, isLoading } = trpc.leads.getAll.useQuery();
@@ -74,13 +85,14 @@ export default function EnrolledFamiliesView() {
           <CardContent className="p-4 sm:p-5">
             <h2 className="text-sm font-bold text-[#1a2d5a] mb-3">Paid After-School Registrations ({regs.length})</h2>
             <div className="overflow-x-auto">
-              <table className="w-full text-sm min-w-[620px]">
+              <table className="w-full text-sm min-w-[720px]">
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-200 text-left">
                     <th className="font-semibold text-gray-600 px-3 py-2.5">Child</th>
                     <th className="font-semibold text-gray-600 px-3 py-2.5">Plan</th>
                     <th className="font-semibold text-gray-600 px-3 py-2.5">Paid</th>
                     <th className="font-semibold text-gray-600 px-3 py-2.5">Status</th>
+                    <th className="font-semibold text-gray-600 px-3 py-2.5">Tuition</th>
                     <th className="font-semibold text-gray-600 px-3 py-2.5">Contact</th>
                     <th className="font-semibold text-gray-600 px-3 py-2.5">Date</th>
                   </tr>
@@ -98,6 +110,16 @@ export default function EnrolledFamiliesView() {
                         <span className={`inline-block text-xs px-2 py-0.5 rounded-full border font-medium ${r.stripePaymentStatus === "succeeded" ? "bg-green-100 text-green-800 border-green-200" : "bg-yellow-100 text-yellow-800 border-yellow-200"}`}>
                           {r.stripePaymentStatus === "succeeded" ? "Paid" : r.stripePaymentStatus}
                         </span>
+                      </td>
+                      <td className="px-3 py-2.5">
+                        {r.subscriptionStatus ? (
+                          <div className="flex flex-col gap-0.5">
+                            <span className={`inline-block w-fit text-xs px-2 py-0.5 rounded-full border font-medium ${TUITION_STYLE[r.subscriptionStatus] ?? "bg-gray-100 text-gray-700 border-gray-200"}`}>
+                              {TUITION_LABEL[r.subscriptionStatus] ?? r.subscriptionStatus}
+                            </span>
+                            {r.monthlyAmountCents ? <span className="text-[11px] text-gray-500 tabular-nums">${(r.monthlyAmountCents / 100).toFixed(0)}/mo</span> : null}
+                          </div>
+                        ) : <span className="text-xs text-gray-400">—</span>}
                       </td>
                       <td className="px-3 py-2.5">
                         <div className="flex flex-col gap-1 text-xs">
