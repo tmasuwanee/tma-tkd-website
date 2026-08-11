@@ -57,6 +57,7 @@ import {
   insertOneOffPayment, getOneOffPayments,
 } from "./db";
 import { sendTelegramMessage } from "./telegram";
+import { tuitionConfiguredFor, ensureStripeCustomer, createAfterschoolSubscription } from "./tuition";
 import { storagePut, storageGet } from "./storage";
 import { sendEmailNotification, sendProShopOrderNotification, sendCampRegistrationConfirmation, sendCampWaiverEmail, sendFieldTripConfirmation, sendTransportationForm, sendTrialReceipt, sendAfterschoolConfirmation, sendAfterschoolIntake, sendWaiverNotification } from "./integrations";
 import { fillTransportationPdf } from "./transportation-pdf";
@@ -2547,6 +2548,11 @@ export const appRouter = router({
         if (input.includeSupplyFee) amount += SUPPLY_FEE;
         if (input.earlyBird) amount += earlyBirdDiscount;
         const stripe = getStripe();
+        // If recurring tuition is configured for this plan, save the card to a
+        // Stripe customer so the monthly subscription can charge it later. Gated:
+        // no price env -> customerId null -> the PaymentIntent is unchanged.
+        const tuitionOn = tuitionConfiguredFor(input.plan);
+        const customerId = tuitionOn ? await ensureStripeCustomer(input.parentEmail, input.signedName) : null;
         const paymentIntent = await stripe.paymentIntents.create({
           amount,
           currency: "usd",
@@ -2555,6 +2561,8 @@ export const appRouter = router({
           // Stripe's automatic payment methods would otherwise pull in.
           payment_method_types: ["card"],
           receipt_email: input.parentEmail,
+          // Save the card for the recurring subscription (only when configured).
+          ...(customerId ? { customer: customerId, setup_future_usage: "off_session" as const } : {}),
           metadata: {
             product: "afterschool_registration",
             parentName: input.signedName,
@@ -2568,6 +2576,7 @@ export const appRouter = router({
             earlyBirdDiscountCents: String(earlyBirdDiscount),
             startDate: input.startDate ?? "",
             waiverId: waiverId != null ? String(waiverId) : "",
+            tuition: tuitionOn ? "1" : "0",
           },
         });
 
@@ -2645,9 +2654,10 @@ export const appRouter = router({
           const uniformFee = includeUniform ? UNIFORM : 0;
           const supplyFee = includeSupplyFee ? SUPPLY_FEE : 0;
           // Save to DB
+          let registrationId = 0;
           try {
             const { insertAfterschoolRegistration } = await import('./db');
-            await insertAfterschoolRegistration({
+            registrationId = await insertAfterschoolRegistration({
               parentName: m.parentName || "",
               childName: m.studentName || "",
               childAge: null,
@@ -2667,6 +2677,19 @@ export const appRouter = router({
             });
           } catch (dbErr) {
             console.error('[Afterschool] DB insert failed:', dbErr);
+          }
+
+          // Recurring tuition: create the monthly subscription on the saved card.
+          // Gated on tuition config + a customer/payment method on the PI, so it
+          // is a no-op until Stripe prices are configured (behavior unchanged).
+          if (registrationId && tuitionConfiguredFor(m.plan) && pi.customer && pi.payment_method) {
+            await createAfterschoolSubscription({
+              registrationId,
+              plan: m.plan,
+              customerId: typeof pi.customer === "string" ? pi.customer : pi.customer.id,
+              paymentMethodId: typeof pi.payment_method === "string" ? pi.payment_method : pi.payment_method.id,
+              startDate: m.startDate || null,
+            }).catch((e) => console.error("[Afterschool] subscription create failed:", e));
           }
           // Send confirmation email
           if (m.email) {

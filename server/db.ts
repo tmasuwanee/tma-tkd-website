@@ -2761,22 +2761,69 @@ export type AfterschoolRegistrationRow = {
   totalAmountCents: number;
   stripePaymentStatus: string;
   waiverId: number | null;
+  stripeSubscriptionId: string | null;
+  subscriptionStatus: string | null;
+  monthlyAmountCents: number | null;
+  currentPeriodEnd: string | Date | null;
   paidAt: string | Date | null;
 };
 
 /** Paid after-school registrations (written by afterschool.confirm). Read-only
  *  for the dashboard so these enrollments + payments are actually visible.
- *  waiverId links to the signed waiver row (null for legacy rows pre-2026-08-11). */
+ *  waiverId links to the signed waiver row (null for legacy rows pre-2026-08-11).
+ *  subscription* fields are null until recurring tuition is configured + active. */
 export async function getAfterschoolRegistrations(): Promise<AfterschoolRegistrationRow[]> {
   const db = await getDb();
   if (!db) return [];
   const [rows] = await db.execute(
     sql`SELECT id, parentName, childName, childAge, email, phone, planType,
         registrationFee, uniformFee, supplyFee, earlyBird, totalAmountCents,
-        stripePaymentStatus, waiverId, paidAt
+        stripePaymentStatus, waiverId, stripeSubscriptionId, subscriptionStatus,
+        monthlyAmountCents, currentPeriodEnd, paidAt
         FROM afterschoolRegistrations ORDER BY paidAt DESC`
   ) as unknown as [AfterschoolRegistrationRow[]];
   return Array.isArray(rows) ? rows : [];
+}
+
+/** Store the Stripe subscription created for an afterschool registration. */
+export async function setAfterschoolSubscription(params: {
+  registrationId: number;
+  stripeCustomerId: string;
+  stripeSubscriptionId: string;
+  subscriptionStatus: string;
+  monthlyAmountCents: number;
+  billingAnchor?: string | null; // YYYY-MM-DD
+}): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.execute(sql`UPDATE afterschoolRegistrations SET
+    stripeCustomerId = ${params.stripeCustomerId},
+    stripeSubscriptionId = ${params.stripeSubscriptionId},
+    subscriptionStatus = ${params.subscriptionStatus},
+    monthlyAmountCents = ${params.monthlyAmountCents},
+    billingAnchor = ${params.billingAnchor ?? null}
+    WHERE id = ${params.registrationId}`);
+}
+
+/** Sync subscription state from a Stripe webhook, keyed by subscription id.
+ *  Idempotent: re-applying the same event just re-sets the same values. */
+export async function updateSubscriptionByStripeId(params: {
+  stripeSubscriptionId: string;
+  subscriptionStatus?: string;
+  currentPeriodEnd?: Date | null;
+  lastPaymentStatus?: string;
+  canceledAt?: Date | null;
+}): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  const sets: ReturnType<typeof sql>[] = [];
+  if (params.subscriptionStatus !== undefined) sets.push(sql`subscriptionStatus = ${params.subscriptionStatus}`);
+  if (params.currentPeriodEnd !== undefined) sets.push(sql`currentPeriodEnd = ${params.currentPeriodEnd}`);
+  if (params.lastPaymentStatus !== undefined) sets.push(sql`lastPaymentStatus = ${params.lastPaymentStatus}`);
+  if (params.canceledAt !== undefined) sets.push(sql`canceledAt = ${params.canceledAt}`);
+  if (sets.length === 0) return;
+  await db.execute(sql`UPDATE afterschoolRegistrations SET ${sql.join(sets, sql`, `)}
+    WHERE stripeSubscriptionId = ${params.stripeSubscriptionId}`);
 }
 
 // ─── Camp Waivers ─────────────────────────────────────────────────────────────

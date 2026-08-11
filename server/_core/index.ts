@@ -12,6 +12,7 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { handleResendWebhook } from "../resend-webhook";
+import { handleStripeWebhook } from "../stripe-webhook";
 import { handleMorningReport } from "../morning-report";
 import { registerVoiceRoutes } from "../voice-routes";
 import { handleTrialRemindersAM, handleTrialCheckinPM, handleDailyCallQueue } from "../staff-reminders";
@@ -44,6 +45,13 @@ async function startServer() {
 
   const app = express();
   const server = createServer(app);
+
+  // Stripe webhook (recurring tuition). MUST be registered BEFORE express.json so
+  // Stripe signature verification sees the raw request bytes (the exact sent
+  // bytes, not re-serialized JSON). See docs/STRIPE_TUITION_SETUP.md; set
+  // TMA_STRIPE_WEBHOOK_SECRET in Secrets.
+  app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), handleStripeWebhook);
+
   // Configure body parser with larger size limit for file uploads
   // (Studio video uploads from phones can hit 60-90MB; JSON base64 inflates ~33%)
   app.use(express.json({ limit: "150mb" }));

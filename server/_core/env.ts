@@ -35,4 +35,13 @@ export const ENV = {
   voiceAgentSharedSecret: process.env.VOICE_AGENT_SHARED_SECRET ?? "",
   telegramBotToken: process.env.TMA_TELEGRAM_BOT_TOKEN ?? "",
   telegramStaffChatId: process.env.TMA_TELEGRAM_STAFF_CHAT_ID ?? "",
+  // 2026-08-11: recurring tuition (Stripe Subscriptions). See
+  // docs/STRIPE_TUITION_SETUP.md. tmaStripeWebhookSecret verifies POST
+  // /api/stripe/webhook (Stripe Dashboard → Developers → Webhooks → signing
+  // secret). The two price ids are the afterschool monthly recurring Prices.
+  // IMPORTANT: enrollment creates a subscription ONLY when the matching price id
+  // is set, so an unconfigured deploy behaves exactly as before (no subscription).
+  tmaStripeWebhookSecret: process.env.TMA_STRIPE_WEBHOOK_SECRET ?? "",
+  stripePriceAfterschool45: process.env.STRIPE_PRICE_AFTERSCHOOL_4_5 ?? "",
+  stripePriceAfterschool23: process.env.STRIPE_PRICE_AFTERSCHOOL_2_3 ?? "",
 };

@@ -94,6 +94,18 @@ const MIGRATIONS: { name: string; sql: string }[] = [
       "paidAt DATETIME NULL, " +
       "UNIQUE KEY uniq_oneoff_pi (stripePaymentIntentId))",
   },
+  // ── 2026-08-11: recurring tuition (Stripe Subscriptions) on afterschool
+  //    registrations. One column per entry so each is independently idempotent
+  //    and a single already-applied column never blocks the rest. Nullable, so
+  //    existing rows + the config-gated-off path are unaffected. ──
+  { name: "afterschoolRegistrations.stripeCustomerId",     sql: "ALTER TABLE afterschoolRegistrations ADD COLUMN IF NOT EXISTS stripeCustomerId VARCHAR(255) NULL" },
+  { name: "afterschoolRegistrations.stripeSubscriptionId", sql: "ALTER TABLE afterschoolRegistrations ADD COLUMN IF NOT EXISTS stripeSubscriptionId VARCHAR(255) NULL" },
+  { name: "afterschoolRegistrations.subscriptionStatus",   sql: "ALTER TABLE afterschoolRegistrations ADD COLUMN IF NOT EXISTS subscriptionStatus VARCHAR(32) NULL" },
+  { name: "afterschoolRegistrations.monthlyAmountCents",   sql: "ALTER TABLE afterschoolRegistrations ADD COLUMN IF NOT EXISTS monthlyAmountCents INT NULL" },
+  { name: "afterschoolRegistrations.currentPeriodEnd",     sql: "ALTER TABLE afterschoolRegistrations ADD COLUMN IF NOT EXISTS currentPeriodEnd DATETIME NULL" },
+  { name: "afterschoolRegistrations.billingAnchor",        sql: "ALTER TABLE afterschoolRegistrations ADD COLUMN IF NOT EXISTS billingAnchor DATE NULL" },
+  { name: "afterschoolRegistrations.lastPaymentStatus",    sql: "ALTER TABLE afterschoolRegistrations ADD COLUMN IF NOT EXISTS lastPaymentStatus VARCHAR(32) NULL" },
+  { name: "afterschoolRegistrations.canceledAt",           sql: "ALTER TABLE afterschoolRegistrations ADD COLUMN IF NOT EXISTS canceledAt DATETIME NULL" },
 ];
 
 export async function runStartupMigrations(): Promise<void> {
