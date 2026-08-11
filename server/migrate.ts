@@ -75,6 +75,25 @@ const MIGRATIONS: { name: string; sql: string }[] = [
     name: "afterschoolRegistrations.waiverId",
     sql: "ALTER TABLE afterschoolRegistrations ADD COLUMN IF NOT EXISTS waiverId INT NULL",
   },
+  {
+    // 2026-08-11: durable table for one-off payments (afterschool supply fee,
+    // camp field trip) that previously had no DB row (only Stripe + Telegram),
+    // so they were unreconcilable in the dashboard. Idempotent create; the
+    // unique key on the PaymentIntent id backs the idempotent insert.
+    name: "oneOffPayments table",
+    sql: "CREATE TABLE IF NOT EXISTS oneOffPayments (" +
+      "id BIGINT PRIMARY KEY AUTO_INCREMENT, " +
+      "product VARCHAR(64) NOT NULL, " +
+      "payerName VARCHAR(255) NOT NULL, " +
+      "studentName VARCHAR(255) NULL, " +
+      "detail VARCHAR(300) NULL, " +
+      "email VARCHAR(255) NULL, " +
+      "amountCents INT NOT NULL, " +
+      "stripePaymentIntentId VARCHAR(255) NOT NULL, " +
+      "stripePaymentStatus VARCHAR(32) NOT NULL, " +
+      "paidAt DATETIME NULL, " +
+      "UNIQUE KEY uniq_oneoff_pi (stripePaymentIntentId))",
+  },
 ];
 
 export async function runStartupMigrations(): Promise<void> {

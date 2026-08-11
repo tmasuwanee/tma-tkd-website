@@ -46,12 +46,14 @@ import {
   manualBookTrial,
   // $99 3-week trial enrollments (2026-06-15)
   createTrialEnrollment, getTrialByPaymentIntent, activateTrial, listTrialEnrollments, updateTrialStatus, updateTrialStartDate,
-  // Camp Waivers (2026-07-21)
-  insertCampWaiver,
+  // Camp Waivers (2026-07-21) + reader so signed camp waivers are visible (2026-08-11)
+  insertCampWaiver, getCampWaivers,
   // Afterschool Roster (2026-08-04)
   getRosterStudents, addRosterStudent, updateRosterStudent, removeRosterStudent, removeRosterSchool,
   // note: sendToSlack + sendToGoogleSheets retired (see leads.submit)
   getRosterAttendance, upsertRosterAttendance,
+  // One-off payments (supply fee / field trip) visibility (2026-08-11)
+  insertOneOffPayment, getOneOffPayments,
 } from "./db";
 import { sendTelegramMessage } from "./telegram";
 import { storagePut, storageGet } from "./storage";
@@ -364,6 +366,11 @@ export const appRouter = router({
         ).catch(() => {});
         return { success: true, waiverId };
       }),
+
+    // Signed camp waivers, so staff can actually see who signed. The campWaivers
+    // table was previously write-only (no reader, no admin surface), so a signed
+    // camp waiver only ever showed up as a one-time Telegram alert.
+    listWaivers: publicProcedure.query(async () => getCampWaivers()),
   }),
 
   // ─── Admin (Camp Registrations) ──────────────────────────────────────────
@@ -1859,6 +1866,17 @@ export const appRouter = router({
         const pi = await stripe.paymentIntents.retrieve(input.paymentIntentId);
         if (pi.status === "succeeded") {
           const m = pi.metadata || {};
+          // Durable record so this one-off shows up in the dashboard, not only
+          // in Stripe + Telegram. Idempotent on the PaymentIntent id.
+          await insertOneOffPayment({
+            product: "camp_field_trip",
+            payerName: m.payerName || "Camp family",
+            detail: m.detail || null,
+            email: m.email || null,
+            amountCents: pi.amount,
+            stripePaymentIntentId: pi.id,
+            stripePaymentStatus: pi.status,
+          }).catch((e) => console.error("[fieldTrip] one-off record failed:", e));
           void sendTelegramMessage(
             `🎟️ <b>Field trip paid</b>\n` +
             `${m.payerName || "Camp family"} · $${(pi.amount / 100).toFixed(2)}\n` +
@@ -1914,6 +1932,17 @@ export const appRouter = router({
         const pi = await stripe.paymentIntents.retrieve(input.paymentIntentId);
         if (pi.status === "succeeded") {
           const m = pi.metadata || {};
+          // Durable record so this one-off shows up in the dashboard, not only
+          // in Stripe + Telegram. Idempotent on the PaymentIntent id.
+          await insertOneOffPayment({
+            product: "afterschool_supply_fee",
+            payerName: m.payerName || "Parent",
+            studentName: m.studentName || null,
+            email: m.email || null,
+            amountCents: pi.amount,
+            stripePaymentIntentId: pi.id,
+            stripePaymentStatus: pi.status,
+          }).catch((e) => console.error("[supplyFee] one-off record failed:", e));
           void sendTelegramMessage(
             `🎒 <b>After-school supply fee paid</b>\n` +
             `${m.payerName || "Parent"}${m.studentName ? ` · ${m.studentName}` : ""} · $${(pi.amount / 100).toFixed(2)}`
@@ -1921,6 +1950,12 @@ export const appRouter = router({
         }
         return { status: pi.status };
       }),
+  }),
+
+  // One-off payment records (supply fee, field trip) so they are reconcilable
+  // in the dashboard instead of living only in Stripe + Telegram scrollback.
+  payments: router({
+    listOneOff: publicProcedure.query(async () => getOneOffPayments()),
   }),
 
   // ─── After-School waiver only (2026-08-05) ────────────────────────────────

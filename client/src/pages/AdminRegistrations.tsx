@@ -49,6 +49,7 @@ export function CampRegistrationsTab() {
 
   const utils = trpc.useUtils();
   const { data: allRegistrations, isLoading, error } = trpc.admin.getCampRegistrations.useQuery();
+  const { data: campWaivers } = trpc.camp.listWaivers.useQuery();
 
   const softDelete = trpc.admin.softDeleteRegistration.useMutation({
     onSuccess: async () => { await utils.admin.getCampRegistrations.invalidate(); toast.success("Registration removed."); },
@@ -129,6 +130,54 @@ export function CampRegistrationsTab() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Signed camp waivers. Previously invisible (the campWaivers table was
+          write-only), so staff had to search Telegram to confirm a waiver. */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <CheckCircle className="w-5 h-5 text-green-600" />
+            Signed Camp Waivers ({campWaivers?.length ?? 0})
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          {(campWaivers ?? []).length === 0 ? (
+            <div className="text-center py-10 text-gray-400 text-sm">No camp waivers signed yet.</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-gray-50">
+                    <TableHead className="font-semibold">Parent</TableHead>
+                    <TableHead className="font-semibold">Camper(s)</TableHead>
+                    <TableHead className="font-semibold">Emergency contact</TableHead>
+                    <TableHead className="font-semibold">Photos</TableHead>
+                    <TableHead className="font-semibold">Signed by</TableHead>
+                    <TableHead className="font-semibold">Date</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {(campWaivers ?? []).map(w => (
+                    <TableRow key={w.id}>
+                      <TableCell>
+                        <div className="font-medium">{w.parentName}</div>
+                        {w.email && <a href={`mailto:${w.email}`} className="text-xs text-[#1a2d5a] hover:underline inline-flex items-center gap-1"><Mail className="w-3 h-3" />{w.email}</a>}
+                      </TableCell>
+                      <TableCell className="text-sm">{w.camperNames}</TableCell>
+                      <TableCell className="text-sm">{w.emergencyContactName}<div className="text-xs text-gray-500">{w.emergencyPhone}</div></TableCell>
+                      <TableCell>
+                        {w.noPhotoConsent ? <Badge className="bg-amber-100 text-amber-800 border-amber-200">No photos</Badge> : <span className="text-xs text-gray-400">OK</span>}
+                      </TableCell>
+                      <TableCell className="text-sm">{w.signedName}</TableCell>
+                      <TableCell className="text-xs text-gray-500 whitespace-nowrap">{w.submittedAt ? new Date(w.submittedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—"}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Table */}
       <Card>

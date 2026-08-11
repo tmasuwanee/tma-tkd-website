@@ -2821,6 +2821,88 @@ export async function insertCampWaiver(params: {
   return result?.insertId ?? 0;
 }
 
+export type CampWaiverRow = {
+  id: number;
+  registrationId: number | null;
+  camperNames: string;
+  parentName: string;
+  email: string | null;
+  cellPhone: string | null;
+  emergencyContactName: string;
+  emergencyPhone: string;
+  noPhotoConsent: number;
+  signedName: string;
+  submittedAt: string | Date | null;
+};
+
+/** Signed camp waivers so staff can see who signed. This table was previously
+ *  write-only (insertCampWaiver with no reader / no admin surface), so a signed
+ *  camp waiver was invisible in the dashboard. Newest first. */
+export async function getCampWaivers(): Promise<CampWaiverRow[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const [rows] = await db.execute(
+    sql`SELECT id, registrationId, camperNames, parentName, email, cellPhone,
+        emergencyContactName, emergencyPhone, noPhotoConsent, signedName, submittedAt
+        FROM campWaivers ORDER BY submittedAt DESC`
+  ) as unknown as [CampWaiverRow[]];
+  return Array.isArray(rows) ? rows : [];
+}
+
+// ─── One-off payments (supply fee, field trip) ────────────────────────────────
+// These one-off Stripe payments previously had NO table: the only record was
+// Stripe + a Telegram alert, so they were unreconcilable in the dashboard. This
+// gives them a durable, admin-visible row. Insert is idempotent on the Stripe
+// PaymentIntent id so a repeated confirm never double-records.
+export type OneOffPaymentRow = {
+  id: number;
+  product: string;
+  payerName: string;
+  studentName: string | null;
+  detail: string | null;
+  email: string | null;
+  amountCents: number;
+  stripePaymentIntentId: string;
+  stripePaymentStatus: string;
+  paidAt: string | Date | null;
+};
+
+export async function insertOneOffPayment(params: {
+  product: string;
+  payerName: string;
+  studentName?: string | null;
+  detail?: string | null;
+  email?: string | null;
+  amountCents: number;
+  stripePaymentIntentId: string;
+  stripePaymentStatus: string;
+}): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  // Idempotent: only insert if no row already exists for this PaymentIntent, so
+  // a repeated client confirm() never double-records the same payment.
+  await db.execute(
+    sql`INSERT INTO oneOffPayments
+      (product, payerName, studentName, detail, email, amountCents, stripePaymentIntentId, stripePaymentStatus, paidAt)
+     SELECT ${params.product}, ${params.payerName}, ${params.studentName ?? null},
+       ${params.detail ?? null}, ${params.email ?? null}, ${params.amountCents},
+       ${params.stripePaymentIntentId}, ${params.stripePaymentStatus}, NOW()
+     FROM DUAL
+     WHERE NOT EXISTS (SELECT 1 FROM oneOffPayments o WHERE o.stripePaymentIntentId = ${params.stripePaymentIntentId})`
+  );
+}
+
+export async function getOneOffPayments(): Promise<OneOffPaymentRow[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const [rows] = await db.execute(
+    sql`SELECT id, product, payerName, studentName, detail, email, amountCents,
+        stripePaymentIntentId, stripePaymentStatus, paidAt
+        FROM oneOffPayments ORDER BY paidAt DESC`
+  ) as unknown as [OneOffPaymentRow[]];
+  return Array.isArray(rows) ? rows : [];
+}
+
 // ─── Afterschool Roster ───────────────────────────────────────────────────────
 export type RosterStudent = {
   id: number;
