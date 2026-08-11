@@ -38,13 +38,14 @@ Collapse 7 nav groups to 4, mapped to the 3 real jobs + owner-config:
 
 ---
 
-## 3. Gap fixes (additive, low-risk, high correctness value)
+## 3. Gap fixes (additive, low-risk, high correctness value) — DONE 2026-08-11
 
-- Add `waiver_id` column to `afterschoolRegistrations`; persist `m.waiverId` in `afterschool.confirm`. One column + one line links waiver + payment.
-- Add a `campWaivers` getter + surface it in Waivers (or the camp tab). Stops camp waivers being invisible.
-- Add a table for supply-fee + field-trip payments so they are reconcilable in-app.
-- Link the paid `$99 trial` (`trialEnrollments`) to its lead record.
-All additive, idempotent migrations (rule D8), verified live before claiming done (rule D2).
+- [x] `waiverId` column on `afterschoolRegistrations`; `afterschool.confirm` persists it (commit 9bd9a30). Waiver + payment now linked.
+- [x] `getCampWaivers` + `camp.listWaivers` + a "Signed Camp Waivers" panel in the Camp tab (commit 2719f1d). Camp waivers no longer invisible.
+- [x] `oneOffPayments` table (idempotent, unique on PaymentIntent id); recorded on supplyFee/fieldTrip confirm; listed under Orders (commit 2719f1d).
+- [x] Paid `$99 trial` linked to its existing lead via the pre-existing `trialEnrollments.leadId` column; lead advanced to trial_paid (commit 613a833). Safe: existing-lead only, no fabricated leads, no stage regression.
+
+All additive, idempotent migrations (rule D8). Verified by typecheck; migrations apply on the next deploy boot (rule D2: confirm the new column/table exist live after deploy). Follow-up option: auto-create a lead for a direct $99 buyer who had no prior lead (deferred to avoid placeholder-lead data).
 
 ---
 
