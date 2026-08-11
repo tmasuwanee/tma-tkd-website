@@ -1,0 +1,102 @@
+# TMA Dashboard Reorg + System Roadmap
+
+Synthesis of a full audit (3 mapping passes) + a 3-model design panel + an adversarial review. Purpose: reorganize the admin, document the systems (SOPs), close process gaps, and set the order for search + AI assistant + recurring tuition.
+
+Companion docs: [FRONT_DESK_SOP.md](./FRONT_DESK_SOP.md), [TUITION_RECURRING_PAYMENTS_SPEC.md](./TUITION_RECURRING_PAYMENTS_SPEC.md).
+
+---
+
+## 1. What we found (current state, audited)
+
+**Dashboard is over-surfaced.** One `leads` table is shown as 5 admin views by `recordType` (Leads, Enrolled Families, Orders, plus Calendar + Today). A person can live in 3 places (Leads, Enrolled Families, Students roster) with no cross-links. Two more separate rosters (Students import, Afterschool Roster). Today / Today's Calls / Trial Check-in / Call Log = 4 views for one daily loop. Afterschool is fragmented across 4 locations. Studio (the only flyer/asset tool, a core job) is buried in collapsed Owner tools. My Tasks (Arfa's personal list) and Voice Test (dev QA) sit in the shared front-desk nav.
+
+**Process gaps that leak money / create liability:**
+- **Recurring tuition: 0% built.** $400-500/mo per afterschool family is uncaptured. Only a spec exists.
+- **Camp waiver is write-only / invisible.** `campWaivers` is written and never read anywhere. Staff cannot see who signed; only a one-time Telegram tells them.
+- **Afterschool enrollment writes 3 unlinked records.** The `waiverId` is generated and even put in Stripe metadata, then dropped by `insertAfterschoolRegistration` (no column). Payment, waiver, roster only correlate by hand.
+- **Supply-fee + field-trip payments have no table.** Record exists only in Stripe + Telegram.
+- **Paid $99 trial not linked to its lead record.** Two lists to reconcile.
+
+**Security hole:** admin tRPC procedures are `publicProcedure` behind a CLIENT-ONLY password gate (plaintext `Keep9oing!` in the bundle, 5 inconsistent copies). Anyone hitting the endpoint directly can call admin mutations. This is a live vulnerability and it gates the search endpoint and the AI assistant (both widen data exposure).
+
+**Orphaned code:** `sendToSlack`, `sendToGoogleSheets`, and an unsigned-JWT stub are dead (retired 2026-08-05). n8n "Lead Intake v2" is disabled and superseded by v3.
+
+---
+
+## 2. Proposed dashboard IA (when we do the reorg)
+
+Collapse 7 nav groups to 4, mapped to the 3 real jobs + owner-config:
+
+- **Today** — one screen merging Today + Today's Calls + Trial Check-in (call queue, check-ins due, tasks due).
+- **Front Desk** — People, Afterschool (its own home), Billing, Flyer Studio (promoted from buried).
+- **Records** — Calendar, Waivers, Call History (renamed from Call Log), Playbook, Links.
+- **Owner** (soft-hidden) — My Tasks, Sequences, Routing Rules, Ad Performance, Automation, Voice Test (dev).
+
+**People "lives in 3 places" fix.** The leans version (recommended by the adversarial pass): keep the single leads table, add status badges (Prospect / Trial / Enrolled) + filters, and cross-link families <-> students, so search answers "lead or enrolled?" in one place. Skip the heavier full "unified People tabbed surface" refactor unless there is real pull; badges + search is 80% of the value at 20% of the cost.
+
+**Muscle-memory de-risk:** do NOT big-bang 7->4 mid-season. Add search FIRST (once staff can search anything, exact nav matters less), then do nav cleanup incrementally in an off-peak week, keep old labels as redirects, post a one-page cheat sheet.
+
+---
+
+## 3. Gap fixes (additive, low-risk, high correctness value)
+
+- Add `waiver_id` column to `afterschoolRegistrations`; persist `m.waiverId` in `afterschool.confirm`. One column + one line links waiver + payment.
+- Add a `campWaivers` getter + surface it in Waivers (or the camp tab). Stops camp waivers being invisible.
+- Add a table for supply-fee + field-trip payments so they are reconcilable in-app.
+- Link the paid `$99 trial` (`trialEnrollments`) to its lead record.
+All additive, idempotent migrations (rule D8), verified live before claiming done (rule D2).
+
+---
+
+## 4. Global search (cheap UX win)
+
+Cmd-K / "/" palette. Server-side LIKE across leads / students / afterschool roster, deep-linked to the existing detail dialogs (add `?lead=` / `?student=` / `?roster=` URL state). Keep it simple: no Elasticsearch/embeddings for a small dataset. Adversary's cut: skip the pages/actions command registry (a 3-person team memorizes the nav); "find-a-family/student" is the real value.
+
+---
+
+## 5. AI assistant (defer until after billing)
+
+Design is sound but it is downstream of tuition billing (its headline feature "past-due tuition" needs billing to exist) and needs server-side admin auth first. When built: server endpoint, whitelisted READ tools mapped to existing tRPC, every WRITE is draft -> preview -> confirm -> execute with an audit row + idempotency key + short-lived confirm token. Capabilities: look up a family + payment status, draft receipt / date-range payment-summary emails for tax windows (reuse `invoices.searchPayments` + a distinct "Payment Summary" PDF template, labeled "not a bank statement or tax form"), list missing waivers, list past-due tuition, answer playbook "how do I" questions, schedule follow-ups. Model runs server-side only (never client); raw Stripe keys and card data never reach the model. Refund / subscription-edit tools are owner-confirmed and gated until billing is live.
+
+---
+
+## 6. Two roadmap options (DECISION NEEDED)
+
+The order you named was: reorg -> SOPs -> integrate/gaps -> assistant + search. The adversarial review argues the reverse is better ROI. Both are captured; pick one.
+
+### Option A — Your stated order (reorg-first)
+1. Reorganize the dashboard (IA in section 2).
+2. Formalize SOPs against the new UI.
+3. Integrate existing automations + fix gaps (section 3).
+4. AI assistant + search.
+5. Recurring tuition.
+
+Pro: matches your mental model; a clean dashboard first. Con: spends the first, biggest effort on the lowest-revenue, highest-disruption item; delays the only money feature; SOPs written twice (UI changes under them); mid-season nav churn for staff.
+
+### Option B — Recommended (money + correctness first, cosmetics last)
+0. **Stop the bleeding:** ship the lightweight SOP against the current UI (done: FRONT_DESK_SOP.md) + fix the real data bugs (section 3). Days, cheap, real liability value.
+1. **Close the security hole:** one server-side admin gate, convert `publicProcedure` to protected, collapse the 5 client gates into one. ~0.5-2 days. Does NOT block the nav reorg; DOES gate search + assistant.
+2. **Recurring tuition billing** (the revenue; the only piece with real financial blast radius). Jumps the queue.
+3. **Global search** (cheap win; lowers the stakes of any later nav change).
+4. **Nav cleanup**, incremental, off-peak, aliased labels, cheat sheet. Rewrite SOPs against final UI.
+5. **AI assistant** only if there is real pull after billing is live and stable.
+
+Pro: captures revenue and fixes correctness/security before cosmetics; less staff disruption; SOPs written once against the final UI. Con: the dashboard stays visually messy longer.
+
+**Recommendation: Option B**, with the note that "afterschool tuition needed today" is best served by B (tuition is Phase 2, right after the quick data+auth fixes) rather than by reorg-first.
+
+> **DECISION (2026-08-11, Arfa): Option B locked.** People consolidation = **lean** (badges + filters + cross-links + search, NOT the full unified tabbed refactor). Building now, in order: Phase 0 data-gap fixes -> auth hole -> recurring tuition -> search -> nav cleanup -> assistant if pull.
+
+### Cuts (either option)
+- Full unified-People tabbed refactor -> replaced by badges + filters + search.
+- cmd-K pages/actions command registry -> plain find-a-family search.
+- Owner-PIN as a security control -> it is theater under a shared login; treat as a soft hide only.
+- AI assistant -> deferred, not cut, until billing is live.
+
+---
+
+## 7. Cross-cutting cleanups to fold in
+- Delete orphaned `sendToSlack` / `sendToGoogleSheets` / unsigned-JWT stub.
+- Archive/delete disabled n8n "Lead Intake v2".
+- Reconcile the double Retell path (in-app `voice-routes` `call_analyzed` + n8n "Retell Inbound Handler" `call_ended`) so a lead is not touched twice.
+- Confirm which lead-intake staff-alert path is source of truth (app `leads.submit` email vs n8n Lead Intake v3) before tuition events start firing, so nothing double-fires.

@@ -2718,19 +2718,20 @@ export async function insertAfterschoolRegistration(params: {
   totalAmountCents: number;
   stripePaymentIntentId: string;
   stripePaymentStatus: string;
+  waiverId?: number | null;
 }): Promise<number> {
   const db = await getDb();
   if (!db) throw new Error('DB not available');
   const [result] = await db.execute(
     sql`INSERT INTO afterschoolRegistrations
       (parentName, childName, childAge, email, phone, planType, registrationFee, uniformFee, supplyFee,
-       earlyBird, totalAmountCents, stripePaymentIntentId, stripePaymentStatus, paidAt)
+       earlyBird, totalAmountCents, stripePaymentIntentId, stripePaymentStatus, waiverId, paidAt)
      VALUES (
        ${params.parentName}, ${params.childName}, ${params.childAge ?? null},
        ${params.email}, ${params.phone}, ${params.planType},
        ${params.registrationFee}, ${params.uniformFee}, ${params.supplyFee},
        ${params.earlyBird ? 1 : 0}, ${params.totalAmountCents},
-       ${params.stripePaymentIntentId}, ${params.stripePaymentStatus}, NOW()
+       ${params.stripePaymentIntentId}, ${params.stripePaymentStatus}, ${params.waiverId ?? null}, NOW()
      )`
   ) as unknown as [{ insertId: number }];
   return result?.insertId ?? 0;
@@ -2750,18 +2751,20 @@ export type AfterschoolRegistrationRow = {
   earlyBird: number;
   totalAmountCents: number;
   stripePaymentStatus: string;
+  waiverId: number | null;
   paidAt: string | Date | null;
 };
 
 /** Paid after-school registrations (written by afterschool.confirm). Read-only
- *  for the dashboard so these enrollments + payments are actually visible. */
+ *  for the dashboard so these enrollments + payments are actually visible.
+ *  waiverId links to the signed waiver row (null for legacy rows pre-2026-08-11). */
 export async function getAfterschoolRegistrations(): Promise<AfterschoolRegistrationRow[]> {
   const db = await getDb();
   if (!db) return [];
   const [rows] = await db.execute(
     sql`SELECT id, parentName, childName, childAge, email, phone, planType,
         registrationFee, uniformFee, supplyFee, earlyBird, totalAmountCents,
-        stripePaymentStatus, paidAt
+        stripePaymentStatus, waiverId, paidAt
         FROM afterschoolRegistrations ORDER BY paidAt DESC`
   ) as unknown as [AfterschoolRegistrationRow[]];
   return Array.isArray(rows) ? rows : [];

@@ -67,6 +67,14 @@ const MIGRATIONS: { name: string; sql: string }[] = [
          "(SELECT COALESCE(MAX(r2.sortOrder),0)+10 FROM afterschoolRoster r2) FROM DUAL " +
          "WHERE NOT EXISTS (SELECT 1 FROM afterschoolRoster r WHERE r.childName='Elias Gray' AND r.phone='470-554-1991')",
   },
+  {
+    // 2026-08-11: link a paid afterschool registration back to its signed waiver.
+    // submitIntake already generates a waiverId and carries it in the Stripe
+    // PaymentIntent metadata; confirm now persists it here so payment + waiver
+    // stop being two unlinked rows correlated only by name/email.
+    name: "afterschoolRegistrations.waiverId",
+    sql: "ALTER TABLE afterschoolRegistrations ADD COLUMN IF NOT EXISTS waiverId INT NULL",
+  },
 ];
 
 export async function runStartupMigrations(): Promise<void> {

@@ -2611,6 +2611,9 @@ export const appRouter = router({
               totalAmountCents: pi.amount,
               stripePaymentIntentId: pi.id,
               stripePaymentStatus: pi.status,
+              // Persist the waiver link carried in the PaymentIntent metadata so
+              // the signed waiver + payment are one connected record, not two.
+              waiverId: m.waiverId ? Number(m.waiverId) : null,
             });
           } catch (dbErr) {
             console.error('[Afterschool] DB insert failed:', dbErr);
