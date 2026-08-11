@@ -222,3 +222,5 @@
 - [x] Send Telegram notification to staff on new afterschool registration
 - [ ] Investigate PaySimple as alternative payment processor (owner request — on hold)
 - [x] Add TMA Summer Camp Waiver as Step 5 in camp registration flow (DB table, server procedure, frontend form with pre-fill, Telegram notification)
+- [x] Pull commit 4366029 and visually verify the local trial-class picker offers Kickboxing on Monday and BJJ on Tuesday
+- [ ] After publishing commit 4366029, visually verify the live trial-class picker offers Kickboxing on Monday and BJJ on Tuesday
