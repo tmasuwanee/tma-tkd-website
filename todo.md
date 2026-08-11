@@ -224,3 +224,7 @@
 - [x] Add TMA Summer Camp Waiver as Step 5 in camp registration flow (DB table, server procedure, frontend form with pre-fill, Telegram notification)
 - [x] Pull commit 4366029 and visually verify the local trial-class picker offers Kickboxing on Monday and BJJ on Tuesday
 - [ ] After publishing commit 4366029, visually verify the live trial-class picker offers Kickboxing on Monday and BJJ on Tuesday
+- [x] Pull commit b2b57f2 and confirm its boot migrations locally: oneOffPayments table and afterschoolRegistrations.waiverId both exist
+- [x] Confirm locally that Camp source includes Signed Camp Waivers and Orders source includes One-off payments
+- [ ] After publishing commit b2b57f2, verify live DB: oneOffPayments table and afterschoolRegistrations.waiverId exist
+- [ ] After publishing commit b2b57f2, verify live admin: Camp shows Signed Camp Waivers and Orders shows One-off payments
