@@ -52,4 +52,9 @@ export const ENV = {
   // until it is enabled + verified on preview. See docs/ADMIN_AUTH_PLAN.md.
   adminPassword: process.env.ADMIN_PASSWORD ?? "Keep9oing!",
   adminAuthEnforce: process.env.ADMIN_AUTH_ENFORCE === "true",
+  // 2026-08-11: read-only AI assistant. The @ai-sdk/openai provider reads
+  // OPENAI_API_KEY from process.env directly; we surface it here only for a
+  // helpful "not configured" error. Model is overridable. See docs/AI_ASSISTANT_SPEC.md.
+  openaiApiKey: process.env.OPENAI_API_KEY ?? "",
+  assistantModel: process.env.OPENAI_ASSISTANT_MODEL ?? "gpt-4o-mini",
 };

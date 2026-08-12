@@ -13,6 +13,7 @@ import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { handleResendWebhook } from "../resend-webhook";
 import { handleStripeWebhook } from "../stripe-webhook";
+import { handleAssistant } from "../assistant";
 import { handleMorningReport } from "../morning-report";
 import { registerVoiceRoutes } from "../voice-routes";
 import { handleTrialRemindersAM, handleTrialCheckinPM, handleDailyCallQueue } from "../staff-reminders";
@@ -99,6 +100,12 @@ async function startServer() {
     },
     handleResendWebhook
   );
+
+  // ─── Read-only AI assistant (admin) ─────────────────────────────────────────
+  // POST /api/admin/assistant. Streams a tool-calling chat. Hard-gated on the
+  // admin session inside the handler. Uses the global express.json body parser
+  // (registered above), so it must be after it. See docs/AI_ASSISTANT_SPEC.md.
+  app.post("/api/admin/assistant", handleAssistant);
 
   // ─── Scheduled: morning blast health report ────────────────────────────────
   // Fires daily at 11:30 AM ET via Heartbeat cron (project-level, §4a).

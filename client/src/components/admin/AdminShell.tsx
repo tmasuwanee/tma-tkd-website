@@ -6,7 +6,7 @@ import {
   Kanban, ClipboardCheck, Phone, PhoneOutgoing, Mail, Route as RouteIcon,
   BarChart2, GraduationCap, CalendarCheck, ShieldAlert, Camera, LogOut,
   Menu, PhoneCall, CalendarDays, CheckSquare, FileSignature, Link2, BookOpen,
-  ShoppingBag, Users, ClipboardList, FileText, Home, ChevronDown, ChevronRight, Search,
+  ShoppingBag, Users, ClipboardList, FileText, Home, ChevronDown, ChevronRight, Search, Sparkles,
 } from "lucide-react";
 import { CallsApp } from "@/pages/AdminTodaysCalls";
 import { CallLogApp } from "@/pages/AdminCallLog";
@@ -31,6 +31,7 @@ import AfterschoolRosterView from "@/components/admin/AfterschoolRosterView";
 import InvoicesView from "@/components/admin/InvoicesView";
 import TodayView from "@/components/admin/TodayView";
 import CommandPalette from "@/components/admin/CommandPalette";
+import AssistantPanel from "@/components/admin/AssistantPanel";
 
 // Keys double as URL segments (/admin/<key>). They match the old standalone
 // routes where possible (/admin/calls, /admin/checkin, /admin/call-log,
@@ -135,6 +136,7 @@ export default function AdminShell() {
     try { return localStorage.getItem("tma_admin_owner_open") === "1"; } catch { return false; }
   });
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [assistantOpen, setAssistantOpen] = useState(false);
 
   // Global search shortcut: Cmd/Ctrl-K toggles the palette; "/" opens it, unless
   // the user is typing in a field.
@@ -227,8 +229,13 @@ export default function AdminShell() {
             <Menu className="w-5 h-5" />
           </button>
           <h1 className="text-lg font-bold text-[#1a2d5a]">{activeLabel}</h1>
+          <button onClick={() => setAssistantOpen(true)}
+            className="ml-auto flex items-center gap-2 text-sm text-[#1a2d5a] border border-[#1a2d5a]/25 rounded-lg px-3 py-1.5 hover:bg-[#1a2d5a]/5 transition-colors">
+            <Sparkles className="w-4 h-4" />
+            <span className="hidden sm:inline">Assistant</span>
+          </button>
           <button onClick={() => setPaletteOpen(true)}
-            className="ml-auto flex items-center gap-2 text-sm text-gray-500 border border-gray-200 rounded-lg px-3 py-1.5 hover:border-[#1a2d5a]/40 hover:text-[#1a2d5a] transition-colors">
+            className="flex items-center gap-2 text-sm text-gray-500 border border-gray-200 rounded-lg px-3 py-1.5 hover:border-[#1a2d5a]/40 hover:text-[#1a2d5a] transition-colors">
             <Search className="w-4 h-4" />
             <span className="hidden sm:inline">Search</span>
             <kbd className="hidden sm:inline text-[10px] bg-gray-100 rounded px-1.5 py-0.5 text-gray-400">Ctrl K</kbd>
@@ -242,6 +249,7 @@ export default function AdminShell() {
       </div>
 
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+      <AssistantPanel open={assistantOpen} onClose={() => setAssistantOpen(false)} />
     </div>
   );
 }
