@@ -232,3 +232,5 @@
 - [ ] After publishing commit da42ad7, verify the eight new afterschoolRegistrations columns exist on the live DB
 - [x] Pull commit b301c39 and validate the admin Ctrl-K command search locally: search endpoint returns student and lead results with correct destinations; Ctrl-K and Enter handlers are wired
 - [ ] After publishing commit b301c39, verify live Ctrl-K student/lead search results and Enter navigation
+- [x] Pull commit 2ab549a and verify locally that Flyer Studio is under Tools and My Tasks is under collapsed Owner tools
+- [ ] After publishing commit 2ab549a, verify the live admin navigation grouping and labels
