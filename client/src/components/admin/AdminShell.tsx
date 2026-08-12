@@ -55,10 +55,8 @@ const NAV: NavGroup[] = [
     { key: "today", label: "Today", icon: Home },
   ]},
   { group: "Prospects", items: [
-    { key: "calls", label: "Today's Calls", icon: PhoneCall },
     { key: "calendar", label: "Calendar", icon: CalendarDays },
     { key: "leads", label: "Leads", icon: Kanban },
-    { key: "checkin", label: "Trial Check-in", icon: ClipboardCheck },
   ]},
   { group: "People", items: [
     { key: "enrolled", label: "Enrolled Families", icon: Users },
@@ -90,6 +88,17 @@ const NAV: NavGroup[] = [
 ];
 
 const ALL_ITEMS = NAV.flatMap(g => g.items);
+
+// Routes reachable by URL / drill-down but intentionally NOT shown in the sidebar.
+// 2026-08-11: Today's Calls + Trial Check-in are folded into the Today screen so
+// the daily loop is one page instead of three. Their full views stay one click
+// away (Today links to them, the search palette jumps to them, old URLs still
+// resolve), so keep the routes routable here even though they left the nav.
+const HIDDEN_ITEMS: { key: ViewKey; label: string }[] = [
+  { key: "calls", label: "Today's Calls" },
+  { key: "checkin", label: "Trial Check-in" },
+];
+const ROUTABLE_ITEMS = [...ALL_ITEMS, ...HIDDEN_ITEMS];
 
 function renderView(key: ViewKey, email: string) {
   switch (key) {
@@ -150,8 +159,8 @@ export default function AdminShell() {
   if (!email) return <AdminLoginGate onLogin={login} />;
 
   const seg = location.replace(/^\/admin\/?/, "").split("/")[0];
-  const active: ViewKey = ALL_ITEMS.find(i => i.key === seg)?.key ?? "today";
-  const activeLabel = ALL_ITEMS.find(i => i.key === active)?.label ?? "Today";
+  const active: ViewKey = ROUTABLE_ITEMS.find(i => i.key === seg)?.key ?? "today";
+  const activeLabel = ROUTABLE_ITEMS.find(i => i.key === active)?.label ?? "Today";
 
   const go = (key: ViewKey) => { navigate(`/admin/${key}`); setMobileOpen(false); };
   const toggleOwner = () => setOwnerOpen(v => {
