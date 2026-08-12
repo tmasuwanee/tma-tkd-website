@@ -230,3 +230,5 @@
 - [ ] After publishing commit b2b57f2, verify live admin: Camp shows Signed Camp Waivers and Orders shows One-off payments
 - [x] Pull commit da42ad7 and verify locally that all eight new nullable afterschoolRegistrations columns exist and the Stripe webhook route responds
 - [ ] After publishing commit da42ad7, verify the eight new afterschoolRegistrations columns exist on the live DB
+- [x] Pull commit b301c39 and validate the admin Ctrl-K command search locally: search endpoint returns student and lead results with correct destinations; Ctrl-K and Enter handlers are wired
+- [ ] After publishing commit b301c39, verify live Ctrl-K student/lead search results and Enter navigation
