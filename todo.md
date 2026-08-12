@@ -228,3 +228,5 @@
 - [x] Confirm locally that Camp source includes Signed Camp Waivers and Orders source includes One-off payments
 - [ ] After publishing commit b2b57f2, verify live DB: oneOffPayments table and afterschoolRegistrations.waiverId exist
 - [ ] After publishing commit b2b57f2, verify live admin: Camp shows Signed Camp Waivers and Orders shows One-off payments
+- [x] Pull commit da42ad7 and verify locally that all eight new nullable afterschoolRegistrations columns exist and the Stripe webhook route responds
+- [ ] After publishing commit da42ad7, verify the eight new afterschoolRegistrations columns exist on the live DB
