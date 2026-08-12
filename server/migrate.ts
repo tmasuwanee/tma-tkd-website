@@ -106,6 +106,25 @@ const MIGRATIONS: { name: string; sql: string }[] = [
   { name: "afterschoolRegistrations.billingAnchor",        sql: "ALTER TABLE afterschoolRegistrations ADD COLUMN IF NOT EXISTS billingAnchor DATE NULL" },
   { name: "afterschoolRegistrations.lastPaymentStatus",    sql: "ALTER TABLE afterschoolRegistrations ADD COLUMN IF NOT EXISTS lastPaymentStatus VARCHAR(32) NULL" },
   { name: "afterschoolRegistrations.canceledAt",           sql: "ALTER TABLE afterschoolRegistrations ADD COLUMN IF NOT EXISTS canceledAt DATETIME NULL" },
+  {
+    // 2026-08-11: write-action confirm-flow. A proposed action (e.g. an email
+    // drafted by the assistant) is stored here and does NOTHING until a human
+    // confirms it, which executes it once (idempotent) and records the outcome.
+    name: "pendingActions table",
+    sql: "CREATE TABLE IF NOT EXISTS pendingActions (" +
+      "id BIGINT PRIMARY KEY AUTO_INCREMENT, " +
+      "actionType VARCHAR(64) NOT NULL, " +
+      "title VARCHAR(255) NOT NULL, " +
+      "preview TEXT NULL, " +
+      "payload TEXT NOT NULL, " +
+      "status VARCHAR(24) NOT NULL DEFAULT 'proposed', " +
+      "proposedBy VARCHAR(120) NULL, " +
+      "confirmedBy VARCHAR(120) NULL, " +
+      "result TEXT NULL, " +
+      "createdAt DATETIME NOT NULL, " +
+      "executedAt DATETIME NULL, " +
+      "expiresAt DATETIME NULL)",
+  },
 ];
 
 export async function runStartupMigrations(): Promise<void> {

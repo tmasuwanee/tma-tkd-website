@@ -2980,6 +2980,83 @@ export async function getOneOffPayments(): Promise<OneOffPaymentRow[]> {
   return Array.isArray(rows) ? rows : [];
 }
 
+// ─── Pending actions (write-action confirm-flow) ─────────────────────────────
+export type PendingActionRow = {
+  id: number;
+  actionType: string;
+  title: string;
+  preview: string | null;
+  payload: string;
+  status: string;
+  proposedBy: string | null;
+  confirmedBy: string | null;
+  result: string | null;
+  createdAt: string | Date;
+  executedAt: string | Date | null;
+  expiresAt: string | Date | null;
+};
+
+const PENDING_COLS = sql`id, actionType, title, preview, payload, status, proposedBy, confirmedBy, result, createdAt, executedAt, expiresAt`;
+
+export async function insertPendingAction(p: {
+  actionType: string; title: string; preview: string | null; payload: string;
+  proposedBy: string | null; expiresAt: Date | null;
+}): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [r] = await db.execute(
+    sql`INSERT INTO pendingActions (actionType, title, preview, payload, status, proposedBy, createdAt, expiresAt)
+        VALUES (${p.actionType}, ${p.title}, ${p.preview}, ${p.payload}, 'proposed', ${p.proposedBy}, NOW(), ${p.expiresAt})`
+  ) as unknown as [{ insertId: number }];
+  return r?.insertId ?? 0;
+}
+
+export async function getPendingAction(id: number): Promise<PendingActionRow | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const [rows] = await db.execute(
+    sql`SELECT ${PENDING_COLS} FROM pendingActions WHERE id = ${id} LIMIT 1`
+  ) as unknown as [PendingActionRow[]];
+  return Array.isArray(rows) && rows[0] ? rows[0] : null;
+}
+
+export async function listPendingActions(status?: string, limit = 50): Promise<PendingActionRow[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const [rows] = await db.execute(
+    status
+      ? sql`SELECT ${PENDING_COLS} FROM pendingActions WHERE status = ${status} ORDER BY createdAt DESC LIMIT ${limit}`
+      : sql`SELECT ${PENDING_COLS} FROM pendingActions ORDER BY createdAt DESC LIMIT ${limit}`
+  ) as unknown as [PendingActionRow[]];
+  return Array.isArray(rows) ? rows : [];
+}
+
+/** Atomically claim a proposed action for execution. Returns true only for the
+ *  caller that flips status proposed->executing, so an action can never execute
+ *  twice even under a double-click / race. */
+export async function claimPendingAction(id: number): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  const [res] = await db.execute(
+    sql`UPDATE pendingActions SET status = 'executing' WHERE id = ${id} AND status = 'proposed'`
+  ) as unknown as [{ affectedRows: number }];
+  return (res?.affectedRows ?? 0) === 1;
+}
+
+export async function finishPendingAction(id: number, p: { status: string; result: string | null; confirmedBy: string | null }): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.execute(
+    sql`UPDATE pendingActions SET status = ${p.status}, result = ${p.result}, confirmedBy = ${p.confirmedBy}, executedAt = NOW() WHERE id = ${id}`
+  );
+}
+
+export async function setPendingActionStatus(id: number, status: string, by: string | null): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.execute(sql`UPDATE pendingActions SET status = ${status}, confirmedBy = ${by} WHERE id = ${id}`);
+}
+
 // ─── Afterschool Roster ───────────────────────────────────────────────────────
 export type RosterStudent = {
   id: number;

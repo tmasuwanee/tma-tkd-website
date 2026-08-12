@@ -6,7 +6,7 @@ import {
   Kanban, ClipboardCheck, Phone, PhoneOutgoing, Mail, Route as RouteIcon,
   BarChart2, GraduationCap, CalendarCheck, ShieldAlert, Camera, LogOut,
   Menu, PhoneCall, CalendarDays, CheckSquare, FileSignature, Link2, BookOpen,
-  ShoppingBag, Users, ClipboardList, FileText, Home, ChevronDown, ChevronRight, Search, Sparkles,
+  ShoppingBag, Users, ClipboardList, FileText, Home, ChevronDown, ChevronRight, Search, Sparkles, ShieldCheck,
 } from "lucide-react";
 import { CallsApp } from "@/pages/AdminTodaysCalls";
 import { CallLogApp } from "@/pages/AdminCallLog";
@@ -32,6 +32,7 @@ import InvoicesView from "@/components/admin/InvoicesView";
 import TodayView from "@/components/admin/TodayView";
 import CommandPalette from "@/components/admin/CommandPalette";
 import AssistantPanel from "@/components/admin/AssistantPanel";
+import PendingActionsView from "@/components/admin/PendingActionsView";
 
 // Keys double as URL segments (/admin/<key>). They match the old standalone
 // routes where possible (/admin/calls, /admin/checkin, /admin/call-log,
@@ -39,7 +40,7 @@ import AssistantPanel from "@/components/admin/AssistantPanel";
 type ViewKey =
   | "today" | "calls" | "calendar" | "leads" | "checkin" | "waivers" | "call-log" | "voice-test"
   | "sequences" | "rules" | "ads" | "students" | "camp" | "controls" | "studio" | "tasks" | "links" | "playbook"
-  | "orders" | "enrolled" | "afterschool-roster" | "invoices";
+  | "orders" | "enrolled" | "afterschool-roster" | "invoices" | "approvals";
 
 type NavItem = { key: ViewKey; label: string; icon: any };
 type NavGroup = { group: string; items: NavItem[]; collapsible?: boolean };
@@ -70,6 +71,7 @@ const NAV: NavGroup[] = [
     { key: "invoices", label: "Invoice Generator", icon: FileText },
   ]},
   { group: "Tools", items: [
+    { key: "approvals", label: "Approvals", icon: ShieldCheck },
     { key: "studio", label: "Flyer Studio", icon: Camera },
     { key: "waivers", label: "Waivers", icon: FileSignature },
     { key: "call-log", label: "Call History", icon: Phone },
@@ -125,6 +127,7 @@ function renderView(key: ViewKey, email: string) {
     case "links": return <LinksView />;
     case "playbook": return <PlaybookView />;
     case "afterschool-roster": return <AfterschoolRosterView />;
+    case "approvals": return <PendingActionsView />;
   }
 }
 

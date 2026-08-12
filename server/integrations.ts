@@ -242,6 +242,15 @@ async function sendEmail(
 }
 
 /**
+ * Send a human-REVIEWED email. Used by the write-action confirm-flow only after a
+ * staff member has previewed and confirmed the exact content, so a plain
+ * to/subject/html sender is safe here (no model-supplied attachments).
+ */
+export async function sendReviewedEmail(to: string, subject: string, html: string) {
+  return sendEmail(to, subject, html);
+}
+
+/**
  * Emails the completed GCPS transportation authorization PDF to the parent and
  * to staff, as an attachment. Called by transportation.submit after the parent
  * signs. The PDF is the authoritative signed record.

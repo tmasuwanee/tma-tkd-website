@@ -56,9 +56,12 @@ import {
   getRosterAttendance, upsertRosterAttendance,
   // One-off payments (supply fee / field trip) visibility (2026-08-11)
   insertOneOffPayment, getOneOffPayments,
+  // Write-action confirm-flow (2026-08-11)
+  listPendingActions,
 } from "./db";
 import { sendTelegramMessage } from "./telegram";
 import { tuitionConfiguredFor, ensureStripeCustomer, createAfterschoolSubscription } from "./tuition";
+import { proposeAction, confirmAction, rejectAction } from "./action-flow";
 import { storagePut, storageGet } from "./storage";
 import { sendEmailNotification, sendProShopOrderNotification, sendCampRegistrationConfirmation, sendCampWaiverEmail, sendFieldTripConfirmation, sendTransportationForm, sendTrialReceipt, sendAfterschoolConfirmation, sendAfterschoolIntake, sendWaiverNotification } from "./integrations";
 import { fillTransportationPdf } from "./transportation-pdf";
@@ -1959,6 +1962,22 @@ export const appRouter = router({
   // in the dashboard instead of living only in Stripe + Telegram scrollback.
   payments: router({
     listOneOff: publicProcedure.query(async () => getOneOffPayments()),
+  }),
+
+  // Write-action confirm-flow: an action is proposed (does nothing), then a human
+  // confirms it (executes once, idempotent) or rejects it. See server/action-flow.ts.
+  actions: router({
+    listPending: publicProcedure.query(async () =>
+      (await listPendingActions("proposed")).map(a => ({ id: a.id, actionType: a.actionType, title: a.title, preview: a.preview, proposedBy: a.proposedBy, createdAt: a.createdAt }))),
+    listRecent: publicProcedure.query(async () =>
+      (await listPendingActions(undefined, 30)).map(a => ({ id: a.id, actionType: a.actionType, title: a.title, status: a.status, proposedBy: a.proposedBy, confirmedBy: a.confirmedBy, createdAt: a.createdAt, executedAt: a.executedAt }))),
+    confirm: publicProcedure.input(z.object({ id: z.number().int().positive() }))
+      .mutation(async ({ input, ctx }) => confirmAction(input.id, ctx.adminEmail ?? "admin")),
+    reject: publicProcedure.input(z.object({ id: z.number().int().positive() }))
+      .mutation(async ({ input, ctx }) => { await rejectAction(input.id, ctx.adminEmail ?? "admin"); return { ok: true }; }),
+    // Manual proposer (also what the assistant will call to draft an email for review).
+    proposeEmail: publicProcedure.input(z.object({ to: z.string().email(), subject: z.string().min(1).max(255), html: z.string().min(1).max(20000) }))
+      .mutation(async ({ input, ctx }) => proposeAction("send_email", input, ctx.adminEmail ?? "admin")),
   }),
 
   // Global admin search (Cmd/Ctrl-K palette): find a lead, student, or afterschool

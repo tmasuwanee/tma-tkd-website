@@ -22,6 +22,7 @@ import {
   getAfterschoolRegistrations,
 } from "./db";
 import { retrievePlaybook } from "./playbook-rag";
+import { proposeAction } from "./action-flow";
 
 // ─── Shared Stripe payments service ──────────────────────────────────────────
 // Lists succeeded, non-refunded TMA charges, optionally filtered by a text query
@@ -164,6 +165,21 @@ function buildTools() {
         return { snippets: hits.map(h => ({ source: h.source, section: h.title, text: h.text })) };
       },
     }),
+
+    draftEmailForApproval: tool({
+      description: "Draft an email to someone for a STAFF MEMBER to review and send. This does NOT send anything — it creates a pending draft that a human must confirm in the Approvals view. Use when asked to email/notify/follow-up-with someone. Write a clear subject and a complete, ready-to-send message; do not use placeholders.",
+      inputSchema: z.object({
+        to: z.string().email().describe("recipient email address"),
+        subject: z.string().min(1).max(255),
+        body: z.string().min(1).describe("the full email message (plain text; it will be formatted)"),
+      }),
+      execute: async ({ to, subject, body }) => {
+        const safe = body.replace(/</g, "&lt;");
+        const html = `<div style="font-family: Arial, sans-serif; white-space: pre-wrap; color:#1a2233;">${safe}</div>`;
+        const { id } = await proposeAction("send_email", { to, subject, html }, "assistant");
+        return { drafted: true, pendingActionId: id, note: `Draft #${id} created. Nothing was sent. A staff member must review and confirm it in Approvals before it goes out.` };
+      },
+    }),
   };
 }
 
@@ -172,7 +188,8 @@ export const SYSTEM_PROMPT = `You are the TMA (Top Martial Arts Suwanee) admin a
 Rules:
 - Use tools to get live data. Never invent names, amounts, dates, or statuses. If a tool returns nothing, say so.
 - For "how do I..." / policy / procedure questions (no-shows, which link to send, camp waiver checks, daily routine, escalation), use answerFromPlaybook and answer from the returned snippets, naming the section. Do not invent policy.
-- You are READ-ONLY. You cannot change data, create anything, or send emails. If asked to do those, explain that a staff member must do it in the dashboard (this feature is coming later).
+- You cannot change data, create memberships, or issue refunds; if asked, explain a staff member must do it in the dashboard.
+- You CAN draft an email with draftEmailForApproval, but this only creates a pending draft for a staff member to review and send in Approvals. It does NOT send. Always make clear that nothing was sent and it needs their confirmation.
 - If a person, date range, or amount is ambiguous, ask a brief clarifying question instead of guessing.
 - Money: only report amounts the tools returned. Never mention card numbers (you never receive them).
 - Be concise. Show the specific records/numbers you used so staff can verify.
