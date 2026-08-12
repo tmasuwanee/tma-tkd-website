@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   Loader2, Phone, MessageSquare, Mail, Check, X, Clock, Eye, EyeOff, LogOut,
-  Calendar, RefreshCw, ChevronRight, AlertCircle,
+  Calendar, RefreshCw, ChevronRight, AlertCircle, Ban,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
@@ -106,7 +106,7 @@ const STATUS_COLORS: Record<string, string> = {
   skipped: "bg-gray-100 text-gray-500",
 };
 
-function CallCard({ item, onClick }: { item: { lead: any; reason: string }; onClick: () => void }) {
+function CallCard({ item, onClick, onDismiss }: { item: { lead: any; reason: string }; onClick: () => void; onDismiss?: () => void }) {
   const { lead, reason } = item;
   if (!lead) return null;
   return (
@@ -133,7 +133,18 @@ function CallCard({ item, onClick }: { item: { lead: any; reason: string }; onCl
       </div>
       <div className="mt-2 pt-2 border-t border-gray-100 flex items-center justify-between text-xs">
         <span className="text-gray-500">Stage: <strong>{lead.pipelineStage}</strong></span>
-        <ChevronRight className="w-4 h-4 text-gray-400" />
+        <span className="flex items-center gap-2">
+          {onDismiss && (
+            <span role="button" tabIndex={0}
+              onClick={e => { e.stopPropagation(); onDismiss(); }}
+              onKeyDown={e => { if (e.key === "Enter") { e.stopPropagation(); onDismiss(); } }}
+              title="Not interested / ignoring outreach — remove from calls + pipeline"
+              className="inline-flex items-center gap-1 text-gray-400 hover:text-red-600 cursor-pointer">
+              <Ban className="w-3.5 h-3.5" /> Not interested
+            </span>
+          )}
+          <ChevronRight className="w-4 h-4 text-gray-400" />
+        </span>
       </div>
     </button>
   );
@@ -295,6 +306,17 @@ export function CallsApp({ email, onLogout, embedded }: { email: string; onLogou
   const [detailLead, setDetailLead] = useState<Lead | null>(null);
   const boardQuery = trpc.calls.board.useQuery(undefined, { refetchOnWindowFocus: true });
   const board = boardQuery.data ?? { today: [], thisWeek: [] };
+  // "Not interested / stop chasing" -> mark Lost, which removes them from the
+  // call board AND the active Leads pipeline (both exclude 'lost'). Reversible.
+  const dismiss = trpc.leads.updateStage.useMutation({
+    onSuccess: () => { boardQuery.refetch(); toast.success("Removed from calls + pipeline (marked Lost)"); },
+    onError: (e) => toast.error(e.message ?? "Could not remove"),
+  });
+  const dismissLead = (lead: any) => {
+    const name = lead?.kidName || lead?.parentName || "this lead";
+    if (!window.confirm(`Remove ${name} from the call list and pipeline?\n\nThis marks them "Lost" (for not interested or ignoring outreach). It is reversible from the Leads page.`)) return;
+    dismiss.mutate({ id: lead.id, stage: "lost" });
+  };
 
   return (
     <div className={embedded ? "pb-12" : "min-h-screen bg-gray-50 pb-24"}>
@@ -333,7 +355,7 @@ export function CallsApp({ email, onLogout, embedded }: { email: string; onLogou
               ) : (
                 <div className="space-y-2">
                   {board.today.map((it: any) => (
-                    <CallCard key={it.lead.id} item={it} onClick={() => setDetailLead(it.lead)} />
+                    <CallCard key={it.lead.id} item={it} onClick={() => setDetailLead(it.lead)} onDismiss={() => dismissLead(it.lead)} />
                   ))}
                 </div>
               )}
@@ -350,7 +372,7 @@ export function CallsApp({ email, onLogout, embedded }: { email: string; onLogou
               ) : (
                 <div className="space-y-2">
                   {board.thisWeek.map((it: any) => (
-                    <CallCard key={it.lead.id} item={it} onClick={() => setDetailLead(it.lead)} />
+                    <CallCard key={it.lead.id} item={it} onClick={() => setDetailLead(it.lead)} onDismiss={() => dismissLead(it.lead)} />
                   ))}
                 </div>
               )}

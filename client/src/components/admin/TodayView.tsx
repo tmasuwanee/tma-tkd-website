@@ -1,5 +1,5 @@
 import { trpc } from "@/lib/trpc";
-import { Loader2, Phone, CheckCircle2, XCircle, PhoneCall, CalendarDays, Kanban, ArrowRight } from "lucide-react";
+import { Loader2, Phone, CheckCircle2, XCircle, PhoneCall, CalendarDays, Kanban, ArrowRight, Ban } from "lucide-react";
 import { useLocation } from "wouter";
 
 /**
@@ -37,6 +37,17 @@ export default function TodayView() {
   const mark = trpc.checkin.mark.useMutation({
     onSuccess: () => { utils.checkin.listForDate.invalidate(); utils.calls.board.invalidate(); },
   });
+  // "Not interested / stop chasing" -> mark Lost. The call board and the active
+  // Leads pipeline both exclude 'lost', so this removes them from calls AND the
+  // pipeline in one action. Reversible from the Leads view (lost can re-engage).
+  const dismiss = trpc.leads.updateStage.useMutation({
+    onSuccess: () => { utils.calls.board.invalidate(); utils.checkin.listForDate.invalidate(); },
+  });
+  const markNotInterested = (lead: any) => {
+    const name = lead.kidName || lead.parentName || "this lead";
+    if (!window.confirm(`Remove ${name} from the call list and pipeline?\n\nThis marks them "Lost" (for not interested or ignoring outreach). It is reversible from the Leads page.`)) return;
+    dismiss.mutate({ id: lead.id, stage: "lost" });
+  };
 
   const today = board.data?.today ?? [];
   const trials = (checkin.data?.leads ?? []) as any[];
@@ -118,11 +129,18 @@ export default function TodayView() {
                       <div className="font-medium text-gray-900 text-sm truncate">{lead.kidName || lead.parentName}</div>
                       <div className="text-xs text-gray-500 truncate">{reason}</div>
                     </div>
-                    {lead.phone ? (
-                      <a href={`tel:${lead.phone}`} className="shrink-0 inline-flex items-center gap-1 text-xs font-semibold text-[#1a2d5a] border border-[#1a2d5a]/30 hover:bg-[#1a2d5a] hover:text-white rounded px-2 py-1 transition-colors">
-                        <Phone className="w-3.5 h-3.5" /> Call
-                      </a>
-                    ) : null}
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {lead.phone ? (
+                        <a href={`tel:${lead.phone}`} className="inline-flex items-center gap-1 text-xs font-semibold text-[#1a2d5a] border border-[#1a2d5a]/30 hover:bg-[#1a2d5a] hover:text-white rounded px-2 py-1 transition-colors">
+                          <Phone className="w-3.5 h-3.5" /> Call
+                        </a>
+                      ) : null}
+                      <button onClick={() => markNotInterested(lead)} disabled={dismiss.isPending}
+                        title="Not interested / ignoring outreach — remove from calls + pipeline"
+                        className="inline-flex items-center gap-1 text-xs font-medium text-gray-400 hover:text-red-600 border border-transparent hover:border-red-200 rounded px-2 py-1 transition-colors">
+                        <Ban className="w-3.5 h-3.5" /> Not interested
+                      </button>
+                    </div>
                   </li>
                 ))}
               </ul>
