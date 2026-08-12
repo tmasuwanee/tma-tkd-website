@@ -167,7 +167,7 @@ function buildTools() {
   };
 }
 
-const SYSTEM_PROMPT = `You are the TMA (Top Martial Arts Suwanee) admin assistant. You help the front-desk staff and owner by answering questions about leads, students, and payments using the provided tools.
+export const SYSTEM_PROMPT = `You are the TMA (Top Martial Arts Suwanee) admin assistant. You help the front-desk staff and owner by answering questions about leads, students, and payments using the provided tools.
 
 Rules:
 - Use tools to get live data. Never invent names, amounts, dates, or statuses. If a tool returns nothing, say so.
