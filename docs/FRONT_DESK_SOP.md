@@ -27,7 +27,7 @@ Written against the CURRENT dashboard so staff can use it today. When the dashbo
 Trigger: new lead (web form, FB ad, walk-in, phone).
 1. New leads land in **Leads** at `new_lead` automatically. FB leads sync every 15 min.
 2. The follow-up sequence starts automatically (dispatcher runs every 5 min). Your job is a live call, fast.
-3. After you talk to them, move **Leads** status to `contacted`, log in **Call Log**.
+3. After you talk to them, move **Leads** status to `contacted`, log in **Call History**.
 4. Trial booked (by you, voice agent, or sequence) moves to `trial_scheduled`. If the voice agent booked it, verify it shows in **Leads** / **Today's Calls**.
 5. 24h reminder sends automatically.
 6. `$99 trial paid` Telegram fires and status moves to `trial_paid`. **Watch-out:** the paid trial is not auto-linked to the lead. Confirm the matching lead updated; fix by hand if not.
@@ -76,7 +76,7 @@ Trigger: supply-fee or field-trip payment.
 2. **Outbound voice (speed-to-lead, no-show, post-trial) is gated OFF until tested.** Manual follow-up calls are still your job until Arfa says it is live.
 3. If you are at the desk and it rings, answer live. A human answer beats the agent.
 4. Every call generates a Telegram alert. Watch for: voice-agent booked trial, pickup request, callback request. Verify each landed in **Today's Calls** / **Leads**.
-5. Log calls you handle in **Call Log**.
+5. Log calls you handle in **Call History**.
 
 ---
 

@@ -45,6 +45,11 @@ type NavGroup = { group: string; items: NavItem[]; collapsible?: boolean };
 
 // Front-desk-facing groups (always shown). Reorganized 2026-08-05 around the
 // three real daily jobs: work leads (Today/Prospects), manage people, handle money.
+// 2026-08-11 (Phase 4): promoted Studio -> "Flyer Studio" into visible Tools
+// (flyer-building is a core job, no longer buried in Owner tools); moved the
+// personal "My Tasks" into collapsed Owner tools; renamed "Call Log" -> "Call
+// History"; dissolved "Forms & Calls" (Waivers + Call History live in Tools).
+// Route keys are unchanged, so every existing /admin/<key> URL still works.
 const NAV: NavGroup[] = [
   { group: "Main", items: [
     { key: "today", label: "Today", icon: Home },
@@ -65,24 +70,22 @@ const NAV: NavGroup[] = [
     { key: "camp", label: "Camp Registrations", icon: CalendarCheck },
     { key: "invoices", label: "Invoice Generator", icon: FileText },
   ]},
-  { group: "Forms & Calls", items: [
-    { key: "waivers", label: "Waivers", icon: FileSignature },
-    { key: "call-log", label: "Call Log", icon: Phone },
-  ]},
   { group: "Tools", items: [
+    { key: "studio", label: "Flyer Studio", icon: Camera },
+    { key: "waivers", label: "Waivers", icon: FileSignature },
+    { key: "call-log", label: "Call History", icon: Phone },
     { key: "playbook", label: "Front Desk Playbook", icon: BookOpen },
     { key: "links", label: "Links", icon: Link2 },
-    { key: "tasks", label: "My Tasks", icon: CheckSquare },
   ]},
   // Owner / config tools — collapsed by default so the front desk isn't buried
   // in settings. (Shared login, so this is decluttering, not access control.)
   { group: "Owner tools", collapsible: true, items: [
+    { key: "tasks", label: "My Tasks", icon: CheckSquare },
     { key: "sequences", label: "Email Sequences", icon: Mail },
     { key: "rules", label: "Routing Rules", icon: RouteIcon },
     { key: "ads", label: "Ad Performance", icon: BarChart2 },
     { key: "controls", label: "Automation", icon: ShieldAlert },
     { key: "voice-test", label: "Voice Test", icon: PhoneOutgoing },
-    { key: "studio", label: "Studio", icon: Camera },
   ]},
 ];
 
