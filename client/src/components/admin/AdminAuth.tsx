@@ -68,12 +68,30 @@ export function AdminLoginGate({ onLogin }: { onLogin: (email: string) => void }
   const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState("");
 
-  const submit = (e: React.FormEvent) => {
+  const [submitting, setSubmitting] = useState(false);
+
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (ADMIN_ALLOWED_EMAILS.includes(email.trim().toLowerCase()) && password === ADMIN_PASSWORD) {
-      onLogin(email.trim().toLowerCase());
-    } else {
-      setError("Incorrect email or password.");
+    setError("");
+    setSubmitting(true);
+    try {
+      // Server verifies the credentials and sets the signed httpOnly admin
+      // session cookie (Phase 1 auth). The browser no longer self-certifies.
+      const r = await fetch("/api/admin/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
+      });
+      if (r.ok) {
+        onLogin(email.trim().toLowerCase());
+      } else {
+        setError("Incorrect email or password.");
+      }
+    } catch {
+      setError("Could not reach the server. Please try again.");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -106,7 +124,7 @@ export function AdminLoginGate({ onLogin }: { onLogin: (email: string) => void }
               </div>
             </div>
             {error && <p className="text-sm text-red-600">{error}</p>}
-            <Button type="submit" className="w-full bg-[#1a2d5a] hover:bg-[#142347]">Sign in</Button>
+            <Button type="submit" disabled={submitting} className="w-full bg-[#1a2d5a] hover:bg-[#142347]">{submitting ? "Signing in..." : "Sign in"}</Button>
           </form>
         </CardContent>
       </Card>

@@ -44,4 +44,12 @@ export const ENV = {
   tmaStripeWebhookSecret: process.env.TMA_STRIPE_WEBHOOK_SECRET ?? "",
   stripePriceAfterschool45: process.env.STRIPE_PRICE_AFTERSCHOOL_4_5 ?? "",
   stripePriceAfterschool23: process.env.STRIPE_PRICE_AFTERSCHOOL_2_3 ?? "",
+  // 2026-08-11: server-side admin auth (Phase 1). adminPassword is verified on
+  // the server now (not just in the client bundle); falls back to the historical
+  // shared password so nothing breaks before ADMIN_PASSWORD is set in Secrets.
+  // adminAuthEnforce is the kill-switch: gated admin procedures only REQUIRE the
+  // admin session when this is "true", so deploying the gate changes nothing
+  // until it is enabled + verified on preview. See docs/ADMIN_AUTH_PLAN.md.
+  adminPassword: process.env.ADMIN_PASSWORD ?? "Keep9oing!",
+  adminAuthEnforce: process.env.ADMIN_AUTH_ENFORCE === "true",
 };

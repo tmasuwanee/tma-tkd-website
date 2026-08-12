@@ -1,7 +1,7 @@
 ﻿import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
-import { publicProcedure, router } from "./_core/trpc";
+import { publicProcedure, tmaAdminProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import {
   createLead, getLeadById, getLeadByEmail, getAllLeads, updateLeadStage, updateLeadProgram, updateLeadNotes, updateLeadTags, deleteLead,
@@ -373,7 +373,7 @@ export const appRouter = router({
     // Signed camp waivers, so staff can actually see who signed. The campWaivers
     // table was previously write-only (no reader, no admin surface), so a signed
     // camp waiver only ever showed up as a one-time Telegram alert.
-    listWaivers: publicProcedure.query(async () => getCampWaivers()),
+    listWaivers: tmaAdminProcedure.query(async () => getCampWaivers()),
   }),
 
   // ─── Admin (Camp Registrations) ──────────────────────────────────────────
@@ -615,7 +615,7 @@ export const appRouter = router({
       }),
 
     // Admin: get all leads (tags returned as parsed array)
-    getAll: publicProcedure.query(async () => {
+    getAll: tmaAdminProcedure.query(async () => {
       const allLeads = await getAllLeads();
       return allLeads.map(lead => ({
         ...lead,
@@ -1024,7 +1024,7 @@ export const appRouter = router({
       }),
 
     // Admin: get all students
-    getAll: publicProcedure.query(async () => {
+    getAll: tmaAdminProcedure.query(async () => {
       return getAllStudents();
     }),
 
@@ -1958,13 +1958,13 @@ export const appRouter = router({
   // One-off payment records (supply fee, field trip) so they are reconcilable
   // in the dashboard instead of living only in Stripe + Telegram scrollback.
   payments: router({
-    listOneOff: publicProcedure.query(async () => getOneOffPayments()),
+    listOneOff: tmaAdminProcedure.query(async () => getOneOffPayments()),
   }),
 
   // Global admin search (Cmd/Ctrl-K palette): find a lead, student, or afterschool
   // child fast across the many admin views. Server-side LIKE, small result cap.
   search: router({
-    query: publicProcedure
+    query: tmaAdminProcedure
       .input(z.object({ q: z.string().trim().min(1).max(100) }))
       .query(async ({ input }) => {
         const q = input.q;
@@ -2764,7 +2764,7 @@ export const appRouter = router({
       }),
     // Paid after-school registrations, so they are visible in the dashboard
     // (Enrolled Families) instead of only existing in Stripe + the DB.
-    listRegistrations: publicProcedure.query(async () => getAfterschoolRegistrations()),
+    listRegistrations: tmaAdminProcedure.query(async () => getAfterschoolRegistrations()),
   }),
 
   // ─── Afterschool Roster (2026-08-04) ──────────────────────────────────────

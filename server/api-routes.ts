@@ -15,6 +15,9 @@
 import type { Express, Request, Response } from "express";
 import { getLeadById, getLeadsByStages, updateLeadStage, getAutomationControls, isAutomationEnabled } from "./db";
 import { getAdInsights, syncAdInsights } from "./facebook-ads";
+import { getSessionCookieOptions } from "./_core/cookies";
+import { ENV } from "./_core/env";
+import { ADMIN_COOKIE, ADMIN_COOKIE_MAX_AGE_MS, ADMIN_EMAILS, signAdminToken } from "./admin-auth";
 
 const VALID_STAGES = [
   "new_lead", "contacted", "trial_scheduled", "trial_paid",
@@ -79,7 +82,36 @@ export function registerApiRoutes(app: Express): void {
   app.post("/api/admin/verify-key", (req: Request, res: Response) => {
     const key = String((req.body && req.body.key) ?? "");
     const expected = process.env.ADMIN_MAGIC_KEY ?? "";
-    res.json({ ok: !!expected && key.length > 0 && key === expected });
+    const ok = !!expected && key.length > 0 && key === expected;
+    // Establish a real server session on a valid magic-key tap (Phase 1 auth).
+    if (ok) {
+      res.cookie(ADMIN_COOKIE, signAdminToken(ADMIN_EMAILS[0]), {
+        ...getSessionCookieOptions(req), maxAge: ADMIN_COOKIE_MAX_AGE_MS,
+      });
+    }
+    res.json({ ok });
+  });
+
+  // ─── Admin password login (Phase 1 auth) ───────────────────────────────────
+  // Verify the shared credentials SERVER-side and set the signed httpOnly admin
+  // session cookie. The browser no longer self-certifies; the cookie is what the
+  // admin tRPC gate checks (once ADMIN_AUTH_ENFORCE=true).
+  app.post("/api/admin/login", (req: Request, res: Response) => {
+    const email = String((req.body && req.body.email) ?? "").trim().toLowerCase();
+    const password = String((req.body && req.body.password) ?? "");
+    if (ADMIN_EMAILS.includes(email) && password === ENV.adminPassword) {
+      res.cookie(ADMIN_COOKIE, signAdminToken(email), {
+        ...getSessionCookieOptions(req), maxAge: ADMIN_COOKIE_MAX_AGE_MS,
+      });
+      res.json({ ok: true, email });
+    } else {
+      res.status(401).json({ ok: false });
+    }
+  });
+
+  app.post("/api/admin/logout", (req: Request, res: Response) => {
+    res.clearCookie(ADMIN_COOKIE, getSessionCookieOptions(req));
+    res.json({ ok: true });
   });
 
   // ─── Stage update endpoint ─────────────────────────────────────────────────
