@@ -5,6 +5,7 @@ import { publicProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import {
   createLead, getLeadById, getLeadByEmail, getAllLeads, updateLeadStage, updateLeadProgram, updateLeadNotes, updateLeadTags, deleteLead,
+  searchLeads,
   getAfterschoolRegistrations,
   upsertLeadFromFacebook, createLeadActivity, getLeadActivities,
   createCampRegistration, updateCampRegistrationPayment,
@@ -1958,6 +1959,49 @@ export const appRouter = router({
   // in the dashboard instead of living only in Stripe + Telegram scrollback.
   payments: router({
     listOneOff: publicProcedure.query(async () => getOneOffPayments()),
+  }),
+
+  // Global admin search (Cmd/Ctrl-K palette): find a lead, student, or afterschool
+  // child fast across the many admin views. Server-side LIKE, small result cap.
+  search: router({
+    query: publicProcedure
+      .input(z.object({ q: z.string().trim().min(1).max(100) }))
+      .query(async ({ input }) => {
+        const q = input.q;
+        const [leadHits, studentHits, roster] = await Promise.all([
+          searchLeads(q, 8),
+          searchStudents(q),
+          getRosterStudents(),
+        ]);
+        const needle = q.toLowerCase();
+        const students = studentHits as Array<{ id: number; name: string; email: string | null; phone: string | null }>;
+        return [
+          ...leadHits.map(l => ({
+            type: "lead" as const,
+            id: l.id,
+            title: l.kidName || l.parentName,
+            subtitle: `${l.parentName}${l.pipelineStage ? ` · ${l.pipelineStage.replace(/_/g, " ")}` : ""}`,
+            href: `/admin/leads?focus=lead:${l.id}`,
+          })),
+          ...students.slice(0, 8).map(s => ({
+            type: "student" as const,
+            id: s.id,
+            title: s.name,
+            subtitle: [s.email, s.phone].filter(Boolean).join(" · ") || "Student",
+            href: `/admin/students`,
+          })),
+          ...roster
+            .filter(r => `${r.childName} ${r.schoolName} ${r.phone ?? ""}`.toLowerCase().includes(needle))
+            .slice(0, 8)
+            .map(r => ({
+              type: "roster" as const,
+              id: r.id,
+              title: r.childName,
+              subtitle: `Afterschool · ${r.schoolName}`,
+              href: `/admin/afterschool-roster`,
+            })),
+        ].slice(0, 24);
+      }),
   }),
 
   // ─── After-School waiver only (2026-08-05) ────────────────────────────────

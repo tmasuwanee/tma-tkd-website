@@ -171,6 +171,27 @@ export async function getAllLeads(): Promise<Lead[]> {
   return db.select().from(leads).orderBy(desc(leads.createdAt));
 }
 
+/** Global-search helper: match a lead by parent/kid name, email, or phone
+ *  digits. Used by the admin command palette. Small result cap. */
+export async function searchLeads(q: string, limit = 8): Promise<Lead[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const trimmed = q.trim();
+  if (!trimmed) return [];
+  const like = `%${trimmed}%`;
+  const conds: ReturnType<typeof sql>[] = [
+    sql`LOWER(${leads.parentName}) LIKE LOWER(${like})`,
+    sql`LOWER(${leads.kidName}) LIKE LOWER(${like})`,
+    sql`LOWER(${leads.email}) LIKE LOWER(${like})`,
+  ];
+  const digits = trimmed.replace(/\D/g, "");
+  if (digits.length >= 3) conds.push(sql`${leads.phone} LIKE ${`%${digits}%`}`);
+  return db.select().from(leads)
+    .where(sql`(${sql.join(conds, sql` OR `)})`)
+    .orderBy(desc(leads.updatedAt))
+    .limit(limit);
+}
+
 export async function getLeadsByStages(
   stages: Lead['pipelineStage'][],
   hasTrialDate?: boolean,

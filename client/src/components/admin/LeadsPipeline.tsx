@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Phone, Mail, User, Tag, ChevronRight, ChevronLeft, Trash2, StickyNote, Globe, X, Plus, Clock, MessageSquare, PhoneCall, Send, Search } from "lucide-react";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import TrialClassPicker from "@/components/TrialClassPicker";
@@ -793,6 +793,20 @@ export default function LeadsPipeline() {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
 
   const { data: leads = [], isLoading, refetch } = trpc.leads.getAll.useQuery();
+
+  // Deep-link from the command palette: /admin/leads?focus=lead:<id> opens that
+  // lead's detail dialog once the data is loaded, then strips the param.
+  useEffect(() => {
+    if (!leads.length) return;
+    const params = new URLSearchParams(window.location.search);
+    const m = params.get("focus")?.match(/^lead:(\d+)$/);
+    if (!m) return;
+    const lead = leads.find(l => l.id === Number(m[1]));
+    if (lead) setSelectedLead(lead as Lead);
+    params.delete("focus");
+    const qs = params.toString();
+    window.history.replaceState({}, "", window.location.pathname + (qs ? `?${qs}` : ""));
+  }, [leads]);
   const updateStage = trpc.leads.updateStage.useMutation({
     onSuccess: () => refetch(),
     onError: () => toast.error("Failed to move lead"),
