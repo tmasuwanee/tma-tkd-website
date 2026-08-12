@@ -21,6 +21,7 @@ import {
   searchLeads, searchStudents, getRosterStudents, getLeadById,
   getAfterschoolRegistrations,
 } from "./db";
+import { retrievePlaybook } from "./playbook-rag";
 
 // ─── Shared Stripe payments service ──────────────────────────────────────────
 // Lists succeeded, non-refunded TMA charges, optionally filtered by a text query
@@ -153,6 +154,16 @@ function buildTools() {
         return { found: true, kid: l.kidName, parent: l.parentName, email: l.email, phone: l.phone, stage: l.pipelineStage, program: l.programInterest, recordType: l.recordType, trialDate: l.trialClassDate, notes: l.internalNotes };
       },
     }),
+
+    answerFromPlaybook: tool({
+      description: "Look up TMA front-desk policy and 'how do I...' procedure guidance from the playbook + SOPs. Use for questions about how to handle a situation (a no-show, which link to send, checking a camp waiver, the daily open/close routine, escalation). Returns the most relevant snippets; answer from them and name the section.",
+      inputSchema: z.object({ question: z.string().min(1).describe("The staff member's how-to / policy question") }),
+      execute: async ({ question }) => {
+        const hits = await retrievePlaybook(question, 4);
+        if (hits.length === 0) return { snippets: [], note: "No playbook is indexed or the assistant is not configured." };
+        return { snippets: hits.map(h => ({ source: h.source, section: h.title, text: h.text })) };
+      },
+    }),
   };
 }
 
@@ -160,6 +171,7 @@ const SYSTEM_PROMPT = `You are the TMA (Top Martial Arts Suwanee) admin assistan
 
 Rules:
 - Use tools to get live data. Never invent names, amounts, dates, or statuses. If a tool returns nothing, say so.
+- For "how do I..." / policy / procedure questions (no-shows, which link to send, camp waiver checks, daily routine, escalation), use answerFromPlaybook and answer from the returned snippets, naming the section. Do not invent policy.
 - You are READ-ONLY. You cannot change data, create anything, or send emails. If asked to do those, explain that a staff member must do it in the dashboard (this feature is coming later).
 - If a person, date range, or amount is ambiguous, ask a brief clarifying question instead of guessing.
 - Money: only report amounts the tools returned. Never mention card numbers (you never receive them).

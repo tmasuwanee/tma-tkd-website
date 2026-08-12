@@ -16,7 +16,7 @@ const SUGGESTED = [
   "What has the Smith family paid this year?",
   "Show past-due tuition",
   "Who is missing an afterschool waiver?",
-  "Look up a lead by name",
+  "How do I handle a trial no-show?",
 ];
 
 export default function AssistantPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
