@@ -234,5 +234,7 @@
 - [ ] After publishing commit b301c39, verify live Ctrl-K student/lead search results and Enter navigation
 - [x] Pull commit 2ab549a and verify locally that Flyer Studio is under Tools and My Tasks is under collapsed Owner tools
 - [ ] After publishing commit 2ab549a, verify the live admin navigation grouping and labels
-- [ ] Pull commit f9bc715, configure OPENAI_API_KEY securely, and validate additive migrations plus requested dashboard behavior locally
+- [x] Pull commit f9bc715, configure OPENAI_API_KEY securely, and validate additive migrations plus requested dashboard behavior locally
+- [x] Replace the quota-exhausted assistant key with the user's temporary funded key and rerun assistant tool-routing validation
+- [x] Override the injected OpenAI base URL for the assistant so tool calls use the funded direct OpenAI API key
 - [ ] After publishing commit f9bc715, verify live DB objects, dashboard navigation, AI assistant tools and approval flow, call disposition, and a public parent-facing flow
