@@ -9,13 +9,12 @@ cancel, adjust payments, and discounts. Every action becomes (1) a backend
 operation, (2) a dashboard screen a person uses, and (3) a chatbot propose-tool
 behind the human-confirm step — so all of it works with or without the chatbot.
 
-> Items marked **[CONFIRM]** are gaps/ambiguities I still need pinned down.
+> Still open: exact day-camp days, BJJ gi exact price, seasonal-camp field trips,
+> confirming camp prices mirror summer camp.
 
 ---
 
 ## A. Membership & pricing catalog
-
-Arfa splits memberships into four sections.
 
 ### 1. Martial arts programs (monthly tuition)
 | Program | Price |
@@ -25,14 +24,12 @@ Arfa splits memberships into four sections.
 | Kickboxing — 3 days/week | $159/mo |
 | Brazilian Jiu-Jitsu — 3 days/week | $159/mo |
 
-- **Free intro class** — available now.
-- **$99 3-week trial** — mainly Taekwondo (sometimes Kickboxing if a prospect is
-  hesitant). **Includes the Taekwondo uniform.** Only shown when a prospect is
-  hesitant or fit is uncertain; otherwise we sell the regular tuition.
-  **[CONFIRM]** you said "3 week" and also "2 weeks" — the system currently treats
-  it as **3 weeks (21 days)**. Confirm 2 vs 3.
-- **Planned (not built):** a temporary **7-day free trial** across all programs a
-  prospect is eligible for. On hold until the rest is set up.
+- **Free intro class.**
+- **$99 3-week trial (21 days).** Mainly Taekwondo (sometimes Kickboxing if a
+  prospect is hesitant). **Includes the Taekwondo uniform.** Only shown when a
+  prospect is hesitant or fit is uncertain; otherwise we sell regular tuition.
+- **Planned (not built):** a temporary **7-day free trial** across all eligible
+  programs. On hold until the rest is set up.
 
 ### 2. Afterschool programs
 | Plan | Price |
@@ -40,156 +37,134 @@ Arfa splits memberships into four sections.
 | 5 days/week | $500/mo |
 | 2-3 days/week | $400/mo |
 
-- Taekwondo + Kickboxing **Monday–Thursday**; **Friday = free play day**.
-- Mostly **online self-signup + pay on the website**; in-person follows the same
-  flow as martial arts if needed.
-- Current one-time fees in the system: registration $99, uniform $50, supply $65.
+- Taekwondo + Kickboxing **Mon–Thu**; **Friday = free play day.**
+- Mostly **online self-signup + pay on the website**; in-person follows the martial
+  arts flow. Current one-time fees in the system: registration $99, uniform $50,
+  supply $65.
 
 ### 3. Camps
-- **Summer camp** — already in the system (use it as the reference).
-- **Spring break camp** — like summer camp but one week; usually **2 field trips**
-  that week.
-- **Other seasonal camps** (winter/fall break) — **[CONFIRM]** whether field trips
-  happen for these.
-- Prices: mirror summer camp for now; adjust once everything is set up.
+- **Summer camp** — in the system (reference).
+- **Spring break camp** — one week, usually **2 field trips**.
+- **Other seasonal camps** (winter/fall break) — field trips TBD.
+- Prices: mirror summer camp for now; adjust later.
 
 ### 4. Day camps
-- **$50–$60/day.** Morning care on **digital-learning days** and **school-out
-  holidays**.
-- **Need to build:** a **sign-up page** — online signups AND a **printable version**
-  to post near the office for in-person paper signup.
-- **[CONFIRM]** exact per-day price + which specific days/holidays.
+- **$60/day.** Morning care on digital-learning days and school-out holidays.
+- **To build:** a sign-up page — online signups AND a **printable version** for
+  in-office paper signup. Exact days TBD.
 
 ### One-time fees
 | Fee | Amount |
 |---|---|
 | Testing fee | $50 cash/check · **$60 credit card** |
-| Taekwondo uniform | $60 |
-| BJJ gi | ~$120 [CONFIRM] |
-| Kickboxing gear (full set) | $200 |
 | Taekwondo registration | **$149 (includes the uniform)** — can be waived (reg and/or uniform) at signup |
-
-- More prices to come.
-- **[CONFIRM]** the uniform relationship: TKD registration is $149 "including the
-  uniform," but the standalone TKD uniform is $60 — when is the $60 charged (e.g.
-  replacements, or when registration is waived)?
-- **[CONFIRM]** registration fees for Kickboxing and BJJ (only Taekwondo's $149 given).
+| Kickboxing registration | $150 |
+| BJJ registration | $150 |
+| Taekwondo uniform (standalone) | $60 — charged when the registration fee is waived but they still need a uniform |
+| BJJ gi | ~$120 (confirm) |
+| Kickboxing gear (full set) | $200 |
 
 ---
 
 ## B. Enrolling a new student (martial arts: TKD / Kickboxing / BJJ)
 
 **Typical flow:** prospect takes a trial class (walking in ready to sign is rare)
-→ we talk after class → show + explain prices if they haven't seen them → sign up.
+→ talk after class → show + explain prices → sign up.
 
-**Sign-up collects:** kid's name, age, address, parent email + phone → select the
-program → scan the credit card.
+**Sign-up collects:** kid's name, age, address, parent email + phone → select
+program → scan credit card.
 
-**Payment nuances (today done by switching to the computer / ZenPlanner):**
-- **Registration fee** ($149 TKD, includes uniform). We sometimes **waive the
-  registration and/or the uniform** — need per-signup checkboxes for each.
-- **Sibling discount: $20 off the second child.** **[CONFIRM]** one-time or
-  recurring monthly, and which programs it applies to.
-- **Contract:** we add the specific contract in the member's contracts section,
-  then it updates through ZenPlanner. After payment we explain the contract, they
-  read + sign, done. **[CONFIRM]** which contracts exist (term lengths, e.g.
-  12-month) and what they bind.
+**Payment configuration (do inline in our system — no more switching to ZenPlanner):**
+- **Registration fee** (TKD $149 incl uniform; KB/BJJ $150). Per-signup toggles to
+  **waive the registration and/or the uniform**; if the reg is waived, charge the
+  **$60 uniform** if they still need one.
+- **Sibling discount: $20 off the second child, EVERY month, on every program**
+  (recurring monthly discount on that child's membership).
+- **Contract:** attach a term (usually **12 months**, sometimes different). Nothing
+  complex beyond the cancellation + no-pause rules below. Explain, they sign.
 
-Same process for Taekwondo, Kickboxing, and BJJ.
+Same for Taekwondo, Kickboxing, BJJ. **Afterschool** is mostly online self-signup.
 
-**What to improve in our system (goal):** collapse the "switch to the computer to
-configure payment" step — do the registration/uniform waivers, sibling discount,
-and contract attachment **inline in one signup screen**, with the chatbot able to
-handle parts of it (as a proposal a staff member confirms).
-
-**Afterschool:** mostly online self-signup + pay on the website; in-person is the
-same idea.
+**Goal:** one signup screen that does the registration/uniform waivers, sibling
+discount, and contract in place, with the chatbot able to **propose** enrollments
+(a staff member confirms).
 
 ---
 
 ## C. Changing a membership (upgrade / downgrade)
 
 - Keeps the same subscription; **charges the new amount on the next billing date.**
-- **Proration should be an option** (Arfa: "not all people want proration to the
-  first of the month"). See the proration primer below.
-
-### Proration primer (plain terms)
-Proration = when a change happens mid-cycle, only charge/credit the *portion* used
-or unused, instead of a full month.
-- **No proration (default):** the change just takes effect on their next normal
-  billing date. Simplest, matches "charge the new amount next billing date."
-- **Prorate:** if you also move their billing date (e.g. to align to the 1st), you
-  charge a partial amount for the days between now and the new date, then full
-  months after. Optional, per member.
-
-**Proposed rule:** default to **no proration** (change applies next cycle); offer a
-**"prorate + change billing date"** option when a staff member explicitly wants to
-realign someone. **[CONFIRM]** this is what you want.
+- **Default: no proration.** Optionally, when a staff member (or the chatbot, via a
+  `prorate` flag) asks, prorate the change and/or realign the billing date. The
+  chatbot can do this when asked.
 
 ---
 
 ## D. Pauses & cancellation
 
-**Pause policy (current):** **NO pauses.** (We used to allow 2-month pauses but too
-many people paused over the summer, so we stopped.)
-- Instead: a member can **pay the period in advance**; when they return, that
-  payment is **applied as credit** so those months are effectively free on return.
+**Pause policy (current):** **NO pauses.** (Too many paused over the summer.)
+- Instead, a member can **pay ahead**; those prepaid months become free when they
+  return (handled by editing those months' charge amounts — see §E).
 
-**Cancellation:** **60-day notice.** They **pay for the remaining 60 days** and can
-attend class during that time; then the membership is cancelled. **Re-signing up
-later requires paying the registration fee again.**
+**Cancellation:** **60-day notice.** They **pay the remaining 60 days** and can
+attend during it; then it cancels. **Re-signing up later = pay the registration
+fee again.**
 
-**Capabilities we still want (manual + chatbot):**
-- **Pause or cancel a membership immediately** (an override option, despite the
-  standard policy).
-- In a student's **Financials section**: **cancel an individual payment**, or
-  **give credit** — set a payment to **$0**, or apply a **partial payment /
-  discount** for a **specific month or months** independently.
+**Overrides we support:** **pause or cancel a membership immediately** when needed
+(despite the standard policy).
 
-**[CONFIRM]** who is allowed to do cancellations / credits / immediate pauses —
-any staff, or owner-only?
+**Permissions:** **anyone in the account** can apply discounts, credits, and
+cancellations. Staff share one login (no per-staff users), so there's no per-user
+gating beyond being logged in.
 
 ---
 
-## E. Tuition payment adjustments & discounts (Financials section)
+## E. Financials — per-student payment adjustments & discounts
 
-Per student, a person (or the chatbot, via propose→confirm) can:
-- **Cancel a specific upcoming payment.**
-- **Zero out a payment** (full credit) for a chosen month.
-- **Apply a partial payment / discount** to a specific month or months.
-- **Add a discount:** currently the **$20 sibling** discount; general ability to add
-  **percent-off or dollar-off** discounts, one-time or recurring.
-- **[CONFIRM]** discount types you actually use (%, $, sibling, military, staff,
-  promo), whether they stack, and who can approve them.
+Each membership has a list of **monthly charges** (one per month). In a student's
+**Financials section**, a person (or the chatbot, via propose→confirm) can, **per
+specific month**:
+- **Edit the amount** for that month (this is the primary lever — easier than a
+  separate credit balance).
+- **Zero it out** (full credit / waive) or set a **partial amount** (discount).
+- **Cancel** that month's charge.
 
-Every money-changing action goes through the **confirm-flow** (proposed → a person
-reviews the exact effect → confirms once, audited). The chatbot can propose these;
-it can never execute one on its own.
+Recurring discounts:
+- **Sibling: $20/month** off, every program (a standing monthly discount on the
+  membership).
+- General ability to add **percent-off or dollar-off** discounts, one-time (one
+  month) or recurring (every month).
 
----
-
-## F. Open questions (to resolve before/while building)
-
-1. $99 trial: **2 or 3 weeks?**
-2. Registration fees for **Kickboxing and BJJ**; the **$149-incl-uniform vs $60
-   uniform** relationship.
-3. **Sibling discount:** one-time vs recurring; which programs.
-4. **Contracts:** what terms exist + what they enforce.
-5. **Proration:** confirm the default-no-proration + optional-prorate rule (§C).
-6. **Pay-in-advance credit:** track as an account credit balance the member draws
-   down on return — confirm.
-7. **Day camp:** exact per-day price + the specific days it runs.
-8. **Camp prices:** confirm mirroring summer camp is fine for now.
-9. **Permissions:** who can apply discounts/credits/cancellations/immediate pauses.
+Every money-changing action runs through the **confirm-flow** (proposed → a person
+sees the exact effect → confirms once, audited). The chatbot proposes; only a
+person executes.
 
 ---
 
-## G. Build implications (for reference)
+## F. Chatbot capabilities for these actions (target)
 
-- A real **membership model** (option/template vs individual membership vs bills vs
-  payments) — the ZenPlanner-parity design in `TUITION_RECURRING_PAYMENTS_SPEC.md`
-  §14. These SOPs are its requirements.
-- A **Financials section** per student for payment adjustments/credits/discounts.
-- **Day-camp signup page** (online + printable) — new build.
-- Each operation exposed three ways: backend op → dashboard UI → chatbot
-  propose-tool (behind the confirm-flow already built).
+Beyond today's read + draft-email abilities, the assistant should be able to:
+- **Open a specific student's popup** and give step-by-step directions on how to do
+  a thing (deep-link + guidance).
+- **Propose** changes to existing members' memberships (upgrade/downgrade, pause,
+  cancel, edit a month's charge, apply a discount) — executed only after a human
+  confirms in Approvals.
+- **Propose creating a new member.**
+- **Ask follow-up questions** to clarify before proposing anything (e.g. which
+  program, which month, prorate or not).
+
+---
+
+## G. Build implications
+
+- **Membership model:** membership record + per-month charges (the Financials
+  ledger). Fields: program, plan, monthly amount, sibling/other discounts, status
+  (active/paused/canceled), start date, term (default 12mo), billing day, Stripe
+  links, cancel-effective date.
+- **Financials section** per student: the monthly-charges list, each editable.
+- **Operations** (each = backend → dashboard UI → chatbot propose-tool via the
+  confirm-flow): enroll, change plan (with optional prorate), pause/cancel
+  (immediate or per-policy), edit/zero/cancel a month's charge, add a discount.
+- **Day-camp signup page** (online + printable) — separate build.
+- Stripe stays the payment executor; our model is the source of truth for what
+  *should* be charged.

@@ -58,6 +58,8 @@ import {
   insertOneOffPayment, getOneOffPayments,
   // Write-action confirm-flow (2026-08-11)
   listPendingActions,
+  // Membership engine (2026-08-12)
+  listMemberships, getMembership, listMembershipCharges,
 } from "./db";
 import { sendTelegramMessage } from "./telegram";
 import { tuitionConfiguredFor, ensureStripeCustomer, createAfterschoolSubscription } from "./tuition";
@@ -1978,6 +1980,19 @@ export const appRouter = router({
     // Manual proposer (also what the assistant will call to draft an email for review).
     proposeEmail: publicProcedure.input(z.object({ to: z.string().email(), subject: z.string().min(1).max(255), html: z.string().min(1).max(20000) }))
       .mutation(async ({ input, ctx }) => proposeAction("send_email", input, ctx.adminEmail ?? "admin")),
+  }),
+
+  // Membership engine (read). Write operations (enroll/change/pause/cancel/adjust)
+  // land next as confirm-flow handlers. See docs/OPERATIONS_SOPS.md.
+  memberships: router({
+    list: publicProcedure.query(async () => listMemberships()),
+    get: publicProcedure.input(z.object({ id: z.number().int().positive() }))
+      .query(async ({ input }) => {
+        const membership = await getMembership(input.id);
+        if (!membership) return null;
+        const charges = await listMembershipCharges(input.id);
+        return { membership, charges };
+      }),
   }),
 
   // Global admin search (Cmd/Ctrl-K palette): find a lead, student, or afterschool

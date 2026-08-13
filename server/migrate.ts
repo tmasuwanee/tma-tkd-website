@@ -125,6 +125,53 @@ const MIGRATIONS: { name: string; sql: string }[] = [
       "executedAt DATETIME NULL, " +
       "expiresAt DATETIME NULL)",
   },
+  {
+    // 2026-08-12: membership engine. A membership is a student's ongoing plan
+    // (program, monthly tuition, status, term, Stripe links). See
+    // docs/OPERATIONS_SOPS.md.
+    name: "memberships table",
+    sql: "CREATE TABLE IF NOT EXISTS memberships (" +
+      "id BIGINT PRIMARY KEY AUTO_INCREMENT, " +
+      "studentName VARCHAR(255) NOT NULL, " +
+      "parentName VARCHAR(255) NULL, " +
+      "email VARCHAR(320) NULL, " +
+      "phone VARCHAR(40) NULL, " +
+      "leadId INT NULL, " +
+      "program VARCHAR(40) NOT NULL, " +
+      "planLabel VARCHAR(80) NULL, " +
+      "monthlyAmountCents INT NOT NULL, " +
+      "discountCents INT NOT NULL DEFAULT 0, " +
+      "discountNote VARCHAR(255) NULL, " +
+      "status VARCHAR(24) NOT NULL DEFAULT 'active', " +
+      "startDate DATE NULL, " +
+      "termMonths INT NULL DEFAULT 12, " +
+      "billingDay INT NULL, " +
+      "stripeCustomerId VARCHAR(255) NULL, " +
+      "stripeSubscriptionId VARCHAR(255) NULL, " +
+      "contractNote VARCHAR(500) NULL, " +
+      "cancelEffectiveDate DATE NULL, " +
+      "canceledAt DATETIME NULL, " +
+      "createdAt DATETIME NOT NULL)",
+  },
+  {
+    // 2026-08-12: per-month charges (the Financials ledger). One row per month per
+    // membership; amountCents is editable per month (waive = 0, discount = partial,
+    // cancel = status). baseAmountCents keeps the un-adjusted amount for reference.
+    name: "membershipCharges table",
+    sql: "CREATE TABLE IF NOT EXISTS membershipCharges (" +
+      "id BIGINT PRIMARY KEY AUTO_INCREMENT, " +
+      "membershipId BIGINT NOT NULL, " +
+      "periodMonth VARCHAR(7) NOT NULL, " +
+      "dueDate DATE NULL, " +
+      "baseAmountCents INT NOT NULL, " +
+      "amountCents INT NOT NULL, " +
+      "status VARCHAR(24) NOT NULL DEFAULT 'scheduled', " +
+      "note VARCHAR(255) NULL, " +
+      "adjustedBy VARCHAR(120) NULL, " +
+      "stripeInvoiceId VARCHAR(255) NULL, " +
+      "createdAt DATETIME NOT NULL, " +
+      "UNIQUE KEY uniq_membership_period (membershipId, periodMonth))",
+  },
 ];
 
 export async function runStartupMigrations(): Promise<void> {

@@ -56,5 +56,8 @@ export const ENV = {
   // OPENAI_API_KEY from process.env directly; we surface it here only for a
   // helpful "not configured" error. Model is overridable. See docs/AI_ASSISTANT_SPEC.md.
   openaiApiKey: process.env.OPENAI_API_KEY ?? "",
-  assistantModel: process.env.OPENAI_ASSISTANT_MODEL ?? "gpt-4o-mini",
+  // Default to a GPT-5-class model (Arfa found 4o unreliable for these tasks).
+  // Override with OPENAI_ASSISTANT_MODEL in Secrets to the exact model id your
+  // OpenAI account exposes if "gpt-5" does not resolve.
+  assistantModel: process.env.OPENAI_ASSISTANT_MODEL ?? "gpt-5",
 };

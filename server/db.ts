@@ -3057,6 +3057,146 @@ export async function setPendingActionStatus(id: number, status: string, by: str
   await db.execute(sql`UPDATE pendingActions SET status = ${status}, confirmedBy = ${by} WHERE id = ${id}`);
 }
 
+// ─── Memberships (membership engine) ─────────────────────────────────────────
+export type MembershipRow = {
+  id: number;
+  studentName: string;
+  parentName: string | null;
+  email: string | null;
+  phone: string | null;
+  leadId: number | null;
+  program: string;
+  planLabel: string | null;
+  monthlyAmountCents: number;
+  discountCents: number;
+  discountNote: string | null;
+  status: string;
+  startDate: string | Date | null;
+  termMonths: number | null;
+  billingDay: number | null;
+  stripeCustomerId: string | null;
+  stripeSubscriptionId: string | null;
+  contractNote: string | null;
+  cancelEffectiveDate: string | Date | null;
+  canceledAt: string | Date | null;
+  createdAt: string | Date;
+};
+
+const MEMBERSHIP_COLS = sql`id, studentName, parentName, email, phone, leadId, program, planLabel, monthlyAmountCents, discountCents, discountNote, status, startDate, termMonths, billingDay, stripeCustomerId, stripeSubscriptionId, contractNote, cancelEffectiveDate, canceledAt, createdAt`;
+
+export async function insertMembership(p: {
+  studentName: string; parentName?: string | null; email?: string | null; phone?: string | null;
+  leadId?: number | null; program: string; planLabel?: string | null; monthlyAmountCents: number;
+  discountCents?: number; discountNote?: string | null; status?: string; startDate?: string | null;
+  termMonths?: number | null; billingDay?: number | null; contractNote?: string | null;
+  stripeCustomerId?: string | null; stripeSubscriptionId?: string | null;
+}): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [r] = await db.execute(
+    sql`INSERT INTO memberships
+      (studentName, parentName, email, phone, leadId, program, planLabel, monthlyAmountCents, discountCents, discountNote, status, startDate, termMonths, billingDay, stripeCustomerId, stripeSubscriptionId, contractNote, createdAt)
+      VALUES (${p.studentName}, ${p.parentName ?? null}, ${p.email ?? null}, ${p.phone ?? null}, ${p.leadId ?? null}, ${p.program}, ${p.planLabel ?? null}, ${p.monthlyAmountCents}, ${p.discountCents ?? 0}, ${p.discountNote ?? null}, ${p.status ?? "active"}, ${p.startDate ?? null}, ${p.termMonths ?? 12}, ${p.billingDay ?? null}, ${p.stripeCustomerId ?? null}, ${p.stripeSubscriptionId ?? null}, ${p.contractNote ?? null}, NOW())`
+  ) as unknown as [{ insertId: number }];
+  return r?.insertId ?? 0;
+}
+
+export async function getMembership(id: number): Promise<MembershipRow | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const [rows] = await db.execute(sql`SELECT ${MEMBERSHIP_COLS} FROM memberships WHERE id = ${id} LIMIT 1`) as unknown as [MembershipRow[]];
+  return Array.isArray(rows) && rows[0] ? rows[0] : null;
+}
+
+export async function listMemberships(status?: string): Promise<MembershipRow[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const [rows] = await db.execute(
+    status
+      ? sql`SELECT ${MEMBERSHIP_COLS} FROM memberships WHERE status = ${status} ORDER BY createdAt DESC`
+      : sql`SELECT ${MEMBERSHIP_COLS} FROM memberships ORDER BY createdAt DESC`
+  ) as unknown as [MembershipRow[]];
+  return Array.isArray(rows) ? rows : [];
+}
+
+type MembershipUpdate = Partial<{
+  program: string; planLabel: string | null; monthlyAmountCents: number; discountCents: number;
+  discountNote: string | null; status: string; startDate: string | null; termMonths: number | null;
+  billingDay: number | null; contractNote: string | null; cancelEffectiveDate: string | null;
+  canceledAt: string | null; stripeCustomerId: string | null; stripeSubscriptionId: string | null;
+}>;
+
+export async function updateMembership(id: number, fields: MembershipUpdate): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  const sets: ReturnType<typeof sql>[] = [];
+  if (fields.program !== undefined) sets.push(sql`program = ${fields.program}`);
+  if (fields.planLabel !== undefined) sets.push(sql`planLabel = ${fields.planLabel}`);
+  if (fields.monthlyAmountCents !== undefined) sets.push(sql`monthlyAmountCents = ${fields.monthlyAmountCents}`);
+  if (fields.discountCents !== undefined) sets.push(sql`discountCents = ${fields.discountCents}`);
+  if (fields.discountNote !== undefined) sets.push(sql`discountNote = ${fields.discountNote}`);
+  if (fields.status !== undefined) sets.push(sql`status = ${fields.status}`);
+  if (fields.startDate !== undefined) sets.push(sql`startDate = ${fields.startDate}`);
+  if (fields.termMonths !== undefined) sets.push(sql`termMonths = ${fields.termMonths}`);
+  if (fields.billingDay !== undefined) sets.push(sql`billingDay = ${fields.billingDay}`);
+  if (fields.contractNote !== undefined) sets.push(sql`contractNote = ${fields.contractNote}`);
+  if (fields.cancelEffectiveDate !== undefined) sets.push(sql`cancelEffectiveDate = ${fields.cancelEffectiveDate}`);
+  if (fields.canceledAt !== undefined) sets.push(sql`canceledAt = ${fields.canceledAt}`);
+  if (fields.stripeCustomerId !== undefined) sets.push(sql`stripeCustomerId = ${fields.stripeCustomerId}`);
+  if (fields.stripeSubscriptionId !== undefined) sets.push(sql`stripeSubscriptionId = ${fields.stripeSubscriptionId}`);
+  if (sets.length === 0) return;
+  await db.execute(sql`UPDATE memberships SET ${sql.join(sets, sql`, `)} WHERE id = ${id}`);
+}
+
+// ─── Membership charges (per-month Financials ledger) ────────────────────────
+export type MembershipChargeRow = {
+  id: number; membershipId: number; periodMonth: string; dueDate: string | Date | null;
+  baseAmountCents: number; amountCents: number; status: string; note: string | null;
+  adjustedBy: string | null; stripeInvoiceId: string | null; createdAt: string | Date;
+};
+
+const CHARGE_COLS = sql`id, membershipId, periodMonth, dueDate, baseAmountCents, amountCents, status, note, adjustedBy, stripeInvoiceId, createdAt`;
+
+/** Create a month's charge if it doesn't already exist (idempotent per month). */
+export async function upsertMembershipCharge(p: {
+  membershipId: number; periodMonth: string; dueDate?: string | null; baseAmountCents: number; amountCents: number;
+}): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.execute(
+    sql`INSERT INTO membershipCharges (membershipId, periodMonth, dueDate, baseAmountCents, amountCents, status, createdAt)
+        SELECT ${p.membershipId}, ${p.periodMonth}, ${p.dueDate ?? null}, ${p.baseAmountCents}, ${p.amountCents}, 'scheduled', NOW()
+        FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM membershipCharges c WHERE c.membershipId = ${p.membershipId} AND c.periodMonth = ${p.periodMonth})`
+  );
+}
+
+export async function listMembershipCharges(membershipId: number): Promise<MembershipChargeRow[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const [rows] = await db.execute(sql`SELECT ${CHARGE_COLS} FROM membershipCharges WHERE membershipId = ${membershipId} ORDER BY periodMonth ASC`) as unknown as [MembershipChargeRow[]];
+  return Array.isArray(rows) ? rows : [];
+}
+
+export async function getMembershipCharge(id: number): Promise<MembershipChargeRow | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const [rows] = await db.execute(sql`SELECT ${CHARGE_COLS} FROM membershipCharges WHERE id = ${id} LIMIT 1`) as unknown as [MembershipChargeRow[]];
+  return Array.isArray(rows) && rows[0] ? rows[0] : null;
+}
+
+export async function updateMembershipCharge(id: number, fields: Partial<{ amountCents: number; status: string; note: string | null; adjustedBy: string | null; stripeInvoiceId: string | null }>): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  const sets: ReturnType<typeof sql>[] = [];
+  if (fields.amountCents !== undefined) sets.push(sql`amountCents = ${fields.amountCents}`);
+  if (fields.status !== undefined) sets.push(sql`status = ${fields.status}`);
+  if (fields.note !== undefined) sets.push(sql`note = ${fields.note}`);
+  if (fields.adjustedBy !== undefined) sets.push(sql`adjustedBy = ${fields.adjustedBy}`);
+  if (fields.stripeInvoiceId !== undefined) sets.push(sql`stripeInvoiceId = ${fields.stripeInvoiceId}`);
+  if (sets.length === 0) return;
+  await db.execute(sql`UPDATE membershipCharges SET ${sql.join(sets, sql`, `)} WHERE id = ${id}`);
+}
+
 // ─── Afterschool Roster ───────────────────────────────────────────────────────
 export type RosterStudent = {
   id: number;
