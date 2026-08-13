@@ -64,6 +64,7 @@ import {
 import { sendTelegramMessage } from "./telegram";
 import { tuitionConfiguredFor, ensureStripeCustomer, createAfterschoolSubscription } from "./tuition";
 import { proposeAction, confirmAction, rejectAction } from "./action-flow";
+import { createMembership, changeMembership, setMembershipDiscount, pauseMembership, resumeMembership, cancelMembership, adjustCharge } from "./membership-ops";
 import { storagePut, storageGet } from "./storage";
 import { sendEmailNotification, sendProShopOrderNotification, sendCampRegistrationConfirmation, sendCampWaiverEmail, sendFieldTripConfirmation, sendTransportationForm, sendTrialReceipt, sendAfterschoolConfirmation, sendAfterschoolIntake, sendWaiverNotification } from "./integrations";
 import { fillTransportationPdf } from "./transportation-pdf";
@@ -1993,6 +1994,31 @@ export const appRouter = router({
         const charges = await listMembershipCharges(input.id);
         return { membership, charges };
       }),
+    // Direct staff mutations (the dashboard shows an inline confirm before calling).
+    create: publicProcedure.input(z.object({
+      studentName: z.string().min(1).max(255),
+      parentName: z.string().max(255).optional(),
+      email: z.string().email().optional(),
+      phone: z.string().max(40).optional(),
+      program: z.string().min(1).max(40),
+      planLabel: z.string().max(80).optional(),
+      monthlyAmountCents: z.number().int().min(0),
+      discountCents: z.number().int().min(0).optional(),
+      discountNote: z.string().max(255).optional(),
+      startDate: z.string().max(20).optional(),
+      termMonths: z.number().int().min(1).max(60).optional(),
+      billingDay: z.number().int().min(1).max(28).optional(),
+      contractNote: z.string().max(500).optional(),
+    })).mutation(async ({ input }) => createMembership(input)),
+    change: publicProcedure.input(z.object({ id: z.number().int().positive(), program: z.string().max(40).optional(), planLabel: z.string().max(80).optional(), monthlyAmountCents: z.number().int().min(0).optional(), prorate: z.boolean().optional() }))
+      .mutation(async ({ input }) => { const { id, ...changes } = input; await changeMembership(id, changes); return { ok: true }; }),
+    setDiscount: publicProcedure.input(z.object({ id: z.number().int().positive(), discountCents: z.number().int().min(0), note: z.string().max(255).optional() }))
+      .mutation(async ({ input }) => { await setMembershipDiscount(input.id, input.discountCents, input.note ?? null); return { ok: true }; }),
+    pause: publicProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ input }) => { await pauseMembership(input.id); return { ok: true }; }),
+    resume: publicProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ input }) => { await resumeMembership(input.id); return { ok: true }; }),
+    cancel: publicProcedure.input(z.object({ id: z.number().int().positive(), immediate: z.boolean() })).mutation(async ({ input }) => { await cancelMembership(input.id, { immediate: input.immediate }); return { ok: true }; }),
+    adjustCharge: publicProcedure.input(z.object({ chargeId: z.number().int().positive(), amountCents: z.number().int().min(0).optional(), status: z.enum(["scheduled", "waived", "canceled", "paid"]).optional(), note: z.string().max(255).optional() }))
+      .mutation(async ({ input, ctx }) => { const { chargeId, ...changes } = input; await adjustCharge(chargeId, changes, ctx.adminEmail ?? "admin"); return { ok: true }; }),
   }),
 
   // Global admin search (Cmd/Ctrl-K palette): find a lead, student, or afterschool

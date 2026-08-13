@@ -6,7 +6,7 @@ import {
   Kanban, ClipboardCheck, Phone, PhoneOutgoing, Mail, Route as RouteIcon,
   BarChart2, GraduationCap, CalendarCheck, ShieldAlert, Camera, LogOut,
   Menu, PhoneCall, CalendarDays, CheckSquare, FileSignature, Link2, BookOpen,
-  ShoppingBag, Users, ClipboardList, FileText, Home, ChevronDown, ChevronRight, Search, Sparkles, ShieldCheck,
+  ShoppingBag, Users, ClipboardList, FileText, Home, ChevronDown, ChevronRight, Search, Sparkles, ShieldCheck, CreditCard,
 } from "lucide-react";
 import { CallsApp } from "@/pages/AdminTodaysCalls";
 import { CallLogApp } from "@/pages/AdminCallLog";
@@ -33,6 +33,7 @@ import TodayView from "@/components/admin/TodayView";
 import CommandPalette from "@/components/admin/CommandPalette";
 import AssistantPanel from "@/components/admin/AssistantPanel";
 import PendingActionsView from "@/components/admin/PendingActionsView";
+import MembershipsView from "@/components/admin/MembershipsView";
 
 // Keys double as URL segments (/admin/<key>). They match the old standalone
 // routes where possible (/admin/calls, /admin/checkin, /admin/call-log,
@@ -40,7 +41,7 @@ import PendingActionsView from "@/components/admin/PendingActionsView";
 type ViewKey =
   | "today" | "calls" | "calendar" | "leads" | "checkin" | "waivers" | "call-log" | "voice-test"
   | "sequences" | "rules" | "ads" | "students" | "camp" | "controls" | "studio" | "tasks" | "links" | "playbook"
-  | "orders" | "enrolled" | "afterschool-roster" | "invoices" | "approvals";
+  | "orders" | "enrolled" | "afterschool-roster" | "invoices" | "approvals" | "memberships";
 
 type NavItem = { key: ViewKey; label: string; icon: any };
 type NavGroup = { group: string; items: NavItem[]; collapsible?: boolean };
@@ -62,6 +63,7 @@ const NAV: NavGroup[] = [
   ]},
   { group: "People", items: [
     { key: "enrolled", label: "Enrolled Families", icon: Users },
+    { key: "memberships", label: "Memberships", icon: CreditCard },
     { key: "afterschool-roster", label: "Afterschool Roster", icon: ClipboardList },
     { key: "students", label: "Students", icon: GraduationCap },
   ]},
@@ -128,6 +130,7 @@ function renderView(key: ViewKey, email: string) {
     case "playbook": return <PlaybookView />;
     case "afterschool-roster": return <AfterschoolRosterView />;
     case "approvals": return <PendingActionsView />;
+    case "memberships": return <MembershipsView />;
   }
 }
 
