@@ -18,9 +18,13 @@
 import { z } from "zod";
 import {
   insertPendingAction, getPendingAction, claimPendingAction, finishPendingAction,
-  setPendingActionStatus, type PendingActionRow,
+  setPendingActionStatus, getMembership, getMembershipCharge, type PendingActionRow,
 } from "./db";
 import { sendReviewedEmail } from "./integrations";
+import {
+  createMembership, changeMembership, setMembershipDiscount, pauseMembership,
+  cancelMembership, adjustCharge, describeMembershipOp,
+} from "./membership-ops";
 
 const EXPIRY_MS = 24 * 60 * 60 * 1000;
 
@@ -42,6 +46,28 @@ const emailSchema = z.object({
   html: z.string().min(1).max(20000),
 });
 
+const membershipCreateSchema = z.object({
+  studentName: z.string().min(1).max(255),
+  parentName: z.string().max(255).optional(),
+  email: z.string().email().optional(),
+  phone: z.string().max(40).optional(),
+  program: z.string().min(1).max(40),
+  planLabel: z.string().max(80).optional(),
+  monthlyAmountCents: z.number().int().min(0),
+  discountCents: z.number().int().min(0).optional(),
+  discountNote: z.string().max(255).optional(),
+  startDate: z.string().max(20).optional(),
+  termMonths: z.number().int().min(1).max(60).optional(),
+  billingDay: z.number().int().min(1).max(28).optional(),
+  contractNote: z.string().max(500).optional(),
+});
+const membershipChangeSchema = z.object({ id: z.number().int().positive(), program: z.string().max(40).optional(), planLabel: z.string().max(80).optional(), monthlyAmountCents: z.number().int().min(0).optional(), prorate: z.boolean().optional() });
+const membershipDiscountSchema = z.object({ id: z.number().int().positive(), discountCents: z.number().int().min(0), note: z.string().max(255).optional() });
+const membershipIdSchema = z.object({ id: z.number().int().positive() });
+const membershipCancelSchema = z.object({ id: z.number().int().positive(), immediate: z.boolean() });
+const chargeAdjustSchema = z.object({ chargeId: z.number().int().positive(), amountCents: z.number().int().min(0).optional(), status: z.enum(["scheduled", "waived", "canceled", "paid"]).optional(), note: z.string().max(255).optional() });
+const rec = (o: object) => o as Record<string, unknown>;
+
 const HANDLERS: Record<string, ActionHandler> = {
   send_email: {
     prepare: async (payload) => {
@@ -56,6 +82,89 @@ const HANDLERS: Record<string, ActionHandler> = {
       const p = emailSchema.parse(payload);
       await sendReviewedEmail(p.to, p.subject, p.html);
       return { sent: true, to: p.to, subject: p.subject };
+    },
+  },
+
+  membership_create: {
+    prepare: async (payload) => {
+      const p = membershipCreateSchema.parse(payload);
+      return { title: `New membership: ${p.studentName}`, preview: describeMembershipOp("membership_create", rec(p)) };
+    },
+    execute: async (payload) => {
+      const p = membershipCreateSchema.parse(payload);
+      const r = await createMembership(p);
+      return { created: true, membershipId: r.id };
+    },
+  },
+
+  membership_change: {
+    prepare: async (payload) => {
+      const p = membershipChangeSchema.parse(payload);
+      const m = await getMembership(p.id);
+      if (!m) throw new Error("Membership not found");
+      return { title: `Change membership: ${m.studentName}`, preview: describeMembershipOp("membership_change", rec(p), m) };
+    },
+    execute: async (payload) => {
+      const { id, ...changes } = membershipChangeSchema.parse(payload);
+      await changeMembership(id, changes);
+      return { changed: true, id };
+    },
+  },
+
+  membership_discount: {
+    prepare: async (payload) => {
+      const p = membershipDiscountSchema.parse(payload);
+      const m = await getMembership(p.id);
+      if (!m) throw new Error("Membership not found");
+      return { title: `Set discount: ${m.studentName}`, preview: describeMembershipOp("membership_discount", rec(p), m) };
+    },
+    execute: async (payload) => {
+      const p = membershipDiscountSchema.parse(payload);
+      await setMembershipDiscount(p.id, p.discountCents, p.note ?? null);
+      return { discountSet: true, id: p.id };
+    },
+  },
+
+  membership_pause: {
+    prepare: async (payload) => {
+      const p = membershipIdSchema.parse(payload);
+      const m = await getMembership(p.id);
+      if (!m) throw new Error("Membership not found");
+      return { title: `Pause membership: ${m.studentName}`, preview: describeMembershipOp("membership_pause", rec(p), m) };
+    },
+    execute: async (payload) => {
+      const p = membershipIdSchema.parse(payload);
+      await pauseMembership(p.id);
+      return { paused: true, id: p.id };
+    },
+  },
+
+  membership_cancel: {
+    prepare: async (payload) => {
+      const p = membershipCancelSchema.parse(payload);
+      const m = await getMembership(p.id);
+      if (!m) throw new Error("Membership not found");
+      return { title: `Cancel membership: ${m.studentName}`, preview: describeMembershipOp("membership_cancel", rec(p), m) };
+    },
+    execute: async (payload) => {
+      const p = membershipCancelSchema.parse(payload);
+      await cancelMembership(p.id, { immediate: p.immediate });
+      return { canceled: true, id: p.id, immediate: p.immediate };
+    },
+  },
+
+  charge_adjust: {
+    prepare: async (payload) => {
+      const p = chargeAdjustSchema.parse(payload);
+      const c = await getMembershipCharge(p.chargeId);
+      if (!c) throw new Error("Charge not found");
+      const m = await getMembership(c.membershipId);
+      return { title: `Adjust ${m?.studentName ?? "member"}'s ${c.periodMonth} charge`, preview: describeMembershipOp("charge_adjust", rec(p), m) };
+    },
+    execute: async (payload) => {
+      const { chargeId, ...changes } = chargeAdjustSchema.parse(payload);
+      await adjustCharge(chargeId, changes, "assistant (confirmed)");
+      return { adjusted: true, chargeId };
     },
   },
 };

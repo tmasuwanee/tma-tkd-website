@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Loader2, Users, Plus, X, Pause, Play, Ban, Tag, PencilLine } from "lucide-react";
@@ -37,6 +37,19 @@ export default function MembershipsView() {
   const [selected, setSelected] = useState<number | null>(null);
   const [creating, setCreating] = useState(false);
   const rows = list.data ?? [];
+
+  // Deep-link: /admin/memberships?open=<id> (e.g. from the assistant) opens that
+  // member's popup, then strips the param.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const openId = params.get("open");
+    if (openId && /^\d+$/.test(openId)) {
+      setSelected(Number(openId));
+      params.delete("open");
+      const qs = params.toString();
+      window.history.replaceState({}, "", window.location.pathname + (qs ? `?${qs}` : ""));
+    }
+  }, []);
 
   return (
     <div className="max-w-4xl mx-auto space-y-5">

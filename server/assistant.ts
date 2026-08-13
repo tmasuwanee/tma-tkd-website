@@ -19,7 +19,7 @@ import { ENV } from "./_core/env";
 import { adminEmailFromRequest } from "./admin-auth";
 import {
   searchLeads, searchStudents, getRosterStudents, getLeadById,
-  getAfterschoolRegistrations,
+  getAfterschoolRegistrations, listMemberships, listMembershipCharges,
 } from "./db";
 import { retrievePlaybook } from "./playbook-rag";
 import { proposeAction } from "./action-flow";
@@ -188,6 +188,57 @@ function buildTools() {
         return { drafted: true, pendingActionId: id, note: `Draft #${id} created. Nothing was sent. A staff member must review and confirm it in Approvals before it goes out.` };
       },
     }),
+
+    // ── Membership read helpers (to locate ids before proposing) ──
+    findMembership: tool({
+      description: "Find a student's membership by name or email. Returns the membership id (needed for any change) + a summary and a link to open it. Use this before proposing a membership change.",
+      inputSchema: z.object({ query: z.string().min(1) }),
+      execute: async ({ query }) => {
+        const q = query.toLowerCase();
+        const hits = (await listMemberships()).filter(m => `${m.studentName} ${m.parentName ?? ""} ${m.email ?? ""}`.toLowerCase().includes(q)).slice(0, 6);
+        return { memberships: hits.map(m => ({ id: m.id, student: m.studentName, program: m.program, plan: m.planLabel, monthly: `$${((m.monthlyAmountCents - (m.discountCents || 0)) / 100).toFixed(0)}/mo`, status: m.status, openLink: `/admin/memberships?open=${m.id}` })) };
+      },
+    }),
+    getMembershipCharges: tool({
+      description: "List a membership's monthly charges (with charge ids) so you can propose adjusting a specific month. Needs the membership id (from findMembership).",
+      inputSchema: z.object({ membershipId: z.number().int().positive() }),
+      execute: async ({ membershipId }) => {
+        const charges = await listMembershipCharges(membershipId);
+        return { charges: charges.map(c => ({ chargeId: c.id, month: c.periodMonth, amount: `$${(c.amountCents / 100).toFixed(2)}`, status: c.status })) };
+      },
+    }),
+
+    // ── Membership propose-tools (create a pending action; a human confirms in Approvals) ──
+    proposeCreateMembership: tool({
+      description: "Propose creating a NEW membership. Does NOT create it — a staff member confirms in Approvals. Ask for any missing detail first (program, plan, monthly amount). monthlyAmountCents and discountCents are in cents (e.g. $179 = 17900).",
+      inputSchema: z.object({ studentName: z.string().min(1), parentName: z.string().optional(), email: z.string().email().optional(), phone: z.string().optional(), program: z.string().min(1), planLabel: z.string().optional(), monthlyAmountCents: z.number().int().min(0), discountCents: z.number().int().min(0).optional(), discountNote: z.string().optional(), startDate: z.string().optional() }),
+      execute: async (input) => { const { id } = await proposeAction("membership_create", input, "assistant"); return { proposed: true, pendingActionId: id, note: `Proposed (#${id}). Nothing created yet — a staff member confirms it in Approvals.` }; },
+    }),
+    proposeChangeMembership: tool({
+      description: "Propose changing an existing membership (program / plan / monthly tuition). Requires the membership id (from findMembership). Set prorate=true only if the user wants the change prorated to the current month; default is next billing cycle. Does NOT apply until confirmed in Approvals.",
+      inputSchema: z.object({ id: z.number().int().positive(), program: z.string().optional(), planLabel: z.string().optional(), monthlyAmountCents: z.number().int().min(0).optional(), prorate: z.boolean().optional() }),
+      execute: async (input) => { const { id } = await proposeAction("membership_change", input, "assistant"); return { proposed: true, pendingActionId: id, note: `Proposed (#${id}). Confirm in Approvals to apply.` }; },
+    }),
+    proposeSetDiscount: tool({
+      description: "Propose setting a recurring monthly discount on a membership (e.g. sibling $20 = discountCents 2000; 0 clears it). Requires the membership id. Confirmed in Approvals.",
+      inputSchema: z.object({ id: z.number().int().positive(), discountCents: z.number().int().min(0), note: z.string().optional() }),
+      execute: async (input) => { const { id } = await proposeAction("membership_discount", input, "assistant"); return { proposed: true, pendingActionId: id, note: `Proposed (#${id}). Confirm in Approvals.` }; },
+    }),
+    proposePauseMembership: tool({
+      description: "Propose pausing a membership. Requires the membership id. Confirmed in Approvals.",
+      inputSchema: z.object({ id: z.number().int().positive() }),
+      execute: async (input) => { const { id } = await proposeAction("membership_pause", input, "assistant"); return { proposed: true, pendingActionId: id, note: `Proposed (#${id}). Confirm in Approvals.` }; },
+    }),
+    proposeCancelMembership: tool({
+      description: "Propose cancelling a membership. immediate=true ends it now; immediate=false uses the standard 60-day notice (they can attend until then). Requires the membership id. Confirmed in Approvals.",
+      inputSchema: z.object({ id: z.number().int().positive(), immediate: z.boolean() }),
+      execute: async (input) => { const { id } = await proposeAction("membership_cancel", input, "assistant"); return { proposed: true, pendingActionId: id, note: `Proposed (#${id}). Confirm in Approvals.` }; },
+    }),
+    proposeAdjustCharge: tool({
+      description: "Propose adjusting ONE month's charge on a membership: set a new amount (amountCents), waive it (status='waived', amount 0), or cancel it (status='canceled'). Requires the chargeId (from getMembershipCharges). Confirmed in Approvals.",
+      inputSchema: z.object({ chargeId: z.number().int().positive(), amountCents: z.number().int().min(0).optional(), status: z.enum(["scheduled", "waived", "canceled", "paid"]).optional(), note: z.string().optional() }),
+      execute: async (input) => { const { id } = await proposeAction("charge_adjust", input, "assistant"); return { proposed: true, pendingActionId: id, note: `Proposed (#${id}). Confirm in Approvals.` }; },
+    }),
   };
 }
 
@@ -198,8 +249,9 @@ Rules:
 - For "how do I..." / policy / procedure questions (no-shows, which link to send, camp waiver checks, daily routine, escalation), use answerFromPlaybook and answer from the returned snippets, naming the section. Do not invent policy.
 - For revenue, collected-money, or total-sales questions with a stated calendar year, immediately call getRevenueSummary using that year's Jan 1 through Dec 31 dates. Do not ask for clarification when the year is stated.
 - For past-due tuition questions, immediately call listPastDueTuition. For missing afterschool-waiver questions, immediately call listMissingAfterschoolWaivers.
-- You cannot change data, create memberships, or issue refunds; if asked, explain a staff member must do it in the dashboard.
-- You CAN draft an email with draftEmailForApproval, but this only creates a pending draft for a staff member to review and send in Approvals. It does NOT send. Always make clear that nothing was sent and it needs their confirmation.
+- Things you CAN do (each as a PROPOSAL a staff member confirms in Approvals — you never execute directly): draft/send an email; create a membership; change a membership's program/plan/tuition; set a recurring discount; pause or cancel a membership; and adjust one month's charge (edit / waive / cancel). When the user asks for one of these, DO IT: ask any needed follow-up (which program? which month? prorate?), use findMembership / getMembershipCharges to get the id, then propose it. Then say it is pending their confirmation in Approvals and nothing has changed yet.
+- Only give step-by-step directions for things you CANNOT do yourself, OR when the user explicitly asks "how do I...". If you explain how to do something that you can also do yourself, end by asking whether they'd like you to do it for them.
+- You cannot issue refunds or take actions you have no tool for; for those, say a staff member must do it in the dashboard. To point staff at a member, share the link /admin/memberships?open=<id> from findMembership.
 - If a person, date range, or amount is ambiguous, ask a brief clarifying question instead of guessing.
 - Money: only report amounts the tools returned. Never mention card numbers (you never receive them).
 - Be concise. Show the specific records/numbers you used so staff can verify.
