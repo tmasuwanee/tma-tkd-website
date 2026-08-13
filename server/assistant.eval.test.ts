@@ -11,12 +11,16 @@
  */
 import { describe, it, expect } from "vitest";
 import { streamText, tool, stepCountIs } from "ai";
-import { openai } from "@ai-sdk/openai";
+import { createOpenAI } from "@ai-sdk/openai";
 import { z } from "zod";
 import { SYSTEM_PROMPT } from "./assistant";
 
 const KEY = process.env.OPENAI_API_KEY;
 const MODEL = process.env.OPENAI_ASSISTANT_MODEL ?? "gpt-4o-mini";
+const evalOpenAI = createOpenAI({
+  apiKey: KEY,
+  baseURL: "https://api.openai.com/v1",
+});
 
 // Mocked tools: same names/shapes as production, canned data, and each records
 // that it was called so we can assert routing.
@@ -75,7 +79,7 @@ describe("assistant routing eval (needs OPENAI_API_KEY)", () => {
       if (!KEY) { console.warn("[assistant.eval] OPENAI_API_KEY not set, skipping"); return; }
       const record: string[] = [];
       const result = streamText({
-        model: openai(MODEL),
+        model: evalOpenAI(MODEL),
         system: SYSTEM_PROMPT,
         prompt: c.q,
         tools: makeTools(record),

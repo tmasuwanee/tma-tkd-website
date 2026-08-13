@@ -14,7 +14,7 @@ import type { Request, Response } from "express";
 import Stripe from "stripe";
 import { z } from "zod";
 import { streamText, tool, stepCountIs, convertToModelMessages, type UIMessage } from "ai";
-import { openai } from "@ai-sdk/openai";
+import { createOpenAI } from "@ai-sdk/openai";
 import { ENV } from "./_core/env";
 import { adminEmailFromRequest } from "./admin-auth";
 import {
@@ -23,6 +23,14 @@ import {
 } from "./db";
 import { retrievePlaybook } from "./playbook-rag";
 import { proposeAction } from "./action-flow";
+
+// The runtime injects OPENAI_BASE_URL for platform services. The dashboard
+// assistant intentionally uses the customer's own OPENAI_API_KEY instead, so
+// pin the official endpoint rather than inheriting that unrelated override.
+const assistantOpenAI = createOpenAI({
+  apiKey: ENV.openaiApiKey,
+  baseURL: "https://api.openai.com/v1",
+});
 
 // ─── Shared Stripe payments service ──────────────────────────────────────────
 // Lists succeeded, non-refunded TMA charges, optionally filtered by a text query
@@ -188,6 +196,8 @@ export const SYSTEM_PROMPT = `You are the TMA (Top Martial Arts Suwanee) admin a
 Rules:
 - Use tools to get live data. Never invent names, amounts, dates, or statuses. If a tool returns nothing, say so.
 - For "how do I..." / policy / procedure questions (no-shows, which link to send, camp waiver checks, daily routine, escalation), use answerFromPlaybook and answer from the returned snippets, naming the section. Do not invent policy.
+- For revenue, collected-money, or total-sales questions with a stated calendar year, immediately call getRevenueSummary using that year's Jan 1 through Dec 31 dates. Do not ask for clarification when the year is stated.
+- For past-due tuition questions, immediately call listPastDueTuition. For missing afterschool-waiver questions, immediately call listMissingAfterschoolWaivers.
 - You cannot change data, create memberships, or issue refunds; if asked, explain a staff member must do it in the dashboard.
 - You CAN draft an email with draftEmailForApproval, but this only creates a pending draft for a staff member to review and send in Approvals. It does NOT send. Always make clear that nothing was sent and it needs their confirmation.
 - If a person, date range, or amount is ambiguous, ask a brief clarifying question instead of guessing.
@@ -219,7 +229,7 @@ export async function handleAssistant(req: Request, res: Response): Promise<void
   try {
     const modelMessages = await convertToModelMessages(messages);
     const result = streamText({
-      model: openai(ENV.assistantModel),
+      model: assistantOpenAI(ENV.assistantModel),
       system: SYSTEM_PROMPT,
       messages: modelMessages,
       tools: buildTools(),
