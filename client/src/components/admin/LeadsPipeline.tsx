@@ -18,7 +18,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Phone, Mail, User, Tag, ChevronRight, ChevronLeft, Trash2, StickyNote, Globe, X, Plus, Clock, MessageSquare, PhoneCall, Send, Search } from "lucide-react";
+import { Loader2, Phone, Mail, User, Tag, ChevronRight, ChevronLeft, Trash2, StickyNote, Globe, X, Plus, Clock, MessageSquare, PhoneCall, Send, Search, Ban } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
@@ -561,6 +561,16 @@ export function LeadDetailDialog({ lead, open, onClose, onRefresh }: {
               Submitted {daysAgo === 0 ? "today" : `${daysAgo} day${daysAgo > 1 ? "s" : ""} ago`} - {new Date(lead.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
             </p>
           </div>
+
+          {/* Quick remove: mark Lost, which drops them off the call board + active
+              pipeline in one click. Reversible via the stage dropdown below. */}
+          {String(lead.pipelineStage) !== "lost" && (
+            <button
+              onClick={() => { updateStage.mutate({ id: lead.id, stage: "lost" as StageValue }); onClose(); }}
+              className="w-full inline-flex items-center justify-center gap-1.5 text-sm font-medium text-red-600 border border-red-200 hover:bg-red-50 rounded-lg py-2">
+              <Ban className="w-4 h-4" /> Not interested — remove from calls + pipeline
+            </button>
+          )}
 
           {/* Pipeline Stage */}
           <div>
