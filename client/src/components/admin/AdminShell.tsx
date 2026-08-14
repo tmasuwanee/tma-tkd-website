@@ -34,6 +34,7 @@ import CommandPalette from "@/components/admin/CommandPalette";
 import AssistantPanel from "@/components/admin/AssistantPanel";
 import PendingActionsView from "@/components/admin/PendingActionsView";
 import MembershipsView from "@/components/admin/MembershipsView";
+import MembersView from "@/components/admin/MembersView";
 import DayCampView from "@/components/admin/DayCampView";
 
 // Keys double as URL segments (/admin/<key>). They match the old standalone
@@ -42,7 +43,7 @@ import DayCampView from "@/components/admin/DayCampView";
 type ViewKey =
   | "today" | "calls" | "calendar" | "leads" | "checkin" | "waivers" | "call-log" | "voice-test"
   | "sequences" | "rules" | "ads" | "students" | "camp" | "controls" | "studio" | "tasks" | "links" | "playbook"
-  | "orders" | "enrolled" | "afterschool-roster" | "invoices" | "approvals" | "memberships" | "day-camp";
+  | "orders" | "enrolled" | "afterschool-roster" | "invoices" | "approvals" | "memberships" | "members" | "day-camp";
 
 type NavItem = { key: ViewKey; label: string; icon: any };
 type NavGroup = { group: string; items: NavItem[]; collapsible?: boolean };
@@ -63,10 +64,8 @@ const NAV: NavGroup[] = [
     { key: "leads", label: "Leads", icon: Kanban },
   ]},
   { group: "People", items: [
-    { key: "enrolled", label: "Enrolled Families", icon: Users },
-    { key: "memberships", label: "Memberships", icon: CreditCard },
+    { key: "members", label: "Members", icon: Users },
     { key: "afterschool-roster", label: "Afterschool Roster", icon: ClipboardList },
-    { key: "students", label: "Students", icon: GraduationCap },
   ]},
   { group: "Money", items: [
     { key: "orders", label: "Orders", icon: ShoppingBag },
@@ -104,6 +103,11 @@ const ALL_ITEMS = NAV.flatMap(g => g.items);
 const HIDDEN_ITEMS: { key: ViewKey; label: string }[] = [
   { key: "calls", label: "Today's Calls" },
   { key: "checkin", label: "Trial Check-in" },
+  // Superseded by the unified Members view (2026-08-14) but kept routable so deep
+  // links (?open=, assistant links, old bookmarks) still resolve.
+  { key: "memberships", label: "Memberships" },
+  { key: "enrolled", label: "Enrolled Families" },
+  { key: "students", label: "Students" },
 ];
 const ROUTABLE_ITEMS = [...ALL_ITEMS, ...HIDDEN_ITEMS];
 
@@ -133,6 +137,7 @@ function renderView(key: ViewKey, email: string) {
     case "afterschool-roster": return <AfterschoolRosterView />;
     case "approvals": return <PendingActionsView />;
     case "memberships": return <MembershipsView />;
+    case "members": return <MembersView />;
     case "day-camp": return <DayCampView />;
   }
 }

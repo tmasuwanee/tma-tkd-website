@@ -68,6 +68,7 @@ import { sendTelegramMessage } from "./telegram";
 import { tuitionConfiguredFor, ensureStripeCustomer, createAfterschoolSubscription } from "./tuition";
 import { proposeAction, confirmAction, rejectAction } from "./action-flow";
 import { createMembership, changeMembership, setMembershipDiscount, pauseMembership, resumeMembership, cancelMembership, adjustCharge } from "./membership-ops";
+import { memberList, memberOverview } from "./members";
 import { createCardSetupSession, chargeDueMemberships, listPayerCards, setPayerPrimaryCard } from "./membership-billing";
 import { storagePut, storageGet } from "./storage";
 import { sendEmailNotification, sendProShopOrderNotification, sendCampRegistrationConfirmation, sendCampWaiverEmail, sendFieldTripConfirmation, sendTransportationForm, sendTrialReceipt, sendAfterschoolConfirmation, sendAfterschoolIntake, sendWaiverNotification, sendReviewedEmail } from "./integrations";
@@ -2058,6 +2059,27 @@ export const appRouter = router({
         if (input.newPayer) payerId = await insertPayer(input.newPayer);
         await updateMembership(input.id, { payerId });
         return { ok: true, payerId };
+      }),
+  }),
+
+  // Members — unified People→Members view: memberships + afterschool registrations
+  // projected into one person-row each (see server/members.ts). Read-side only,
+  // except setupAfterschoolBilling which promotes an afterschool reg to a real
+  // membership so recurring billing can be configured.
+  members: router({
+    overview: publicProcedure.query(async () => memberOverview()),
+    list: publicProcedure.query(async () => memberList()),
+    setupAfterschoolBilling: publicProcedure.input(z.object({ afterschoolRegId: z.number().int().positive() }))
+      .mutation(async ({ input }) => {
+        const reg = (await getAfterschoolRegistrations()).find(r => r.id === input.afterschoolRegId);
+        if (!reg) throw new Error("Afterschool registration not found.");
+        const monthly = reg.monthlyAmountCents ?? (reg.planType === "4_5_day" ? 500_00 : 400_00);
+        const planLabel = reg.planType === "4_5_day" ? "4–5 Day/Week" : "2–3 Day/Week";
+        const { id } = await createMembership({
+          studentName: reg.childName, parentName: reg.parentName, email: reg.email, phone: reg.phone,
+          program: "afterschool", planLabel, monthlyAmountCents: monthly,
+        });
+        return { membershipId: id };
       }),
   }),
 

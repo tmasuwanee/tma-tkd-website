@@ -91,12 +91,12 @@ export default function MembershipsView() {
       </div>
 
       {creating && <CreateForm onClose={() => setCreating(false)} onCreated={() => { list.refetch(); }} />}
-      {selected !== null && <DetailModal id={selected} onClose={() => setSelected(null)} onChanged={() => list.refetch()} />}
+      {selected !== null && <MembershipDetailModal id={selected} onClose={() => setSelected(null)} onChanged={() => list.refetch()} />}
     </div>
   );
 }
 
-function CreateForm({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+export function CreateForm({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const [catalogIdx, setCatalogIdx] = useState(0);
   const [studentName, setStudentName] = useState("");
   const [parentName, setParentName] = useState("");
@@ -143,7 +143,7 @@ function CreateForm({ onClose, onCreated }: { onClose: () => void; onCreated: ()
   );
 }
 
-function DetailModal({ id, onClose, onChanged }: { id: number; onClose: () => void; onChanged: () => void }) {
+export function MembershipDetailModal({ id, onClose, onChanged }: { id: number; onClose: () => void; onChanged: () => void }) {
   const utils = trpc.useUtils();
   const q = trpc.memberships.get.useQuery({ id });
   const done = () => { utils.memberships.get.invalidate({ id }); onChanged(); };
