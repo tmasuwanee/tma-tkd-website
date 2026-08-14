@@ -196,7 +196,21 @@ function buildTools() {
       execute: async ({ query }) => {
         const q = query.toLowerCase();
         const hits = (await listMemberships()).filter(m => `${m.studentName} ${m.parentName ?? ""} ${m.email ?? ""}`.toLowerCase().includes(q)).slice(0, 6);
-        return { memberships: hits.map(m => ({ id: m.id, student: m.studentName, program: m.program, plan: m.planLabel, monthly: `$${((m.monthlyAmountCents - (m.discountCents || 0)) / 100).toFixed(0)}/mo`, status: m.status, openLink: `/admin/memberships?open=${m.id}` })) };
+        return { memberships: hits.map(m => ({ id: m.id, student: m.studentName, program: m.program, plan: m.planLabel, monthly: `$${((m.monthlyAmountCents - (m.discountCents || 0)) / 100).toFixed(0)}/mo`, status: m.status, openLink: `/admin/members?open=${m.id}` })) };
+      },
+    }),
+
+    openMemberProfile: tool({
+      description: "Open a student's member profile as a popup in the dashboard for the staff member (the command center: tuition, cards on file, and the monthly financials, all editable there). Use when the user asks to pull up / open / show / see a specific student's profile or membership. Pass the membership id (from findMembership) when you have it, otherwise a name or email query and this resolves it.",
+      inputSchema: z.object({ membershipId: z.number().int().positive().optional(), query: z.string().optional().describe("name or email, if you don't have the id") }),
+      execute: async ({ membershipId, query }) => {
+        const all = await listMemberships();
+        let m = null as (typeof all)[number] | null;
+        if (membershipId) m = all.find(x => x.id === membershipId) ?? null;
+        else if (query) { const q = query.toLowerCase(); m = all.find(x => `${x.studentName} ${x.parentName ?? ""} ${x.email ?? ""}`.toLowerCase().includes(q)) ?? null; }
+        if (!m) return { found: false, note: query ? `No membership found matching "${query}". They may not have a membership set up yet.` : "No membership found for that id." };
+        // opened:true is the signal the chat UI reads to pop the docked panel open.
+        return { found: true, opened: true, membershipId: m.id, student: m.studentName, program: m.program, note: `Opened ${m.studentName}'s profile in the dashboard.` };
       },
     }),
     getMembershipCharges: tool({
@@ -249,9 +263,10 @@ Rules:
 - For "how do I..." / policy / procedure questions (no-shows, which link to send, camp waiver checks, daily routine, escalation), use answerFromPlaybook and answer from the returned snippets, naming the section. Do not invent policy.
 - For revenue, collected-money, or total-sales questions with a stated calendar year, immediately call getRevenueSummary using that year's Jan 1 through Dec 31 dates. Do not ask for clarification when the year is stated.
 - For past-due tuition questions, immediately call listPastDueTuition. For missing afterschool-waiver questions, immediately call listMissingAfterschoolWaivers.
-- Things you CAN do (each as a PROPOSAL a staff member confirms in Approvals — you never execute directly): draft/send an email; create a membership; change a membership's program/plan/tuition; set a recurring discount; pause or cancel a membership; and adjust one month's charge (edit / waive / cancel). When the user asks for one of these, DO IT: ask any needed follow-up (which program? which month? prorate?), use findMembership / getMembershipCharges to get the id, then propose it. Then say it is pending their confirmation in Approvals and nothing has changed yet.
+- To pull up / open / show a specific student's profile, call openMemberProfile (with the membership id from findMembership, or a name/email). It pops their profile open right in the dashboard for the staff member; briefly confirm you opened it.
+- Things you CAN do (each as a PROPOSAL the staff member approves — you never execute directly): draft/send an email; create a membership; change a membership's program/plan/tuition; set a recurring discount; pause or cancel a membership; and adjust one month's charge (edit / waive / cancel). When the user asks for one of these, DO IT: ask any needed follow-up (which program? which month? prorate?), use findMembership / getMembershipCharges to get the id, then propose it. Each proposal shows an Approve button right here in this chat (as well as in the Approvals view); tell the user they can approve it here, and that nothing changes until they do.
 - Only give step-by-step directions for things you CANNOT do yourself, OR when the user explicitly asks "how do I...". If you explain how to do something that you can also do yourself, end by asking whether they'd like you to do it for them.
-- You cannot issue refunds or take actions you have no tool for; for those, say a staff member must do it in the dashboard. To point staff at a member, share the link /admin/memberships?open=<id> from findMembership.
+- You cannot issue refunds or take actions you have no tool for; for those, say a staff member must do it in the dashboard. To pull up a member, use openMemberProfile.
 - If a person, date range, or amount is ambiguous, ask a brief clarifying question instead of guessing.
 - Money: only report amounts the tools returned. Never mention card numbers (you never receive them).
 - Be concise. Show the specific records/numbers you used so staff can verify.

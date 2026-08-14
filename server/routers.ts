@@ -58,6 +58,7 @@ import {
   insertOneOffPayment, getOneOffPayments,
   // Write-action confirm-flow (2026-08-11)
   listPendingActions,
+  getPendingAction,
   // Membership engine (2026-08-12)
   listMemberships, getMembership, listMembershipCharges, getPayer, listPayers, insertPayer, updateMembership, listMembershipsByPayer,
   // Day camp (2026-08-12)
@@ -1980,6 +1981,14 @@ export const appRouter = router({
       (await listPendingActions("proposed")).map(a => ({ id: a.id, actionType: a.actionType, title: a.title, preview: a.preview, proposedBy: a.proposedBy, createdAt: a.createdAt }))),
     listRecent: publicProcedure.query(async () =>
       (await listPendingActions(undefined, 30)).map(a => ({ id: a.id, actionType: a.actionType, title: a.title, status: a.status, proposedBy: a.proposedBy, confirmedBy: a.confirmedBy, createdAt: a.createdAt, executedAt: a.executedAt }))),
+    // Single action detail — used by the assistant's inline Approve card to show
+    // the exact effect and reflect status after confirm/reject.
+    get: publicProcedure.input(z.object({ id: z.number().int().positive() }))
+      .query(async ({ input }) => {
+        const a = await getPendingAction(input.id);
+        if (!a) return null;
+        return { id: a.id, actionType: a.actionType, title: a.title, preview: a.preview, status: a.status, confirmedBy: a.confirmedBy };
+      }),
     confirm: publicProcedure.input(z.object({ id: z.number().int().positive() }))
       .mutation(async ({ input, ctx }) => confirmAction(input.id, ctx.adminEmail ?? "admin")),
     reject: publicProcedure.input(z.object({ id: z.number().int().positive() }))
