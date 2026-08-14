@@ -2086,7 +2086,7 @@ export const appRouter = router({
         // Idempotency (rule D8): a double-click / repeat call must not create a
         // second afterschool membership (with a second 12-month charge schedule).
         // Reuse an existing afterschool membership for the same child + email.
-        const norm = (s: string | null | undefined) => (s ?? "").trim().toLowerCase();
+        const norm = (s: string | null | undefined) => (s ?? "").trim().toLowerCase().replace(/\s+/g, " ");
         const existing = (await listMemberships()).find(m =>
           m.program === "afterschool" && norm(m.studentName) === norm(reg.childName) && norm(m.email) === norm(reg.email));
         if (existing) return { membershipId: existing.id, existed: true };

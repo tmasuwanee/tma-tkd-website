@@ -63,8 +63,9 @@ function buildKeyer(records: { name: string; email: string | null }[]) {
     if (!nameToEmails.has(n)) nameToEmails.set(n, new Set());
     if (e) nameToEmails.get(n)!.add(e);
   }
-  return (name: string, email: string | null): string => {
-    const n = normName(name) || `blank:${norm(email)}`;
+  return (name: string, email: string | null, fallback: string): string => {
+    const n = normName(name);
+    if (!n) return fallback; // no usable name → keep this record its own row (never merge blanks)
     const emails = nameToEmails.get(n);
     if (emails && emails.size > 1 && norm(email)) return `${n}|${norm(email)}`;
     return n;
@@ -116,7 +117,7 @@ export async function memberList(): Promise<MemberRow[]> {
   };
 
   for (const ms of memberships) {
-    const key = keyOf(ms.studentName, ms.email);
+    const key = keyOf(ms.studentName, ms.email, `m:${ms.id}`);
     const m = ensure(key, { name: ms.studentName, parentName: ms.parentName, email: ms.email, phone: ms.phone, payerId: ms.payerId });
     if (m.primaryMembershipId === null) m.primaryMembershipId = ms.id; // list is DESC → most recent first
     addProgram(m, ms.program);
@@ -129,7 +130,7 @@ export async function memberList(): Promise<MemberRow[]> {
   }
 
   for (const r of regs) {
-    const key = keyOf(r.childName, r.email);
+    const key = keyOf(r.childName, r.email, `r:${r.id}`);
     const m = ensure(key, { name: r.childName, parentName: r.parentName, email: r.email, phone: r.phone });
     // If this person already has an afterschool MEMBERSHIP, this reg is its origin
     // (or already billed): don't add its tuition again and don't offer setup.
