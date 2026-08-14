@@ -59,7 +59,7 @@ import {
   // Write-action confirm-flow (2026-08-11)
   listPendingActions,
   // Membership engine (2026-08-12)
-  listMemberships, getMembership, listMembershipCharges, getPayer,
+  listMemberships, getMembership, listMembershipCharges, getPayer, listPayers, insertPayer, updateMembership, listMembershipsByPayer,
   // Day camp (2026-08-12)
   insertDayCampSignup, markDayCampPaid, getDayCampSignupByPI, getDayCampSignups,
 } from "./db";
@@ -2037,9 +2037,10 @@ export const appRouter = router({
     // Family payer + its cards on file (primary = the default the family is charged).
     billing: publicProcedure.input(z.object({ id: z.number().int().positive() })).query(async ({ input }) => {
       const m = await getMembership(input.id);
-      if (!m?.payerId) return { payer: null, cards: [] as { id: string; brand: string; last4: string; exp: string; primary: boolean }[] };
-      const [payer, cards] = await Promise.all([getPayer(m.payerId), listPayerCards(m.payerId)]);
-      return { payer, cards };
+      const empty = { payer: null, cards: [] as { id: string; brand: string; last4: string; exp: string; primary: boolean }[], siblings: [] as { id: number; student: string; program: string }[] };
+      if (!m?.payerId) return empty;
+      const [payer, cards, members] = await Promise.all([getPayer(m.payerId), listPayerCards(m.payerId), listMembershipsByPayer(m.payerId)]);
+      return { payer, cards, siblings: members.filter(x => x.id !== m.id).map(x => ({ id: x.id, student: x.studentName, program: x.program })) };
     }),
     setPrimaryCard: publicProcedure.input(z.object({ id: z.number().int().positive(), paymentMethodId: z.string() }))
       .mutation(async ({ input }) => {
@@ -2047,6 +2048,16 @@ export const appRouter = router({
         if (!m?.payerId) throw new Error("No card on file for this membership yet.");
         await setPayerPrimaryCard(m.payerId, input.paymentMethodId);
         return { ok: true };
+      }),
+    // Family payer picker: list payers, and assign this membership to one (or a
+    // new one) so siblings share a card.
+    listPayers: publicProcedure.query(async () => (await listPayers()).map(p => ({ id: p.id, name: p.name, email: p.email, hasCard: !!p.stripeCustomerId }))),
+    assignPayer: publicProcedure.input(z.object({ id: z.number().int().positive(), payerId: z.number().int().positive().nullable().optional(), newPayer: z.object({ name: z.string().min(1).max(255), email: z.string().email().optional(), phone: z.string().max(40).optional() }).optional() }))
+      .mutation(async ({ input }) => {
+        let payerId: number | null = input.payerId ?? null;
+        if (input.newPayer) payerId = await insertPayer(input.newPayer);
+        await updateMembership(input.id, { payerId });
+        return { ok: true, payerId };
       }),
   }),
 

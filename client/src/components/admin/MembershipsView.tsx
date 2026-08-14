@@ -163,6 +163,15 @@ function DetailModal({ id, onClose, onChanged }: { id: number; onClose: () => vo
     onSuccess: () => { utils.memberships.billing.invalidate({ id }); toast.success("Primary card updated."); },
     onError: (e) => toast.error(e.message ?? "Failed."),
   });
+  const payers = trpc.memberships.listPayers.useQuery();
+  const assignPayer = trpc.memberships.assignPayer.useMutation({
+    onSuccess: () => { utils.memberships.get.invalidate({ id }); utils.memberships.billing.invalidate({ id }); utils.memberships.listPayers.invalidate(); toast.success("Family payer updated."); },
+    onError: (e) => toast.error(e.message ?? "Failed."),
+  });
+  const onPickPayer = (val: string) => {
+    if (val === "__new__") { const name = window.prompt("New payer (family / head-of-household) name:"); if (name?.trim()) assignPayer.mutate({ id, newPayer: { name: name.trim() } }); return; }
+    assignPayer.mutate({ id, payerId: val ? Number(val) : null });
+  };
 
   const m = q.data?.membership;
   const charges = q.data?.charges ?? [];
@@ -218,6 +227,18 @@ function DetailModal({ id, onClose, onChanged }: { id: number; onClose: () => vo
           {/* Family cards on file (one payer, shared across their students) */}
           <div>
             <h3 className="text-sm font-bold text-[#1a2d5a] mb-2">Cards on file{billing.data?.payer ? ` · ${billing.data.payer.name}` : ""}</h3>
+            <div className="flex items-center gap-2 text-sm mb-2 flex-wrap">
+              <span className="text-gray-500">Family payer:</span>
+              <select value={m.payerId ?? ""} onChange={e => onPickPayer(e.target.value)} disabled={assignPayer.isPending}
+                className="border border-gray-300 rounded-lg px-2 py-1 text-sm">
+                <option value="">— not assigned —</option>
+                {(payers.data ?? []).map(p => <option key={p.id} value={p.id}>{p.name}{p.hasCard ? " (card on file)" : ""}</option>)}
+                <option value="__new__">+ New payer...</option>
+              </select>
+              {billing.data?.siblings && billing.data.siblings.length > 0 && (
+                <span className="text-xs text-gray-500">shares this payer's card with: {billing.data.siblings.map(s => s.student).join(", ")}</span>
+              )}
+            </div>
             {(billing.data?.cards ?? []).length === 0 ? (
               <div className="text-xs text-gray-400 border border-dashed border-gray-200 rounded-lg p-3">No card yet. Click <strong>Set up autopay</strong> above to add one on Stripe's secure page. The card lives on the family payer, so it can cover this student's siblings too.</div>
             ) : (
