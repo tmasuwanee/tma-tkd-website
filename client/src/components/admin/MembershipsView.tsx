@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Loader2, Users, Plus, X, Pause, Play, Ban, Tag, PencilLine } from "lucide-react";
+import { Loader2, Users, Plus, X, Pause, Play, Ban, Tag, PencilLine, CreditCard } from "lucide-react";
 
 /**
  * Memberships + Financials. A person does everything here directly (with an inline
@@ -43,9 +43,10 @@ export default function MembershipsView() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const openId = params.get("open");
-    if (openId && /^\d+$/.test(openId)) {
-      setSelected(Number(openId));
-      params.delete("open");
+    if (openId && /^\d+$/.test(openId)) setSelected(Number(openId));
+    if (params.get("autopay") === "ok") toast.success("Autopay set up — card is on file.");
+    if (openId || params.get("autopay")) {
+      params.delete("open"); params.delete("autopay");
       const qs = params.toString();
       window.history.replaceState({}, "", window.location.pathname + (qs ? `?${qs}` : ""));
     }
@@ -153,6 +154,10 @@ function DetailModal({ id, onClose, onChanged }: { id: number; onClose: () => vo
   const resume = trpc.memberships.resume.useMutation(opts);
   const cancel = trpc.memberships.cancel.useMutation(opts);
   const adjust = trpc.memberships.adjustCharge.useMutation(opts);
+  const setupCard = trpc.memberships.setupCardSession.useMutation({
+    onSuccess: (r) => { if (r?.url) window.open(r.url, "_blank", "noopener"); else toast.error("Stripe not configured."); },
+    onError: (e) => toast.error(e.message ?? "Failed."),
+  });
 
   const m = q.data?.membership;
   const charges = q.data?.charges ?? [];
@@ -190,6 +195,7 @@ function DetailModal({ id, onClose, onChanged }: { id: number; onClose: () => vo
             <span className="tabular-nums">{fmt(m.monthlyAmountCents - (m.discountCents || 0))}/mo{m.discountCents ? <span className="text-green-700"> (-{fmt(m.discountCents)} {m.discountNote || "discount"})</span> : null}</span>
             <span className={`text-[11px] rounded-full border px-2 py-0.5 font-medium ${STATUS_STYLE[m.status] ?? "bg-gray-100 text-gray-600 border-gray-200"}`}>{m.status}</span>
             {m.cancelEffectiveDate ? <span className="text-xs text-red-600">cancels {String(m.cancelEffectiveDate).slice(0, 10)}</span> : null}
+            {m.stripeCustomerId ? <span className="text-xs text-green-700">card on file</span> : <span className="text-xs text-gray-400">no card on file</span>}
           </div>
 
           {/* Actions */}
@@ -201,6 +207,7 @@ function DetailModal({ id, onClose, onChanged }: { id: number; onClose: () => vo
               : <ActionBtn onClick={() => { if (window.confirm("Pause this membership now?")) pause.mutate({ id }); }} icon={<Pause className="w-3.5 h-3.5" />} label="Pause" />}
             <ActionBtn onClick={() => { if (window.confirm("Schedule cancellation with a 60-day notice? They can attend until then.")) cancel.mutate({ id, immediate: false }); }} icon={<Ban className="w-3.5 h-3.5" />} label="Cancel (60-day)" />
             <ActionBtn danger onClick={() => { if (window.confirm("Cancel this membership IMMEDIATELY? This ends it now.")) cancel.mutate({ id, immediate: true }); }} icon={<Ban className="w-3.5 h-3.5" />} label="Cancel now" />
+            <ActionBtn onClick={() => setupCard.mutate({ id })} icon={<CreditCard className="w-3.5 h-3.5" />} label={m.stripeCustomerId ? "Update card" : "Set up autopay"} />
           </div>
 
           {/* Financials */}

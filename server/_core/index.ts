@@ -14,6 +14,7 @@ import { serveStatic, setupVite } from "./vite";
 import { handleResendWebhook } from "../resend-webhook";
 import { handleStripeWebhook } from "../stripe-webhook";
 import { handleAssistant } from "../assistant";
+import { chargeDueMemberships } from "../membership-billing";
 import { handleMorningReport } from "../morning-report";
 import { registerVoiceRoutes } from "../voice-routes";
 import { handleTrialRemindersAM, handleTrialCheckinPM, handleDailyCallQueue } from "../staff-reminders";
@@ -106,6 +107,13 @@ async function startServer() {
   // admin session inside the handler. Uses the global express.json body parser
   // (registered above), so it must be after it. See docs/AI_ASSISTANT_SPEC.md.
   app.post("/api/admin/assistant", handleAssistant);
+
+  // Membership tuition auto-charge job. Attach a daily cron to this. No-op unless
+  // MEMBERSHIP_AUTOCHARGE_ENFORCE=true, so it is safe to leave registered.
+  app.post("/api/scheduled/membership-charges", async (_req: Request, res: Response) => {
+    try { res.json(await chargeDueMemberships()); }
+    catch (e) { console.error("[membership-charges] error:", e); res.status(500).json({ error: "failed" }); }
+  });
 
   // ─── Scheduled: morning blast health report ────────────────────────────────
   // Fires daily at 11:30 AM ET via Heartbeat cron (project-level, §4a).

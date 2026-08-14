@@ -24,7 +24,7 @@ import type { Request, Response } from "express";
 import Stripe from "stripe";
 import { ENV } from "./_core/env";
 import { sendTelegramMessage } from "./telegram";
-import { updateSubscriptionByStripeId } from "./db";
+import { updateSubscriptionByStripeId, updateMembership } from "./db";
 
 export async function handleStripeWebhook(req: Request, res: Response): Promise<void> {
   const secret = ENV.tmaStripeWebhookSecret;
@@ -99,6 +99,24 @@ export async function handleStripeWebhook(req: Request, res: Response): Promise<
           canceledAt: new Date(),
         });
         void sendTelegramMessage(`🚫 <b>Tuition subscription canceled</b>\nSubscription ${sub.id}`).catch(() => {});
+        break;
+      }
+      case "checkout.session.completed": {
+        // Membership autopay card setup: attach the collected card as the
+        // customer's default and link the customer to the membership.
+        const session = event.data.object as Stripe.Checkout.Session;
+        const membershipId = session.metadata?.membershipId;
+        if (session.mode === "setup" && membershipId && session.customer) {
+          try {
+            const si = await stripe.setupIntents.retrieve(String(session.setup_intent));
+            const pm = si.payment_method as string | null;
+            if (pm) await stripe.customers.update(String(session.customer), { invoice_settings: { default_payment_method: pm } });
+          } catch (e) {
+            console.error("[stripe-webhook] setup attach failed:", e);
+          }
+          await updateMembership(Number(membershipId), { stripeCustomerId: String(session.customer) });
+          void sendTelegramMessage(`💳 <b>Autopay set up</b>\nMembership #${membershipId}`).catch(() => {});
+        }
         break;
       }
       default:

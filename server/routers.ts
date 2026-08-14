@@ -68,6 +68,7 @@ import { sendTelegramMessage } from "./telegram";
 import { tuitionConfiguredFor, ensureStripeCustomer, createAfterschoolSubscription } from "./tuition";
 import { proposeAction, confirmAction, rejectAction } from "./action-flow";
 import { createMembership, changeMembership, setMembershipDiscount, pauseMembership, resumeMembership, cancelMembership, adjustCharge } from "./membership-ops";
+import { createCardSetupSession, chargeDueMemberships } from "./membership-billing";
 import { storagePut, storageGet } from "./storage";
 import { sendEmailNotification, sendProShopOrderNotification, sendCampRegistrationConfirmation, sendCampWaiverEmail, sendFieldTripConfirmation, sendTransportationForm, sendTrialReceipt, sendAfterschoolConfirmation, sendAfterschoolIntake, sendWaiverNotification, sendReviewedEmail } from "./integrations";
 import { fillTransportationPdf } from "./transportation-pdf";
@@ -2022,6 +2023,17 @@ export const appRouter = router({
     cancel: publicProcedure.input(z.object({ id: z.number().int().positive(), immediate: z.boolean() })).mutation(async ({ input }) => { await cancelMembership(input.id, { immediate: input.immediate }); return { ok: true }; }),
     adjustCharge: publicProcedure.input(z.object({ chargeId: z.number().int().positive(), amountCents: z.number().int().min(0).optional(), status: z.enum(["scheduled", "waived", "canceled", "paid"]).optional(), note: z.string().max(255).optional() }))
       .mutation(async ({ input, ctx }) => { const { chargeId, ...changes } = input; await adjustCharge(chargeId, changes, ctx.adminEmail ?? "admin"); return { ok: true }; }),
+    // Autopay: create a Stripe Checkout (setup) link to collect the card; the
+    // webhook attaches it to the membership on completion.
+    setupCardSession: publicProcedure.input(z.object({ id: z.number().int().positive() }))
+      .mutation(async ({ input, ctx }) => {
+        const proto = String((ctx.req.headers["x-forwarded-proto"] as string) || "https").split(",")[0];
+        const host = ctx.req.headers.host || "tmatkd.com";
+        return createCardSetupSession(input.id, `${proto}://${host}`);
+      }),
+    // Manual trigger for the due-charge job (also runs on a schedule). No-op unless
+    // MEMBERSHIP_AUTOCHARGE_ENFORCE is on.
+    chargeDueNow: publicProcedure.mutation(async () => chargeDueMemberships()),
   }),
 
   // Day camp signups ($60/day). Parent-facing createIntent/confirm are public;

@@ -52,6 +52,10 @@ export const ENV = {
   // until it is enabled + verified on preview. See docs/ADMIN_AUTH_PLAN.md.
   adminPassword: process.env.ADMIN_PASSWORD ?? "Keep9oing!",
   adminAuthEnforce: process.env.ADMIN_AUTH_ENFORCE === "true",
+  // 2026-08-12: membership auto-charging kill-switch. Off (default) = the monthly
+  // charge job never actually charges a card, so deploying is safe. Turn on only
+  // after cards are on file and you have tested. See docs/OPERATIONS_SOPS.md.
+  membershipAutochargeEnforce: process.env.MEMBERSHIP_AUTOCHARGE_ENFORCE === "true",
   // 2026-08-11: read-only AI assistant. The @ai-sdk/openai provider reads
   // OPENAI_API_KEY from process.env directly; we surface it here only for a
   // helpful "not configured" error. Model is overridable. See docs/AI_ASSISTANT_SPEC.md.
