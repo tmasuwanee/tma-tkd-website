@@ -6,7 +6,7 @@ import {
   Kanban, ClipboardCheck, Phone, PhoneOutgoing, Mail, Route as RouteIcon,
   BarChart2, GraduationCap, CalendarCheck, ShieldAlert, Camera, LogOut,
   Menu, PhoneCall, CalendarDays, CheckSquare, FileSignature, Link2, BookOpen,
-  ShoppingBag, Users, ClipboardList, FileText, Home, ChevronDown, ChevronRight, Search, Sparkles, ShieldCheck, CreditCard, Sun,
+  ShoppingBag, Users, ClipboardList, FileText, Home, ChevronDown, ChevronRight, Search, Sparkles, ShieldCheck,
 } from "lucide-react";
 import { CallsApp } from "@/pages/AdminTodaysCalls";
 import { CallLogApp } from "@/pages/AdminCallLog";
@@ -36,6 +36,7 @@ import PendingActionsView from "@/components/admin/PendingActionsView";
 import MembershipsView from "@/components/admin/MembershipsView";
 import MembersView from "@/components/admin/MembersView";
 import TrialsView from "@/components/admin/TrialsView";
+import CampsView from "@/components/admin/CampsView";
 import DayCampView from "@/components/admin/DayCampView";
 
 // Keys double as URL segments (/admin/<key>). They match the old standalone
@@ -44,7 +45,7 @@ import DayCampView from "@/components/admin/DayCampView";
 type ViewKey =
   | "today" | "calls" | "calendar" | "leads" | "checkin" | "waivers" | "call-log" | "voice-test"
   | "sequences" | "rules" | "ads" | "students" | "camp" | "controls" | "studio" | "tasks" | "links" | "playbook"
-  | "orders" | "enrolled" | "afterschool-roster" | "invoices" | "approvals" | "memberships" | "members" | "trials" | "day-camp";
+  | "orders" | "enrolled" | "afterschool-roster" | "invoices" | "approvals" | "memberships" | "members" | "trials" | "camps" | "day-camp";
 
 type NavItem = { key: ViewKey; label: string; icon: any };
 type NavGroup = { group: string; items: NavItem[]; collapsible?: boolean };
@@ -56,30 +57,34 @@ type NavGroup = { group: string; items: NavItem[]; collapsible?: boolean };
 // personal "My Tasks" into collapsed Owner tools; renamed "Call Log" -> "Call
 // History"; dissolved "Forms & Calls" (Waivers + Call History live in Tools).
 // Route keys are unchanged, so every existing /admin/<key> URL still works.
+// 2026-08-14 (Dashboard reorg): restructured around the person/family as the
+// center, matching the approved Members mock. People = who you serve (Members,
+// Trials, Leads); Operations = the day (Calendar, After-School, Camps); Sales =
+// money in (Pro Shop, Invoices); Admin = paperwork + oversight. Everything else is
+// collapsed into Owner tools. Camp Registrations + Day Camp folded into one Camps
+// view; Enrolled Families + Memberships + Students folded into Members. All old
+// route keys stay routable (see HIDDEN_ITEMS) so no bookmark or deep link 404s.
 const NAV: NavGroup[] = [
   { group: "Main", items: [
     { key: "today", label: "Today", icon: Home },
   ]},
-  { group: "Prospects", items: [
-    { key: "calendar", label: "Calendar", icon: CalendarDays },
-    { key: "leads", label: "Leads", icon: Kanban },
-  ]},
   { group: "People", items: [
     { key: "members", label: "Members", icon: Users },
     { key: "trials", label: "Trials", icon: GraduationCap },
-    { key: "afterschool-roster", label: "Afterschool Roster", icon: ClipboardList },
+    { key: "leads", label: "Leads", icon: Kanban },
   ]},
-  { group: "Money", items: [
-    { key: "orders", label: "Orders", icon: ShoppingBag },
-    { key: "camp", label: "Camp Registrations", icon: CalendarCheck },
-    { key: "day-camp", label: "Day Camp", icon: Sun },
-    { key: "invoices", label: "Invoice Generator", icon: FileText },
+  { group: "Operations", items: [
+    { key: "calendar", label: "Calendar", icon: CalendarDays },
+    { key: "afterschool-roster", label: "After-School", icon: ClipboardList },
+    { key: "camps", label: "Camps", icon: CalendarCheck },
   ]},
-  { group: "Tools", items: [
+  { group: "Sales", items: [
+    { key: "orders", label: "Pro Shop", icon: ShoppingBag },
+    { key: "invoices", label: "Invoices", icon: FileText },
+  ]},
+  { group: "Admin", items: [
+    { key: "waivers", label: "Forms & Waivers", icon: FileSignature },
     { key: "approvals", label: "Approvals", icon: ShieldCheck },
-    { key: "studio", label: "Flyer Studio", icon: Camera },
-    { key: "waivers", label: "Waivers", icon: FileSignature },
-    { key: "call-log", label: "Call History", icon: Phone },
     { key: "playbook", label: "Front Desk Playbook", icon: BookOpen },
     { key: "links", label: "Links", icon: Link2 },
   ]},
@@ -87,10 +92,12 @@ const NAV: NavGroup[] = [
   // in settings. (Shared login, so this is decluttering, not access control.)
   { group: "Owner tools", collapsible: true, items: [
     { key: "tasks", label: "My Tasks", icon: CheckSquare },
+    { key: "studio", label: "Flyer Studio", icon: Camera },
     { key: "sequences", label: "Email Sequences", icon: Mail },
     { key: "rules", label: "Routing Rules", icon: RouteIcon },
     { key: "ads", label: "Ad Performance", icon: BarChart2 },
     { key: "controls", label: "Automation", icon: ShieldAlert },
+    { key: "call-log", label: "Call History", icon: Phone },
     { key: "voice-test", label: "Voice Test", icon: PhoneOutgoing },
   ]},
 ];
@@ -110,6 +117,9 @@ const HIDDEN_ITEMS: { key: ViewKey; label: string }[] = [
   { key: "memberships", label: "Memberships" },
   { key: "enrolled", label: "Enrolled Families" },
   { key: "students", label: "Students" },
+  // Folded into the unified Camps view (2026-08-14); routes kept for old links.
+  { key: "camp", label: "Camp Registrations" },
+  { key: "day-camp", label: "Day Camp" },
 ];
 const ROUTABLE_ITEMS = [...ALL_ITEMS, ...HIDDEN_ITEMS];
 
@@ -141,6 +151,7 @@ function renderView(key: ViewKey, email: string) {
     case "memberships": return <MembershipsView />;
     case "members": return <MembersView />;
     case "trials": return <TrialsView />;
+    case "camps": return <CampsView />;
     case "day-camp": return <DayCampView />;
   }
 }
