@@ -60,7 +60,7 @@ import {
   listPendingActions,
   getPendingAction,
   // Membership engine (2026-08-12)
-  listMemberships, getMembership, listMembershipCharges, getPayer, listPayers, insertPayer, updateMembership, listMembershipsByPayer,
+  listMemberships, getMembership, getMembershipByAfterschoolRegId, listMembershipCharges, getPayer, listPayers, insertPayer, updateMembership, listMembershipsByPayer,
   // Day camp (2026-08-12)
   insertDayCampSignup, markDayCampPaid, getDayCampSignupByPI, getDayCampSignups,
 } from "./db";
@@ -2085,18 +2085,31 @@ export const appRouter = router({
         if (!reg) throw new Error("Afterschool registration not found.");
         // Idempotency (rule D8): a double-click / repeat call must not create a
         // second afterschool membership (with a second 12-month charge schedule).
-        // Reuse an existing afterschool membership for the same child + email.
+        // 1) Exact link on the source registration (memberships.afterschoolRegId is
+        //    UNIQUE), so a repeat promotion of the same signup returns the same row.
+        const linked = await getMembershipByAfterschoolRegId(reg.id);
+        if (linked) return { membershipId: linked.id, existed: true };
+        // 2) Legacy afterschool memberships created before the link column existed:
+        //    fall back to a name + email match.
         const norm = (s: string | null | undefined) => (s ?? "").trim().toLowerCase().replace(/\s+/g, " ");
-        const existing = (await listMemberships()).find(m =>
+        const legacy = (await listMemberships()).find(m =>
           m.program === "afterschool" && norm(m.studentName) === norm(reg.childName) && norm(m.email) === norm(reg.email));
-        if (existing) return { membershipId: existing.id, existed: true };
+        if (legacy) return { membershipId: legacy.id, existed: true };
         const monthly = reg.monthlyAmountCents ?? (reg.planType === "4_5_day" ? 500_00 : 400_00);
         const planLabel = reg.planType === "4_5_day" ? "4–5 Day/Week" : "2–3 Day/Week";
-        const { id } = await createMembership({
-          studentName: reg.childName, parentName: reg.parentName, email: reg.email, phone: reg.phone,
-          program: "afterschool", planLabel, monthlyAmountCents: monthly,
-        });
-        return { membershipId: id, existed: false };
+        try {
+          const { id } = await createMembership({
+            studentName: reg.childName, parentName: reg.parentName, email: reg.email, phone: reg.phone,
+            program: "afterschool", planLabel, monthlyAmountCents: monthly, afterschoolRegId: reg.id,
+          });
+          return { membershipId: id, existed: false };
+        } catch (e) {
+          // 3) Concurrent double-submit: the other request won the UNIQUE index.
+          //    Return its row instead of surfacing a duplicate-key error.
+          const raced = await getMembershipByAfterschoolRegId(reg.id);
+          if (raced) return { membershipId: raced.id, existed: true };
+          throw e;
+        }
       }),
   }),
 

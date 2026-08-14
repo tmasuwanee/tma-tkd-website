@@ -3080,10 +3080,11 @@ export type MembershipRow = {
   cancelEffectiveDate: string | Date | null;
   canceledAt: string | Date | null;
   payerId: number | null;
+  afterschoolRegId: number | null;
   createdAt: string | Date;
 };
 
-const MEMBERSHIP_COLS = sql`id, studentName, parentName, email, phone, leadId, program, planLabel, monthlyAmountCents, discountCents, discountNote, status, startDate, termMonths, billingDay, stripeCustomerId, stripeSubscriptionId, contractNote, cancelEffectiveDate, canceledAt, payerId, createdAt`;
+const MEMBERSHIP_COLS = sql`id, studentName, parentName, email, phone, leadId, program, planLabel, monthlyAmountCents, discountCents, discountNote, status, startDate, termMonths, billingDay, stripeCustomerId, stripeSubscriptionId, contractNote, cancelEffectiveDate, canceledAt, payerId, afterschoolRegId, createdAt`;
 
 export async function insertMembership(p: {
   studentName: string; parentName?: string | null; email?: string | null; phone?: string | null;
@@ -3091,15 +3092,25 @@ export async function insertMembership(p: {
   discountCents?: number; discountNote?: string | null; status?: string; startDate?: string | null;
   termMonths?: number | null; billingDay?: number | null; contractNote?: string | null;
   stripeCustomerId?: string | null; stripeSubscriptionId?: string | null; payerId?: number | null;
+  afterschoolRegId?: number | null;
 }): Promise<number> {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   const [r] = await db.execute(
     sql`INSERT INTO memberships
-      (studentName, parentName, email, phone, leadId, program, planLabel, monthlyAmountCents, discountCents, discountNote, status, startDate, termMonths, billingDay, stripeCustomerId, stripeSubscriptionId, contractNote, payerId, createdAt)
-      VALUES (${p.studentName}, ${p.parentName ?? null}, ${p.email ?? null}, ${p.phone ?? null}, ${p.leadId ?? null}, ${p.program}, ${p.planLabel ?? null}, ${p.monthlyAmountCents}, ${p.discountCents ?? 0}, ${p.discountNote ?? null}, ${p.status ?? "active"}, ${p.startDate ?? null}, ${p.termMonths ?? 12}, ${p.billingDay ?? null}, ${p.stripeCustomerId ?? null}, ${p.stripeSubscriptionId ?? null}, ${p.contractNote ?? null}, ${p.payerId ?? null}, NOW())`
+      (studentName, parentName, email, phone, leadId, program, planLabel, monthlyAmountCents, discountCents, discountNote, status, startDate, termMonths, billingDay, stripeCustomerId, stripeSubscriptionId, contractNote, payerId, afterschoolRegId, createdAt)
+      VALUES (${p.studentName}, ${p.parentName ?? null}, ${p.email ?? null}, ${p.phone ?? null}, ${p.leadId ?? null}, ${p.program}, ${p.planLabel ?? null}, ${p.monthlyAmountCents}, ${p.discountCents ?? 0}, ${p.discountNote ?? null}, ${p.status ?? "active"}, ${p.startDate ?? null}, ${p.termMonths ?? 12}, ${p.billingDay ?? null}, ${p.stripeCustomerId ?? null}, ${p.stripeSubscriptionId ?? null}, ${p.contractNote ?? null}, ${p.payerId ?? null}, ${p.afterschoolRegId ?? null}, NOW())`
   ) as unknown as [{ insertId: number }];
   return r?.insertId ?? 0;
+}
+
+/** Membership promoted from a given afterschool registration (the unique-indexed
+ *  link). Used to make "Set up billing" idempotent, even under a concurrent race. */
+export async function getMembershipByAfterschoolRegId(afterschoolRegId: number): Promise<MembershipRow | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const [rows] = await db.execute(sql`SELECT ${MEMBERSHIP_COLS} FROM memberships WHERE afterschoolRegId = ${afterschoolRegId} LIMIT 1`) as unknown as [MembershipRow[]];
+  return Array.isArray(rows) && rows[0] ? rows[0] : null;
 }
 
 export async function getMembership(id: number): Promise<MembershipRow | null> {

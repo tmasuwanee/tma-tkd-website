@@ -55,6 +55,7 @@ export async function createMembership(input: {
   leadId?: number | null; program: string; planLabel?: string | null; monthlyAmountCents: number;
   discountCents?: number; discountNote?: string | null; startDate?: string | null;
   termMonths?: number | null; billingDay?: number | null; contractNote?: string | null;
+  afterschoolRegId?: number | null;
 }): Promise<{ id: number }> {
   const id = await insertMembership({ ...input, status: "active" });
   await generateCharges(id, input.termMonths ?? 12);

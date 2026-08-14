@@ -224,6 +224,18 @@ const MIGRATIONS: { name: string; sql: string }[] = [
       "createdAt DATETIME NOT NULL, " +
       "updatedAt DATETIME NULL)",
   },
+  {
+    // 2026-08-14: link a membership back to the afterschool registration it was
+    // promoted from. The UNIQUE index below makes "Set up billing" idempotent even
+    // under a simultaneous double-submit — the second INSERT hits the unique key
+    // and the handler recovers the winning row instead of creating a duplicate.
+    name: "memberships.afterschoolRegId",
+    sql: "ALTER TABLE memberships ADD COLUMN IF NOT EXISTS afterschoolRegId BIGINT NULL",
+  },
+  {
+    name: "memberships.afterschoolRegId unique index",
+    sql: "ALTER TABLE memberships ADD UNIQUE INDEX uniq_membership_afterschool_reg (afterschoolRegId)",
+  },
 ];
 
 export async function runStartupMigrations(): Promise<void> {
@@ -239,7 +251,8 @@ export async function runStartupMigrations(): Promise<void> {
     } catch (err: any) {
       const msg = String(err?.message ?? err);
       // Already applied (different MySQL flavors word this differently) is fine.
-      if (/duplicate column|already exists/i.test(msg)) {
+      // "Duplicate key name" = the UNIQUE index already exists on re-run.
+      if (/duplicate column|duplicate key name|already exists/i.test(msg)) {
         console.log(`[migrate] skip (exists): ${m.name}`);
       } else {
         console.error(`[migrate] FAILED: ${m.name}: ${msg}`);
