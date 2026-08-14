@@ -69,6 +69,7 @@ import { tuitionConfiguredFor, ensureStripeCustomer, createAfterschoolSubscripti
 import { proposeAction, confirmAction, rejectAction } from "./action-flow";
 import { createMembership, changeMembership, setMembershipDiscount, pauseMembership, resumeMembership, cancelMembership, adjustCharge } from "./membership-ops";
 import { memberList, memberOverview } from "./members";
+import { listSpecials, insertSpecial, updateSpecial } from "./db";
 import { createCardSetupSession, chargeDueMemberships, listPayerCards, setPayerPrimaryCard } from "./membership-billing";
 import { storagePut, storageGet } from "./storage";
 import { sendEmailNotification, sendProShopOrderNotification, sendCampRegistrationConfirmation, sendCampWaiverEmail, sendFieldTripConfirmation, sendTransportationForm, sendTrialReceipt, sendAfterschoolConfirmation, sendAfterschoolIntake, sendWaiverNotification, sendReviewedEmail } from "./integrations";
@@ -2081,6 +2082,34 @@ export const appRouter = router({
         });
         return { membershipId: id };
       }),
+  }),
+
+  // Pro Shop specials — staff-managed promotions/offers with a shareable link and
+  // a printable flyer. Informational (no payment/PII here); the linked pay page
+  // still executes the charge. list is public so a future storefront can read
+  // active specials; writes are admin-gated by default-deny.
+  specials: router({
+    list: publicProcedure.query(async () => listSpecials()),
+    listActive: publicProcedure.query(async () => listSpecials(true)),
+    create: publicProcedure.input(z.object({
+      title: z.string().min(1).max(160),
+      description: z.string().max(2000).optional(),
+      priceLabel: z.string().max(80).optional(),
+      linkUrl: z.string().max(600).optional(),
+      badge: z.string().max(40).optional(),
+      sortOrder: z.number().int().optional(),
+    })).mutation(async ({ input }) => ({ id: await insertSpecial(input) })),
+    update: publicProcedure.input(z.object({
+      id: z.number().int().positive(),
+      title: z.string().min(1).max(160).optional(),
+      description: z.string().max(2000).nullable().optional(),
+      priceLabel: z.string().max(80).nullable().optional(),
+      linkUrl: z.string().max(600).nullable().optional(),
+      badge: z.string().max(40).nullable().optional(),
+      sortOrder: z.number().int().optional(),
+    })).mutation(async ({ input }) => { const { id, ...f } = input; await updateSpecial(id, f); return { ok: true }; }),
+    setActive: publicProcedure.input(z.object({ id: z.number().int().positive(), active: z.boolean() }))
+      .mutation(async ({ input }) => { await updateSpecial(input.id, { active: input.active ? 1 : 0 }); return { ok: true }; }),
   }),
 
   // Day camp signups ($60/day). Parent-facing createIntent/confirm are public;

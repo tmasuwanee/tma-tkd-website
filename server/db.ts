@@ -3189,6 +3189,49 @@ export async function listMembershipsByPayer(payerId: number): Promise<Membershi
   return Array.isArray(rows) ? rows : [];
 }
 
+// ─── Pro Shop specials (staff-managed promotions/offers) ─────────────────────
+export type SpecialRow = {
+  id: number; title: string; description: string | null; priceLabel: string | null;
+  linkUrl: string | null; badge: string | null; active: number; sortOrder: number;
+  createdAt: string | Date; updatedAt: string | Date | null;
+};
+
+export async function listSpecials(onlyActive?: boolean): Promise<SpecialRow[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const [rows] = await db.execute(
+    onlyActive
+      ? sql`SELECT id, title, description, priceLabel, linkUrl, badge, active, sortOrder, createdAt, updatedAt FROM specials WHERE active = 1 ORDER BY sortOrder ASC, createdAt DESC`
+      : sql`SELECT id, title, description, priceLabel, linkUrl, badge, active, sortOrder, createdAt, updatedAt FROM specials ORDER BY active DESC, sortOrder ASC, createdAt DESC`
+  ) as unknown as [SpecialRow[]];
+  return Array.isArray(rows) ? rows : [];
+}
+
+export async function insertSpecial(p: { title: string; description?: string | null; priceLabel?: string | null; linkUrl?: string | null; badge?: string | null; sortOrder?: number }): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [r] = await db.execute(
+    sql`INSERT INTO specials (title, description, priceLabel, linkUrl, badge, active, sortOrder, createdAt)
+        VALUES (${p.title}, ${p.description ?? null}, ${p.priceLabel ?? null}, ${p.linkUrl ?? null}, ${p.badge ?? null}, 1, ${p.sortOrder ?? 0}, NOW())`
+  ) as unknown as [{ insertId: number }];
+  return r?.insertId ?? 0;
+}
+
+export async function updateSpecial(id: number, fields: Partial<{ title: string; description: string | null; priceLabel: string | null; linkUrl: string | null; badge: string | null; active: number; sortOrder: number }>): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  const sets: ReturnType<typeof sql>[] = [];
+  if (fields.title !== undefined) sets.push(sql`title = ${fields.title}`);
+  if (fields.description !== undefined) sets.push(sql`description = ${fields.description}`);
+  if (fields.priceLabel !== undefined) sets.push(sql`priceLabel = ${fields.priceLabel}`);
+  if (fields.linkUrl !== undefined) sets.push(sql`linkUrl = ${fields.linkUrl}`);
+  if (fields.badge !== undefined) sets.push(sql`badge = ${fields.badge}`);
+  if (fields.active !== undefined) sets.push(sql`active = ${fields.active}`);
+  if (fields.sortOrder !== undefined) sets.push(sql`sortOrder = ${fields.sortOrder}`);
+  if (sets.length === 0) return;
+  await db.execute(sql`UPDATE specials SET ${sql.join(sets, sql`, `)}, updatedAt = NOW() WHERE id = ${id}`);
+}
+
 // ─── Membership charges (per-month Financials ledger) ────────────────────────
 export type MembershipChargeRow = {
   id: number; membershipId: number; periodMonth: string; dueDate: string | Date | null;

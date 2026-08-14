@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent } from "@/components/ui/card";
 import { Loader2, ShoppingBag, Phone, Mail, Receipt } from "lucide-react";
+import ProShopSpecials from "@/components/admin/ProShopSpecials";
 
 /**
  * Orders view — pro-shop and seasonal sale purchases (recordType 'order').
@@ -69,10 +70,22 @@ export default function OrdersView() {
           <ShoppingBag className="w-5 h-5 text-amber-600" />
         </div>
         <div>
-          <h1 className="text-xl font-bold text-[#1a2d5a]">Orders</h1>
+          <h1 className="text-xl font-bold text-[#1a2d5a]">Pro Shop</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            Pro-shop and seasonal sale purchases. These are customers, not leads, so they stay out of the call list.
+            Specials, gear orders, and one-off payments. These are customers, not leads, so they stay out of the call list.
           </p>
+        </div>
+      </div>
+
+      <ProShopSpecials />
+
+      <div className="flex items-start gap-3 pt-2">
+        <div className="w-10 h-10 rounded-lg bg-amber-500/15 flex items-center justify-center shrink-0">
+          <ShoppingBag className="w-5 h-5 text-amber-600" />
+        </div>
+        <div>
+          <h2 className="text-lg font-bold text-[#1a2d5a]">Orders</h2>
+          <p className="text-sm text-gray-500 mt-0.5">Pro-shop and seasonal sale purchases.</p>
         </div>
       </div>
 

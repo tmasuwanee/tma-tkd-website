@@ -205,6 +205,25 @@ const MIGRATIONS: { name: string; sql: string }[] = [
       "createdAt DATETIME NOT NULL)",
   },
   { name: "memberships.payerId", sql: "ALTER TABLE memberships ADD COLUMN IF NOT EXISTS payerId BIGINT NULL" },
+  {
+    // 2026-08-14: Pro Shop "specials" — staff-managed promotions/offers (Back to
+    // School, gear bundle, bring-a-friend, seasonal camp). Each has a shareable
+    // signup link (an existing pay page or external URL) and a printable flyer.
+    // Informational only; the actual payment still runs through the linked page,
+    // so no card/PII lives here.
+    name: "specials table",
+    sql: "CREATE TABLE IF NOT EXISTS specials (" +
+      "id BIGINT PRIMARY KEY AUTO_INCREMENT, " +
+      "title VARCHAR(160) NOT NULL, " +
+      "description TEXT NULL, " +
+      "priceLabel VARCHAR(80) NULL, " +
+      "linkUrl VARCHAR(600) NULL, " +
+      "badge VARCHAR(40) NULL, " +
+      "active TINYINT NOT NULL DEFAULT 1, " +
+      "sortOrder INT NOT NULL DEFAULT 0, " +
+      "createdAt DATETIME NOT NULL, " +
+      "updatedAt DATETIME NULL)",
+  },
 ];
 
 export async function runStartupMigrations(): Promise<void> {
