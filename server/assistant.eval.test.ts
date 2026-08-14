@@ -32,6 +32,11 @@ function makeTools(record: string[]) {
       inputSchema: z.object({ query: z.string() }),
       execute: async () => rec("findPerson", { leads: [{ id: 1, kid: "Maya Rivera", parent: "Jordan Rivera", email: "j@x.com", phone: "770", stage: "contacted", recordType: "prospect" }], students: [], afterschoolRoster: [] }),
     }),
+    findMembership: tool({
+      description: "Find a student's membership by name or email. Returns the membership id needed for any change.",
+      inputSchema: z.object({ query: z.string() }),
+      execute: async () => rec("findMembership", { memberships: [{ id: 42, student: "Test Student", program: "Taekwondo", plan: "Standard", monthly: "$179/mo", status: "active", openLink: "/admin/memberships?open=42" }] }),
+    }),
     getPaymentSummary: tool({
       description: "List a family's succeeded payments (and total) for a date range. Dates are YYYY-MM-DD.",
       inputSchema: z.object({ query: z.string(), startDate: z.string().optional(), endDate: z.string().optional() }),
@@ -57,6 +62,11 @@ function makeTools(record: string[]) {
       inputSchema: z.object({ leadId: z.number().int().positive() }),
       execute: async () => rec("getLeadDetail", { found: true, kid: "Maya Rivera", parent: "Jordan Rivera", stage: "contacted" }),
     }),
+    proposeSetDiscount: tool({
+      description: "Propose setting a recurring monthly discount on a membership. Requires the membership id. It does not apply until confirmed in Approvals.",
+      inputSchema: z.object({ id: z.number().int().positive(), discountCents: z.number().int().min(0), note: z.string().optional() }),
+      execute: async () => rec("proposeSetDiscount", { proposed: true, pendingActionId: 77, note: "Proposed. Confirm in Approvals." }),
+    }),
     answerFromPlaybook: tool({
       description: "Look up TMA front-desk policy and 'how do I...' procedure guidance from the playbook + SOPs.",
       inputSchema: z.object({ question: z.string() }),
@@ -71,6 +81,7 @@ const CASES: { q: string; tool: string; contains: string[] }[] = [
   { q: "How do I handle a trial no-show?", tool: "answerFromPlaybook", contains: ["48"] },
   { q: "Which afterschool families never signed a waiver?", tool: "listMissingAfterschoolWaivers", contains: ["Dana Fox"] },
   { q: "How much revenue did we collect in 2026?", tool: "getRevenueSummary", contains: ["18"] },
+  { q: "Give Test Student a $20/mo sibling discount", tool: "proposeSetDiscount", contains: ["approval"] },
 ];
 
 describe("assistant routing eval (needs OPENAI_API_KEY)", () => {
