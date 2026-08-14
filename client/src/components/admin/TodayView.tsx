@@ -1,6 +1,8 @@
 import { trpc } from "@/lib/trpc";
-import { Loader2, Phone, CheckCircle2, XCircle, PhoneCall, CalendarDays, Kanban, ArrowRight, Ban } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, PhoneCall, CalendarDays, Kanban, ArrowRight, Ban } from "lucide-react";
 import { useLocation } from "wouter";
+import { useState } from "react";
+import { LeadDetailDialog } from "@/components/admin/LeadsPipeline";
 
 /**
  * "Today" — the front-desk daily driver. One screen for the core loop:
@@ -31,6 +33,7 @@ function Tile({ label, value, tone = "navy" }: { label: string; value: number; t
 
 export default function TodayView() {
   const [, navigate] = useLocation();
+  const [selectedLead, setSelectedLead] = useState<any>(null);
   const utils = trpc.useUtils();
   const board = trpc.calls.board.useQuery();
   const checkin = trpc.checkin.listForDate.useQuery({});
@@ -124,23 +127,17 @@ export default function TodayView() {
             ) : (
               <ul className="divide-y divide-gray-100">
                 {today.slice(0, 12).map(({ lead, reason }: any) => (
-                  <li key={lead.id} className="flex items-center gap-3 px-4 py-2.5">
+                  <li key={lead.id} onClick={() => setSelectedLead(lead)}
+                    className="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-gray-50">
                     <div className="min-w-0 flex-1">
                       <div className="font-medium text-gray-900 text-sm truncate">{lead.kidName || lead.parentName}</div>
                       <div className="text-xs text-gray-500 truncate">{reason}</div>
                     </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      {lead.phone ? (
-                        <a href={`tel:${lead.phone}`} className="inline-flex items-center gap-1 text-xs font-semibold text-[#1a2d5a] border border-[#1a2d5a]/30 hover:bg-[#1a2d5a] hover:text-white rounded px-2 py-1 transition-colors">
-                          <Phone className="w-3.5 h-3.5" /> Call
-                        </a>
-                      ) : null}
-                      <button onClick={() => markNotInterested(lead)} disabled={dismiss.isPending}
-                        title="Not interested / ignoring outreach — remove from calls + pipeline"
-                        className="inline-flex items-center gap-1 text-xs font-medium text-gray-400 hover:text-red-600 border border-transparent hover:border-red-200 rounded px-2 py-1 transition-colors">
-                        <Ban className="w-3.5 h-3.5" /> Not interested
-                      </button>
-                    </div>
+                    <button onClick={(e) => { e.stopPropagation(); markNotInterested(lead); }} disabled={dismiss.isPending}
+                      title="Not interested / ignoring outreach — remove from calls + pipeline"
+                      className="shrink-0 inline-flex items-center gap-1 text-xs font-medium text-gray-400 hover:text-red-600 border border-transparent hover:border-red-200 rounded px-2 py-1 transition-colors">
+                      <Ban className="w-3.5 h-3.5" /> Not interested
+                    </button>
                   </li>
                 ))}
               </ul>
@@ -159,6 +156,9 @@ export default function TodayView() {
           </div>
         </>
       )}
+
+      <LeadDetailDialog lead={selectedLead} open={!!selectedLead} onClose={() => setSelectedLead(null)}
+        onRefresh={() => { utils.calls.board.invalidate(); utils.checkin.listForDate.invalidate(); }} />
     </div>
   );
 }
