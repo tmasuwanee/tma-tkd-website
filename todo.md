@@ -238,3 +238,6 @@
 - [x] Replace the quota-exhausted assistant key with the user's temporary funded key and rerun assistant tool-routing validation
 - [x] Override the injected OpenAI base URL for the assistant so tool calls use the funded direct OpenAI API key
 - [ ] After publishing commit f9bc715, verify live DB objects, dashboard navigation, AI assistant tools and approval flow, call disposition, and a public parent-facing flow
+- [x] Set OPENAI_ASSISTANT_MODEL to gpt-5, restart the server, and validate assistant routing with that model
+- [x] Pull commit a776537 and validate assistant configuration, disabled billing gates, additive migrations, Memberships, and Day Camp locally
+- [ ] After publishing commit a776537, verify live tables, dashboard items, membership ledger actions, assistant proposal flow, day-camp pages, and parent-facing pages
