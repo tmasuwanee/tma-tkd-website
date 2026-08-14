@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Loader2, Users, Plus, X, Pause, Play, Ban, Tag, PencilLine, CreditCard } from "lucide-react";
+import { Loader2, Users, Plus, X, Pause, Play, Ban, Tag, PencilLine, CreditCard, ChevronDown, ChevronRight } from "lucide-react";
 
 /**
  * Memberships + Financials. A person does everything here directly (with an inline
@@ -144,6 +144,14 @@ export function CreateForm({ onClose, onCreated }: { onClose: () => void; onCrea
 }
 
 export function MembershipDetailModal({ id, onClose, onChanged }: { id: number; onClose: () => void; onChanged: () => void }) {
+  return <Overlay onClose={onClose} title="Member" wide><MemberPanelBody id={id} onChanged={onChanged} /></Overlay>;
+}
+
+/** The member command-center body: collapsible Overview / Cards / Financials
+ *  sections. Rendered inside the docked panel (MemberDock, many open at once) and
+ *  inside the legacy modal. onName reports the loaded student name to the panel
+ *  header (deep-links open before the name is known). */
+export function MemberPanelBody({ id, onChanged, onName }: { id: number; onChanged: () => void; onName?: (name: string) => void }) {
   const utils = trpc.useUtils();
   const q = trpc.memberships.get.useQuery({ id });
   const done = () => { utils.memberships.get.invalidate({ id }); onChanged(); };
@@ -197,13 +205,14 @@ export function MembershipDetailModal({ id, onClose, onChanged }: { id: number; 
     adjust.mutate({ chargeId, amountCents: cents, note: "Edited amount" });
   };
 
+  useEffect(() => { if (m?.studentName) onName?.(m.studentName); }, [m?.studentName]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (q.isLoading || !m) return <div className="py-10 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></div>;
+
   return (
-    <Overlay onClose={onClose} title={m ? `${m.studentName}` : "Membership"} wide>
-      {q.isLoading || !m ? (
-        <div className="py-10 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></div>
-      ) : (
-        <div className="space-y-5">
-          {/* Summary */}
+    <div className="space-y-3">
+      <PanelSection title="Overview">
+        <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
             <span className="capitalize font-medium text-gray-900">{m.program}{m.planLabel ? ` · ${m.planLabel}` : ""}</span>
             <span className="tabular-nums">{fmt(m.monthlyAmountCents - (m.discountCents || 0))}/mo{m.discountCents ? <span className="text-green-700"> (-{fmt(m.discountCents)} {m.discountNote || "discount"})</span> : null}</span>
@@ -211,8 +220,6 @@ export function MembershipDetailModal({ id, onClose, onChanged }: { id: number; 
             {m.cancelEffectiveDate ? <span className="text-xs text-red-600">cancels {String(m.cancelEffectiveDate).slice(0, 10)}</span> : null}
             {m.stripeCustomerId ? <span className="text-xs text-green-700">card on file</span> : <span className="text-xs text-gray-400">no card on file</span>}
           </div>
-
-          {/* Actions */}
           <div className="flex flex-wrap gap-2">
             <ActionBtn onClick={changeAmount} icon={<PencilLine className="w-3.5 h-3.5" />} label="Change tuition" />
             <ActionBtn onClick={applyDiscount} icon={<Tag className="w-3.5 h-3.5" />} label="Discount" />
@@ -223,72 +230,82 @@ export function MembershipDetailModal({ id, onClose, onChanged }: { id: number; 
             <ActionBtn danger onClick={() => { if (window.confirm("Cancel this membership IMMEDIATELY? This ends it now.")) cancel.mutate({ id, immediate: true }); }} icon={<Ban className="w-3.5 h-3.5" />} label="Cancel now" />
             <ActionBtn onClick={() => setupCard.mutate({ id })} icon={<CreditCard className="w-3.5 h-3.5" />} label={m.stripeCustomerId ? "Update card" : "Set up autopay"} />
           </div>
-
-          {/* Family cards on file (one payer, shared across their students) */}
-          <div>
-            <h3 className="text-sm font-bold text-[#1a2d5a] mb-2">Cards on file{billing.data?.payer ? ` · ${billing.data.payer.name}` : ""}</h3>
-            <div className="flex items-center gap-2 text-sm mb-2 flex-wrap">
-              <span className="text-gray-500">Family payer:</span>
-              <select value={m.payerId ?? ""} onChange={e => onPickPayer(e.target.value)} disabled={assignPayer.isPending}
-                className="border border-gray-300 rounded-lg px-2 py-1 text-sm">
-                <option value="">— not assigned —</option>
-                {(payers.data ?? []).map(p => <option key={p.id} value={p.id}>{p.name}{p.hasCard ? " (card on file)" : ""}</option>)}
-                <option value="__new__">+ New payer...</option>
-              </select>
-              {billing.data?.siblings && billing.data.siblings.length > 0 && (
-                <span className="text-xs text-gray-500">shares this payer's card with: {billing.data.siblings.map(s => s.student).join(", ")}</span>
-              )}
-            </div>
-            {(billing.data?.cards ?? []).length === 0 ? (
-              <div className="text-xs text-gray-400 border border-dashed border-gray-200 rounded-lg p-3">No card yet. Click <strong>Set up autopay</strong> above to add one on Stripe's secure page. The card lives on the family payer, so it can cover this student's siblings too.</div>
-            ) : (
-              <>
-                <div className="border border-gray-200 rounded-lg divide-y divide-gray-100">
-                  {billing.data!.cards.map(c => (
-                    <div key={c.id} className="flex items-center gap-3 px-3 py-2 text-sm">
-                      <CreditCard className="w-4 h-4 text-gray-400 shrink-0" />
-                      <span className="capitalize">{c.brand}</span>
-                      <span className="tabular-nums text-gray-600">···· {c.last4}</span>
-                      {c.exp ? <span className="text-xs text-gray-400">exp {c.exp}</span> : null}
-                      {c.primary
-                        ? <span className="ml-auto text-[10px] uppercase tracking-wide text-green-700 bg-green-100 border border-green-200 rounded px-1.5 py-0.5">Primary</span>
-                        : <button onClick={() => setPrimary.mutate({ id, paymentMethodId: c.id })} disabled={setPrimary.isPending} className="ml-auto text-xs text-[#1a2d5a] hover:underline">Make primary</button>}
-                    </div>
-                  ))}
-                </div>
-                <p className="text-[11px] text-gray-400 mt-1">Charges draw from the <strong>primary</strong> card. This payer's card also covers other students in the family.</p>
-              </>
-            )}
-          </div>
-
-          {/* Financials */}
-          <div>
-            <h3 className="text-sm font-bold text-[#1a2d5a] mb-2">Financials (monthly charges)</h3>
-            <div className="border border-gray-200 rounded-lg overflow-hidden">
-              <table className="w-full text-sm">
-                <thead><tr className="bg-gray-50 text-left text-xs text-gray-500"><th className="px-3 py-2">Month</th><th className="px-3 py-2">Amount</th><th className="px-3 py-2">Status</th><th className="px-3 py-2 text-right">Edit</th></tr></thead>
-                <tbody>
-                  {charges.length === 0 ? (
-                    <tr><td colSpan={4} className="px-3 py-6 text-center text-gray-400">No charges scheduled.</td></tr>
-                  ) : charges.map(ch => (
-                    <tr key={ch.id} className="border-t border-gray-100">
-                      <td className="px-3 py-2 tabular-nums">{ch.periodMonth}</td>
-                      <td className={`px-3 py-2 tabular-nums ${CHARGE_STYLE[ch.status] ?? ""}`}>{fmt(ch.amountCents)}{ch.amountCents !== ch.baseAmountCents ? <span className="text-[10px] text-gray-400 line-through ml-1">{fmt(ch.baseAmountCents)}</span> : null}</td>
-                      <td className="px-3 py-2"><span className="text-xs text-gray-500">{ch.status}</span>{ch.note ? <span className="text-[10px] text-gray-400"> · {ch.note}</span> : null}</td>
-                      <td className="px-3 py-2 text-right whitespace-nowrap">
-                        <button onClick={() => editCharge(ch.id, ch.amountCents)} className="text-xs text-[#1a2d5a] hover:underline mr-2">Edit</button>
-                        <button onClick={() => adjust.mutate({ chargeId: ch.id, amountCents: 0, status: "waived", note: "Waived" })} className="text-xs text-amber-700 hover:underline mr-2">Waive</button>
-                        <button onClick={() => adjust.mutate({ chargeId: ch.id, status: "canceled", note: "Canceled" })} className="text-xs text-gray-500 hover:text-red-600 hover:underline">Cancel</button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
         </div>
-      )}
-    </Overlay>
+      </PanelSection>
+
+      {/* Family cards on file (one payer, shared across their students) */}
+      <PanelSection title={`Cards on file${billing.data?.payer ? ` · ${billing.data.payer.name}` : ""}`}>
+        <div className="flex items-center gap-2 text-sm mb-2 flex-wrap">
+          <span className="text-gray-500">Family payer:</span>
+          <select value={m.payerId ?? ""} onChange={e => onPickPayer(e.target.value)} disabled={assignPayer.isPending}
+            className="border border-gray-300 rounded-lg px-2 py-1 text-sm">
+            <option value="">— not assigned —</option>
+            {(payers.data ?? []).map(p => <option key={p.id} value={p.id}>{p.name}{p.hasCard ? " (card on file)" : ""}</option>)}
+            <option value="__new__">+ New payer...</option>
+          </select>
+          {billing.data?.siblings && billing.data.siblings.length > 0 && (
+            <span className="text-xs text-gray-500">shares this payer's card with: {billing.data.siblings.map(s => s.student).join(", ")}</span>
+          )}
+        </div>
+        {(billing.data?.cards ?? []).length === 0 ? (
+          <div className="text-xs text-gray-400 border border-dashed border-gray-200 rounded-lg p-3">No card yet. Click <strong>Set up autopay</strong> above to add one on Stripe's secure page. The card lives on the family payer, so it can cover this student's siblings too.</div>
+        ) : (
+          <>
+            <div className="border border-gray-200 rounded-lg divide-y divide-gray-100">
+              {billing.data!.cards.map(c => (
+                <div key={c.id} className="flex items-center gap-3 px-3 py-2 text-sm">
+                  <CreditCard className="w-4 h-4 text-gray-400 shrink-0" />
+                  <span className="capitalize">{c.brand}</span>
+                  <span className="tabular-nums text-gray-600">···· {c.last4}</span>
+                  {c.exp ? <span className="text-xs text-gray-400">exp {c.exp}</span> : null}
+                  {c.primary
+                    ? <span className="ml-auto text-[10px] uppercase tracking-wide text-green-700 bg-green-100 border border-green-200 rounded px-1.5 py-0.5">Primary</span>
+                    : <button onClick={() => setPrimary.mutate({ id, paymentMethodId: c.id })} disabled={setPrimary.isPending} className="ml-auto text-xs text-[#1a2d5a] hover:underline">Make primary</button>}
+                </div>
+              ))}
+            </div>
+            <p className="text-[11px] text-gray-400 mt-1">Charges draw from the <strong>primary</strong> card. This payer's card also covers other students in the family.</p>
+          </>
+        )}
+      </PanelSection>
+
+      {/* Financials */}
+      <PanelSection title="Financials (monthly charges)" defaultOpen={false}>
+        <div className="border border-gray-200 rounded-lg overflow-hidden">
+          <table className="w-full text-sm">
+            <thead><tr className="bg-gray-50 text-left text-xs text-gray-500"><th className="px-3 py-2">Month</th><th className="px-3 py-2">Amount</th><th className="px-3 py-2">Status</th><th className="px-3 py-2 text-right">Edit</th></tr></thead>
+            <tbody>
+              {charges.length === 0 ? (
+                <tr><td colSpan={4} className="px-3 py-6 text-center text-gray-400">No charges scheduled.</td></tr>
+              ) : charges.map(ch => (
+                <tr key={ch.id} className="border-t border-gray-100">
+                  <td className="px-3 py-2 tabular-nums">{ch.periodMonth}</td>
+                  <td className={`px-3 py-2 tabular-nums ${CHARGE_STYLE[ch.status] ?? ""}`}>{fmt(ch.amountCents)}{ch.amountCents !== ch.baseAmountCents ? <span className="text-[10px] text-gray-400 line-through ml-1">{fmt(ch.baseAmountCents)}</span> : null}</td>
+                  <td className="px-3 py-2"><span className="text-xs text-gray-500">{ch.status}</span>{ch.note ? <span className="text-[10px] text-gray-400"> · {ch.note}</span> : null}</td>
+                  <td className="px-3 py-2 text-right whitespace-nowrap">
+                    <button onClick={() => editCharge(ch.id, ch.amountCents)} className="text-xs text-[#1a2d5a] hover:underline mr-2">Edit</button>
+                    <button onClick={() => adjust.mutate({ chargeId: ch.id, amountCents: 0, status: "waived", note: "Waived" })} className="text-xs text-amber-700 hover:underline mr-2">Waive</button>
+                    <button onClick={() => adjust.mutate({ chargeId: ch.id, status: "canceled", note: "Canceled" })} className="text-xs text-gray-500 hover:text-red-600 hover:underline">Cancel</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </PanelSection>
+    </div>
+  );
+}
+
+function PanelSection({ title, defaultOpen = true, children }: { title: string; defaultOpen?: boolean; children: React.ReactNode }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="border border-gray-200 rounded-lg overflow-hidden">
+      <button onClick={() => setOpen(o => !o)} className="w-full flex items-center justify-between px-3 py-2 bg-gray-50 hover:bg-gray-100 text-sm font-semibold text-[#1a2d5a]">
+        <span className="truncate">{title}</span>{open ? <ChevronDown className="w-4 h-4 shrink-0" /> : <ChevronRight className="w-4 h-4 shrink-0" />}
+      </button>
+      {open && <div className="p-3">{children}</div>}
+    </div>
   );
 }
 

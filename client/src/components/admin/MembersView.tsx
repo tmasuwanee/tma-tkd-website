@@ -5,7 +5,8 @@ import {
   Loader2, Users, UserPlus, Search, CheckCircle2, AlertTriangle, FileText,
   CalendarCheck, CreditCard,
 } from "lucide-react";
-import { CreateForm, MembershipDetailModal } from "@/components/admin/MembershipsView";
+import { CreateForm } from "@/components/admin/MembershipsView";
+import { useMemberDock } from "@/components/admin/MemberDock";
 
 /**
  * Members — the unified People→Members screen. One row per person, unioned from
@@ -47,13 +48,13 @@ export default function MembersView() {
   const [tab, setTab] = useState("all");
   const [q, setQ] = useState("");
   const [creating, setCreating] = useState(false);
-  const [openMembershipId, setOpenMembershipId] = useState<number | null>(null);
+  const dock = useMemberDock();
 
-  // Deep-link ?open=<membershipId> (assistant / other views) opens the popup.
+  // Deep-link ?open=<membershipId> (assistant / other views) opens the docked panel.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const openId = params.get("open");
-    if (openId && /^\d+$/.test(openId)) setOpenMembershipId(Number(openId));
+    if (openId && /^\d+$/.test(openId)) dock.open(Number(openId));
     if (params.get("autopay") === "ok") toast.success("Autopay set up — card is on file.");
     if (openId || params.get("autopay")) {
       params.delete("open"); params.delete("autopay");
@@ -63,7 +64,7 @@ export default function MembersView() {
   }, []);
 
   const setupBilling = trpc.members.setupAfterschoolBilling.useMutation({
-    onSuccess: (r) => { toast.success("Membership created. Set the amount and card here."); refresh(); setOpenMembershipId(r.membershipId); },
+    onSuccess: (r) => { toast.success("Membership created. Set the amount and card here."); refresh(); dock.open(r.membershipId); },
     onError: (e) => toast.error(e.message),
   });
 
@@ -135,7 +136,7 @@ export default function MembersView() {
               <tbody>
                 {filtered.map(m => (
                   <MemberRow key={m.key} m={m}
-                    onOpen={() => { if (m.primaryMembershipId) setOpenMembershipId(m.primaryMembershipId); }}
+                    onOpen={() => { if (m.primaryMembershipId) dock.open(m.primaryMembershipId, m.name); }}
                     onSetupBilling={() => { if (m.afterschoolRegId) setupBilling.mutate({ afterschoolRegId: m.afterschoolRegId }); }}
                     setupPending={setupBilling.isPending} />
                 ))}
@@ -149,9 +150,6 @@ export default function MembersView() {
       </div>
 
       {creating && <CreateForm onClose={() => setCreating(false)} onCreated={refresh} />}
-      {openMembershipId !== null && (
-        <MembershipDetailModal id={openMembershipId} onClose={() => setOpenMembershipId(null)} onChanged={refresh} />
-      )}
     </div>
   );
 }

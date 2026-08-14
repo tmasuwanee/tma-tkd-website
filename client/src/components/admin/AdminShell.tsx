@@ -38,6 +38,7 @@ import MembersView from "@/components/admin/MembersView";
 import TrialsView from "@/components/admin/TrialsView";
 import CampsView from "@/components/admin/CampsView";
 import DayCampView from "@/components/admin/DayCampView";
+import { MemberDockProvider } from "@/components/admin/MemberDock";
 
 // Keys double as URL segments (/admin/<key>). They match the old standalone
 // routes where possible (/admin/calls, /admin/checkin, /admin/call-log,
@@ -214,6 +215,7 @@ export default function AdminShell() {
   };
 
   return (
+    <MemberDockProvider>
     <div className="min-h-screen bg-gray-50 flex">
       {/* Sidebar */}
       <aside className={`fixed inset-y-0 left-0 z-30 w-60 bg-white border-r border-gray-200 flex flex-col transition-transform md:translate-x-0 ${mobileOpen ? "translate-x-0" : "-translate-x-full"}`}>
@@ -279,5 +281,6 @@ export default function AdminShell() {
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
       <AssistantPanel open={assistantOpen} onClose={() => setAssistantOpen(false)} />
     </div>
+    </MemberDockProvider>
   );
 }
