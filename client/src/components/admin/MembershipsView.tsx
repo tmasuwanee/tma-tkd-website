@@ -207,7 +207,8 @@ export function MemberPanelBody({ id, onChanged, onName }: { id: number; onChang
 
   useEffect(() => { if (m?.studentName) onName?.(m.studentName); }, [m?.studentName]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (q.isLoading || !m) return <div className="py-10 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></div>;
+  if (q.isLoading) return <div className="py-10 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></div>;
+  if (!m) return <div className="py-8 text-center text-sm text-gray-400">This membership no longer exists. Close this panel.</div>;
 
   return (
     <div className="space-y-3">

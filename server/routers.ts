@@ -2083,20 +2083,28 @@ export const appRouter = router({
       .mutation(async ({ input }) => {
         const reg = (await getAfterschoolRegistrations()).find(r => r.id === input.afterschoolRegId);
         if (!reg) throw new Error("Afterschool registration not found.");
+        // Idempotency (rule D8): a double-click / repeat call must not create a
+        // second afterschool membership (with a second 12-month charge schedule).
+        // Reuse an existing afterschool membership for the same child + email.
+        const norm = (s: string | null | undefined) => (s ?? "").trim().toLowerCase();
+        const existing = (await listMemberships()).find(m =>
+          m.program === "afterschool" && norm(m.studentName) === norm(reg.childName) && norm(m.email) === norm(reg.email));
+        if (existing) return { membershipId: existing.id, existed: true };
         const monthly = reg.monthlyAmountCents ?? (reg.planType === "4_5_day" ? 500_00 : 400_00);
         const planLabel = reg.planType === "4_5_day" ? "4–5 Day/Week" : "2–3 Day/Week";
         const { id } = await createMembership({
           studentName: reg.childName, parentName: reg.parentName, email: reg.email, phone: reg.phone,
           program: "afterschool", planLabel, monthlyAmountCents: monthly,
         });
-        return { membershipId: id };
+        return { membershipId: id, existed: false };
       }),
   }),
 
   // Pro Shop specials — staff-managed promotions/offers with a shareable link and
   // a printable flyer. Informational (no payment/PII here); the linked pay page
-  // still executes the charge. list is public so a future storefront can read
-  // active specials; writes are admin-gated by default-deny.
+  // still executes the charge. All endpoints are admin-gated by default-deny (only
+  // the authed dashboard reads them today). If a public storefront ever needs
+  // listActive, add just that path to PUBLIC_PATHS in server/_core/trpc.ts.
   specials: router({
     list: publicProcedure.query(async () => listSpecials()),
     listActive: publicProcedure.query(async () => listSpecials(true)),

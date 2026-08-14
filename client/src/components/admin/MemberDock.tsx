@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback } from "react";
+import { createContext, useContext, useState, useCallback, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { X, Minus, ChevronUp, CreditCard } from "lucide-react";
 import { MemberPanelBody } from "@/components/admin/MembershipsView";
@@ -42,11 +42,15 @@ export function MemberDockProvider({ children }: { children: React.ReactNode }) 
   const toggleMin = useCallback((membershipId: number) => setPanels(prev => prev.map(p => p.id === membershipId ? { ...p, minimized: !p.minimized } : p)), []);
   const setName = useCallback((membershipId: number, name: string) => setPanels(prev => prev.map(p => p.id === membershipId ? { ...p, name } : p)), []);
   const onChanged = useCallback(() => { utils.members.list.invalidate(); utils.members.overview.invalidate(); }, [utils]);
+  const ctxValue = useMemo(() => ({ open, close, openIds: panels.map(p => p.id) }), [open, close, panels]);
 
   return (
-    <MemberDockCtx.Provider value={{ open, close, openIds: panels.map(p => p.id) }}>
+    <MemberDockCtx.Provider value={ctxValue}>
       {children}
-      <div className="fixed bottom-0 right-0 z-40 flex items-end gap-3 p-3 pointer-events-none max-w-full overflow-x-auto">
+      {/* Outer layer positions the dock and stays click-through; the inner scroller
+          owns overflow AND pointer events so off-screen panels remain reachable. */}
+      <div className="fixed bottom-0 right-0 z-40 max-w-full pointer-events-none">
+      <div className="flex items-end gap-3 p-3 max-w-full overflow-x-auto pointer-events-auto">
         {panels.map(p => (
           <div key={p.id} className="pointer-events-auto w-[370px] max-w-[92vw] bg-white rounded-t-xl shadow-2xl border border-gray-200 flex flex-col shrink-0" style={{ maxHeight: "82vh" }}>
             <div className="h-11 shrink-0 flex items-center gap-2 px-3 bg-[#1a2d5a] text-white rounded-t-xl cursor-pointer select-none" onClick={() => toggleMin(p.id)}>
@@ -64,6 +68,7 @@ export function MemberDockProvider({ children }: { children: React.ReactNode }) 
             )}
           </div>
         ))}
+      </div>
       </div>
     </MemberDockCtx.Provider>
   );

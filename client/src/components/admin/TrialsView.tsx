@@ -41,8 +41,9 @@ export default function TrialsView() {
   const past = rows.filter(t => ["converted", "expired", "canceled", "pending"].includes(t.status));
 
   // Free intro leads: booked a free class, not yet a paid 3-week. Exclude anyone
-  // who already has a paid trial on file (matched by email) so they don't double-show.
-  const paidEmails = new Set(rows.filter(t => t.status !== "pending" && t.email).map(t => String(t.email).toLowerCase()));
+  // who already has ANY trial on file (matched by email) — including a pending one,
+  // which already shows under Past as "Awaiting payment" — so they don't double-show.
+  const paidEmails = new Set(rows.filter(t => t.email).map(t => String(t.email).toLowerCase()));
   const introLeads = leads.filter((l: any) =>
     INTRO_STAGES.has(l.pipelineStage) && l.trialClassDate && !paidEmails.has(String(l.email ?? "").toLowerCase())
   );

@@ -205,12 +205,29 @@ function buildTools() {
       inputSchema: z.object({ membershipId: z.number().int().positive().optional(), query: z.string().optional().describe("name or email, if you don't have the id") }),
       execute: async ({ membershipId, query }) => {
         const all = await listMemberships();
-        let m = null as (typeof all)[number] | null;
-        if (membershipId) m = all.find(x => x.id === membershipId) ?? null;
-        else if (query) { const q = query.toLowerCase(); m = all.find(x => `${x.studentName} ${x.parentName ?? ""} ${x.email ?? ""}`.toLowerCase().includes(q)) ?? null; }
-        if (!m) return { found: false, note: query ? `No membership found matching "${query}". They may not have a membership set up yet.` : "No membership found for that id." };
-        // opened:true is the signal the chat UI reads to pop the docked panel open.
-        return { found: true, opened: true, membershipId: m.id, student: m.studentName, program: m.program, note: `Opened ${m.studentName}'s profile in the dashboard.` };
+        if (membershipId) {
+          const m = all.find(x => x.id === membershipId);
+          if (!m) return { found: false, note: `No membership with id ${membershipId}.` };
+          return { found: true, opened: true, membershipId: m.id, student: m.studentName, program: m.program, note: `Opened ${m.studentName}'s profile in the dashboard.` };
+        }
+        const q = (query ?? "").trim().toLowerCase();
+        if (!q) return { found: false, note: "Tell me which student to open (a name or email)." };
+        const matches = all.filter(x => `${x.studentName} ${x.parentName ?? ""} ${x.email ?? ""}`.toLowerCase().includes(q));
+        // Prefer an exact student-name match to avoid opening the wrong person.
+        const exact = matches.filter(x => x.studentName.trim().toLowerCase() === q);
+        const pick = exact.length === 1 ? exact : matches;
+        if (pick.length === 1) {
+          const m = pick[0];
+          // opened:true is the signal the chat UI reads to pop the docked panel open.
+          return { found: true, opened: true, membershipId: m.id, student: m.studentName, program: m.program, note: `Opened ${m.studentName}'s profile in the dashboard.` };
+        }
+        if (pick.length > 1) {
+          return { found: true, opened: false, ambiguous: true, candidates: pick.slice(0, 6).map(m => ({ id: m.id, student: m.studentName, parent: m.parentName, program: m.program })), note: "More than one match. Ask which one, then open by membership id." };
+        }
+        // No membership. They may be an afterschool signup with billing not set up yet.
+        const reg = (await getAfterschoolRegistrations()).find(r => `${r.childName} ${r.parentName} ${r.email}`.toLowerCase().includes(q));
+        if (reg) return { found: false, afterschoolOnly: true, child: reg.childName, note: `${reg.childName} is an afterschool signup with no membership yet. Staff can open Members and click "Set up billing" to create one; I can't open a profile until then.` };
+        return { found: false, note: `No student found matching "${query}".` };
       },
     }),
     getMembershipCharges: tool({
