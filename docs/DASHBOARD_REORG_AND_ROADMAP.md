@@ -101,3 +101,16 @@ Pro: captures revenue and fixes correctness/security before cosmetics; less staf
 - Archive/delete disabled n8n "Lead Intake v2".
 - Reconcile the double Retell path (in-app `voice-routes` `call_analyzed` + n8n "Retell Inbound Handler" `call_ended`) so a lead is not touched twice.
 - Confirm which lead-intake staff-alert path is source of truth (app `leads.submit` email vs n8n Lead Intake v3) before tuition events start firing, so nothing double-fires.
+
+---
+
+## SHIPPED 2026-08-14 — Members-centered reorg (Phases A–D)
+
+Rebuilt the dashboard around the person/family, matching the approved Members mock.
+
+- **A. Today quick wins.** Removed the "Call" button from Today's who-to-call rows; the whole row now opens the person's CRM record. "Not interested" kept.
+- **C. Members (unified).** New `People > Members` view = one row per person, unioned server-side (`server/members.ts`) from `memberships` + `afterschoolRegistrations` (matched by email, name fallback). Program tabs (All / TKD / KB / BJJ / After-School), stat tiles (Total / Active this month / Billing issues / Waivers missing), search, clickable rows opening the membership command-center popup. Afterschool-only members (no recurring billing) show a **Set up billing** action that promotes them to a real membership. Enrolled Families / Memberships / Students removed from nav, kept routable as aliases.
+- **B. Trials.** New `People > Trials` lifecycle screen: free intro classes (CRM leads booked, not yet paid) → active $99 3-week trials (21-day progress bar, days-left, inline editable start date that re-arms the reminder pings, convert/expire/cancel) → past trials by outcome. Rows open the person's record.
+- **D. Camps + nav.** Camp Registrations + Day Camp folded into one `Operations > Camps` view (sub-tabs + public signup/print links). Final nav = **People** (Members, Trials, Leads) / **Operations** (Calendar, After-School, Camps) / **Sales** (Pro Shop, Invoices) / **Admin** (Forms & Waivers, Approvals, Playbook, Links) / **Owner tools** (collapsed). All old `/admin/<key>` URLs still resolve.
+
+**Follow-ups (parked, not blocking):** Members popup could grow explicit Overview/Programs/Billing/Forms tabs (today it's the membership detail modal); Pro Shop "specials" objects (promotional product/discount records) not yet built; Telegram deep-links still point at `/admin/students` (a working alias) rather than `/admin/members`.
