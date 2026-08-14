@@ -60,13 +60,16 @@ import {
   listPendingActions,
   // Membership engine (2026-08-12)
   listMemberships, getMembership, listMembershipCharges,
+  // Day camp (2026-08-12)
+  insertDayCampSignup, markDayCampPaid, getDayCampSignupByPI, getDayCampSignups,
 } from "./db";
+import { dayCampTotalCents } from "@shared/dayCamp";
 import { sendTelegramMessage } from "./telegram";
 import { tuitionConfiguredFor, ensureStripeCustomer, createAfterschoolSubscription } from "./tuition";
 import { proposeAction, confirmAction, rejectAction } from "./action-flow";
 import { createMembership, changeMembership, setMembershipDiscount, pauseMembership, resumeMembership, cancelMembership, adjustCharge } from "./membership-ops";
 import { storagePut, storageGet } from "./storage";
-import { sendEmailNotification, sendProShopOrderNotification, sendCampRegistrationConfirmation, sendCampWaiverEmail, sendFieldTripConfirmation, sendTransportationForm, sendTrialReceipt, sendAfterschoolConfirmation, sendAfterschoolIntake, sendWaiverNotification } from "./integrations";
+import { sendEmailNotification, sendProShopOrderNotification, sendCampRegistrationConfirmation, sendCampWaiverEmail, sendFieldTripConfirmation, sendTransportationForm, sendTrialReceipt, sendAfterschoolConfirmation, sendAfterschoolIntake, sendWaiverNotification, sendReviewedEmail } from "./integrations";
 import { fillTransportationPdf } from "./transportation-pdf";
 import { buildAfterschoolIntakePdf } from "./afterschool-intake-pdf";
 import { buildInvoicePdf } from "./invoice-pdf";
@@ -2019,6 +2022,41 @@ export const appRouter = router({
     cancel: publicProcedure.input(z.object({ id: z.number().int().positive(), immediate: z.boolean() })).mutation(async ({ input }) => { await cancelMembership(input.id, { immediate: input.immediate }); return { ok: true }; }),
     adjustCharge: publicProcedure.input(z.object({ chargeId: z.number().int().positive(), amountCents: z.number().int().min(0).optional(), status: z.enum(["scheduled", "waived", "canceled", "paid"]).optional(), note: z.string().max(255).optional() }))
       .mutation(async ({ input, ctx }) => { const { chargeId, ...changes } = input; await adjustCharge(chargeId, changes, ctx.adminEmail ?? "admin"); return { ok: true }; }),
+  }),
+
+  // Day camp signups ($60/day). Parent-facing createIntent/confirm are public;
+  // list is admin-gated by default-deny.
+  dayCamp: router({
+    createIntent: publicProcedure.input(z.object({
+      childName: z.string().min(1).max(255),
+      parentName: z.string().min(1).max(255),
+      email: z.string().email().nullable().optional(),
+      phone: z.string().max(40).nullable().optional(),
+      dates: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).min(1).max(30),
+    })).mutation(async ({ input }) => {
+      const amount = dayCampTotalCents(input.dates.length);
+      const stripe = getStripe();
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount, currency: "usd", payment_method_types: ["card"],
+        ...(input.email ? { receipt_email: input.email } : {}),
+        metadata: { product: "day_camp", childName: input.childName, parentName: input.parentName, email: input.email ?? "", dates: input.dates.join(", "), dayCount: String(input.dates.length) },
+      });
+      await insertDayCampSignup({ childName: input.childName, parentName: input.parentName, email: input.email ?? null, phone: input.phone ?? null, dates: input.dates, amountCents: amount, stripePaymentIntentId: paymentIntent.id });
+      return { clientSecret: paymentIntent.client_secret, paymentIntentId: paymentIntent.id, amount };
+    }),
+    confirm: publicProcedure.input(z.object({ paymentIntentId: z.string() })).mutation(async ({ input }) => {
+      const stripe = getStripe();
+      const pi = await stripe.paymentIntents.retrieve(input.paymentIntentId);
+      await markDayCampPaid(pi.id, pi.status);
+      if (pi.status === "succeeded") {
+        const s = await getDayCampSignupByPI(pi.id);
+        const m = pi.metadata || {};
+        void sendTelegramMessage(`☀️ <b>Day camp signup PAID</b>\n${m.childName || s?.childName} · ${m.dates || ""}\n$${(pi.amount / 100).toFixed(2)} · ${m.parentName || s?.parentName}`).catch(() => {});
+        if (m.email) void sendReviewedEmail(m.email, "Your TMA day-camp signup is confirmed", `<div style="font-family:Arial,sans-serif;color:#1a2233;">Thanks ${m.parentName || ""}! ${m.childName || "Your child"} is signed up for day camp on <strong>${m.dates || "the selected day(s)"}</strong>. Total paid: $${(pi.amount / 100).toFixed(2)}. Morning drop-off. Questions? Call or text (770) 277-3009.</div>`).catch(() => {});
+      }
+      return { status: pi.status };
+    }),
+    list: publicProcedure.query(async () => getDayCampSignups()),
   }),
 
   // Global admin search (Cmd/Ctrl-K palette): find a lead, student, or afterschool

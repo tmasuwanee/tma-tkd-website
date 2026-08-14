@@ -3197,6 +3197,46 @@ export async function updateMembershipCharge(id: number, fields: Partial<{ amoun
   await db.execute(sql`UPDATE membershipCharges SET ${sql.join(sets, sql`, `)} WHERE id = ${id}`);
 }
 
+// ─── Day camp signups ────────────────────────────────────────────────────────
+export type DayCampSignupRow = {
+  id: number; childName: string; parentName: string; email: string | null; phone: string | null;
+  dates: string; dayCount: number; amountCents: number; source: string;
+  stripePaymentStatus: string; createdAt: string | Date; paidAt: string | Date | null;
+};
+
+export async function insertDayCampSignup(p: {
+  childName: string; parentName: string; email?: string | null; phone?: string | null;
+  dates: string[]; amountCents: number; source?: string; stripePaymentIntentId?: string | null;
+}): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [r] = await db.execute(
+    sql`INSERT INTO dayCampSignups (childName, parentName, email, phone, dates, dayCount, amountCents, source, stripePaymentIntentId, stripePaymentStatus, createdAt)
+        VALUES (${p.childName}, ${p.parentName}, ${p.email ?? null}, ${p.phone ?? null}, ${JSON.stringify(p.dates)}, ${p.dates.length}, ${p.amountCents}, ${p.source ?? "online"}, ${p.stripePaymentIntentId ?? null}, ${p.source === "in_person" ? "unpaid" : "pending"}, NOW())`
+  ) as unknown as [{ insertId: number }];
+  return r?.insertId ?? 0;
+}
+
+export async function markDayCampPaid(stripePaymentIntentId: string, status: string): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.execute(sql`UPDATE dayCampSignups SET stripePaymentStatus = ${status}, paidAt = ${status === "succeeded" ? sql`NOW()` : sql`paidAt`} WHERE stripePaymentIntentId = ${stripePaymentIntentId}`);
+}
+
+export async function getDayCampSignupByPI(stripePaymentIntentId: string): Promise<DayCampSignupRow | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const [rows] = await db.execute(sql`SELECT id, childName, parentName, email, phone, dates, dayCount, amountCents, source, stripePaymentStatus, createdAt, paidAt FROM dayCampSignups WHERE stripePaymentIntentId = ${stripePaymentIntentId} LIMIT 1`) as unknown as [DayCampSignupRow[]];
+  return Array.isArray(rows) && rows[0] ? rows[0] : null;
+}
+
+export async function getDayCampSignups(): Promise<DayCampSignupRow[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const [rows] = await db.execute(sql`SELECT id, childName, parentName, email, phone, dates, dayCount, amountCents, source, stripePaymentStatus, createdAt, paidAt FROM dayCampSignups ORDER BY createdAt DESC`) as unknown as [DayCampSignupRow[]];
+  return Array.isArray(rows) ? rows : [];
+}
+
 // ─── Afterschool Roster ───────────────────────────────────────────────────────
 export type RosterStudent = {
   id: number;

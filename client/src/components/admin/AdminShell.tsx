@@ -6,7 +6,7 @@ import {
   Kanban, ClipboardCheck, Phone, PhoneOutgoing, Mail, Route as RouteIcon,
   BarChart2, GraduationCap, CalendarCheck, ShieldAlert, Camera, LogOut,
   Menu, PhoneCall, CalendarDays, CheckSquare, FileSignature, Link2, BookOpen,
-  ShoppingBag, Users, ClipboardList, FileText, Home, ChevronDown, ChevronRight, Search, Sparkles, ShieldCheck, CreditCard,
+  ShoppingBag, Users, ClipboardList, FileText, Home, ChevronDown, ChevronRight, Search, Sparkles, ShieldCheck, CreditCard, Sun,
 } from "lucide-react";
 import { CallsApp } from "@/pages/AdminTodaysCalls";
 import { CallLogApp } from "@/pages/AdminCallLog";
@@ -34,6 +34,7 @@ import CommandPalette from "@/components/admin/CommandPalette";
 import AssistantPanel from "@/components/admin/AssistantPanel";
 import PendingActionsView from "@/components/admin/PendingActionsView";
 import MembershipsView from "@/components/admin/MembershipsView";
+import DayCampView from "@/components/admin/DayCampView";
 
 // Keys double as URL segments (/admin/<key>). They match the old standalone
 // routes where possible (/admin/calls, /admin/checkin, /admin/call-log,
@@ -41,7 +42,7 @@ import MembershipsView from "@/components/admin/MembershipsView";
 type ViewKey =
   | "today" | "calls" | "calendar" | "leads" | "checkin" | "waivers" | "call-log" | "voice-test"
   | "sequences" | "rules" | "ads" | "students" | "camp" | "controls" | "studio" | "tasks" | "links" | "playbook"
-  | "orders" | "enrolled" | "afterschool-roster" | "invoices" | "approvals" | "memberships";
+  | "orders" | "enrolled" | "afterschool-roster" | "invoices" | "approvals" | "memberships" | "day-camp";
 
 type NavItem = { key: ViewKey; label: string; icon: any };
 type NavGroup = { group: string; items: NavItem[]; collapsible?: boolean };
@@ -70,6 +71,7 @@ const NAV: NavGroup[] = [
   { group: "Money", items: [
     { key: "orders", label: "Orders", icon: ShoppingBag },
     { key: "camp", label: "Camp Registrations", icon: CalendarCheck },
+    { key: "day-camp", label: "Day Camp", icon: Sun },
     { key: "invoices", label: "Invoice Generator", icon: FileText },
   ]},
   { group: "Tools", items: [
@@ -131,6 +133,7 @@ function renderView(key: ViewKey, email: string) {
     case "afterschool-roster": return <AfterschoolRosterView />;
     case "approvals": return <PendingActionsView />;
     case "memberships": return <MembershipsView />;
+    case "day-camp": return <DayCampView />;
   }
 }
 

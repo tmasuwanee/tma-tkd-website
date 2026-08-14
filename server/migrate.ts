@@ -172,6 +172,25 @@ const MIGRATIONS: { name: string; sql: string }[] = [
       "createdAt DATETIME NOT NULL, " +
       "UNIQUE KEY uniq_membership_period (membershipId, periodMonth))",
   },
+  {
+    // 2026-08-12: day-camp signups ($60/day). One row per signup; dates is a JSON
+    // array of YYYY-MM-DD the parent selected.
+    name: "dayCampSignups table",
+    sql: "CREATE TABLE IF NOT EXISTS dayCampSignups (" +
+      "id BIGINT PRIMARY KEY AUTO_INCREMENT, " +
+      "childName VARCHAR(255) NOT NULL, " +
+      "parentName VARCHAR(255) NOT NULL, " +
+      "email VARCHAR(320) NULL, " +
+      "phone VARCHAR(40) NULL, " +
+      "dates TEXT NOT NULL, " +
+      "dayCount INT NOT NULL, " +
+      "amountCents INT NOT NULL, " +
+      "source VARCHAR(24) NOT NULL DEFAULT 'online', " +
+      "stripePaymentIntentId VARCHAR(255) NULL, " +
+      "stripePaymentStatus VARCHAR(32) NOT NULL DEFAULT 'pending', " +
+      "createdAt DATETIME NOT NULL, " +
+      "paidAt DATETIME NULL)",
+  },
 ];
 
 export async function runStartupMigrations(): Promise<void> {
