@@ -241,5 +241,5 @@
 - [x] Set OPENAI_ASSISTANT_MODEL to gpt-5, restart the server, and validate assistant routing with that model
 - [x] Pull commit a776537 and validate assistant configuration, disabled billing gates, additive migrations, Memberships, and Day Camp locally
 - [ ] After publishing commit a776537, verify live tables, dashboard items, membership ledger actions, assistant proposal flow, day-camp pages, and parent-facing pages
-- [ ] Pull commit 3e26e50 and validate assistant configuration, disabled billing gates, payer schema, membership card-linking tools, Day Camp, and public flows locally
+- [x] Pull commit 3e26e50 and validate assistant configuration, disabled billing gates, payer schema, membership card-linking tools, Day Camp, and public flows locally
 - [ ] After publishing commit 3e26e50, verify live payer schema, membership payer assignment, assistant approval proposal, Day Camp pages, and public flows
