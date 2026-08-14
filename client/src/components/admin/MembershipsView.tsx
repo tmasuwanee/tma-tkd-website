@@ -158,6 +158,11 @@ function DetailModal({ id, onClose, onChanged }: { id: number; onClose: () => vo
     onSuccess: (r) => { if (r?.url) window.open(r.url, "_blank", "noopener"); else toast.error("Stripe not configured."); },
     onError: (e) => toast.error(e.message ?? "Failed."),
   });
+  const billing = trpc.memberships.billing.useQuery({ id });
+  const setPrimary = trpc.memberships.setPrimaryCard.useMutation({
+    onSuccess: () => { utils.memberships.billing.invalidate({ id }); toast.success("Primary card updated."); },
+    onError: (e) => toast.error(e.message ?? "Failed."),
+  });
 
   const m = q.data?.membership;
   const charges = q.data?.charges ?? [];
@@ -208,6 +213,31 @@ function DetailModal({ id, onClose, onChanged }: { id: number; onClose: () => vo
             <ActionBtn onClick={() => { if (window.confirm("Schedule cancellation with a 60-day notice? They can attend until then.")) cancel.mutate({ id, immediate: false }); }} icon={<Ban className="w-3.5 h-3.5" />} label="Cancel (60-day)" />
             <ActionBtn danger onClick={() => { if (window.confirm("Cancel this membership IMMEDIATELY? This ends it now.")) cancel.mutate({ id, immediate: true }); }} icon={<Ban className="w-3.5 h-3.5" />} label="Cancel now" />
             <ActionBtn onClick={() => setupCard.mutate({ id })} icon={<CreditCard className="w-3.5 h-3.5" />} label={m.stripeCustomerId ? "Update card" : "Set up autopay"} />
+          </div>
+
+          {/* Family cards on file (one payer, shared across their students) */}
+          <div>
+            <h3 className="text-sm font-bold text-[#1a2d5a] mb-2">Cards on file{billing.data?.payer ? ` · ${billing.data.payer.name}` : ""}</h3>
+            {(billing.data?.cards ?? []).length === 0 ? (
+              <div className="text-xs text-gray-400 border border-dashed border-gray-200 rounded-lg p-3">No card yet. Click <strong>Set up autopay</strong> above to add one on Stripe's secure page. The card lives on the family payer, so it can cover this student's siblings too.</div>
+            ) : (
+              <>
+                <div className="border border-gray-200 rounded-lg divide-y divide-gray-100">
+                  {billing.data!.cards.map(c => (
+                    <div key={c.id} className="flex items-center gap-3 px-3 py-2 text-sm">
+                      <CreditCard className="w-4 h-4 text-gray-400 shrink-0" />
+                      <span className="capitalize">{c.brand}</span>
+                      <span className="tabular-nums text-gray-600">···· {c.last4}</span>
+                      {c.exp ? <span className="text-xs text-gray-400">exp {c.exp}</span> : null}
+                      {c.primary
+                        ? <span className="ml-auto text-[10px] uppercase tracking-wide text-green-700 bg-green-100 border border-green-200 rounded px-1.5 py-0.5">Primary</span>
+                        : <button onClick={() => setPrimary.mutate({ id, paymentMethodId: c.id })} disabled={setPrimary.isPending} className="ml-auto text-xs text-[#1a2d5a] hover:underline">Make primary</button>}
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[11px] text-gray-400 mt-1">Charges draw from the <strong>primary</strong> card. This payer's card also covers other students in the family.</p>
+              </>
+            )}
           </div>
 
           {/* Financials */}

@@ -24,7 +24,7 @@ import type { Request, Response } from "express";
 import Stripe from "stripe";
 import { ENV } from "./_core/env";
 import { sendTelegramMessage } from "./telegram";
-import { updateSubscriptionByStripeId, updateMembership } from "./db";
+import { updateSubscriptionByStripeId, updateMembership, updatePayerStripeCustomer } from "./db";
 
 export async function handleStripeWebhook(req: Request, res: Response): Promise<void> {
   const secret = ENV.tmaStripeWebhookSecret;
@@ -102,11 +102,12 @@ export async function handleStripeWebhook(req: Request, res: Response): Promise<
         break;
       }
       case "checkout.session.completed": {
-        // Membership autopay card setup: attach the collected card as the
-        // customer's default and link the customer to the membership.
+        // Card setup: attach the collected card as the customer's default (primary)
+        // and link the customer to the family payer (or membership, legacy).
         const session = event.data.object as Stripe.Checkout.Session;
+        const payerId = session.metadata?.payerId;
         const membershipId = session.metadata?.membershipId;
-        if (session.mode === "setup" && membershipId && session.customer) {
+        if (session.mode === "setup" && session.customer && (payerId || membershipId)) {
           try {
             const si = await stripe.setupIntents.retrieve(String(session.setup_intent));
             const pm = si.payment_method as string | null;
@@ -114,8 +115,9 @@ export async function handleStripeWebhook(req: Request, res: Response): Promise<
           } catch (e) {
             console.error("[stripe-webhook] setup attach failed:", e);
           }
-          await updateMembership(Number(membershipId), { stripeCustomerId: String(session.customer) });
-          void sendTelegramMessage(`💳 <b>Autopay set up</b>\nMembership #${membershipId}`).catch(() => {});
+          if (payerId) await updatePayerStripeCustomer(Number(payerId), String(session.customer));
+          else if (membershipId) await updateMembership(Number(membershipId), { stripeCustomerId: String(session.customer) });
+          void sendTelegramMessage(`💳 <b>Card saved</b>\n${payerId ? `Payer #${payerId}` : `Membership #${membershipId}`}`).catch(() => {});
         }
         break;
       }

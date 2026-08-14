@@ -3079,24 +3079,25 @@ export type MembershipRow = {
   contractNote: string | null;
   cancelEffectiveDate: string | Date | null;
   canceledAt: string | Date | null;
+  payerId: number | null;
   createdAt: string | Date;
 };
 
-const MEMBERSHIP_COLS = sql`id, studentName, parentName, email, phone, leadId, program, planLabel, monthlyAmountCents, discountCents, discountNote, status, startDate, termMonths, billingDay, stripeCustomerId, stripeSubscriptionId, contractNote, cancelEffectiveDate, canceledAt, createdAt`;
+const MEMBERSHIP_COLS = sql`id, studentName, parentName, email, phone, leadId, program, planLabel, monthlyAmountCents, discountCents, discountNote, status, startDate, termMonths, billingDay, stripeCustomerId, stripeSubscriptionId, contractNote, cancelEffectiveDate, canceledAt, payerId, createdAt`;
 
 export async function insertMembership(p: {
   studentName: string; parentName?: string | null; email?: string | null; phone?: string | null;
   leadId?: number | null; program: string; planLabel?: string | null; monthlyAmountCents: number;
   discountCents?: number; discountNote?: string | null; status?: string; startDate?: string | null;
   termMonths?: number | null; billingDay?: number | null; contractNote?: string | null;
-  stripeCustomerId?: string | null; stripeSubscriptionId?: string | null;
+  stripeCustomerId?: string | null; stripeSubscriptionId?: string | null; payerId?: number | null;
 }): Promise<number> {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   const [r] = await db.execute(
     sql`INSERT INTO memberships
-      (studentName, parentName, email, phone, leadId, program, planLabel, monthlyAmountCents, discountCents, discountNote, status, startDate, termMonths, billingDay, stripeCustomerId, stripeSubscriptionId, contractNote, createdAt)
-      VALUES (${p.studentName}, ${p.parentName ?? null}, ${p.email ?? null}, ${p.phone ?? null}, ${p.leadId ?? null}, ${p.program}, ${p.planLabel ?? null}, ${p.monthlyAmountCents}, ${p.discountCents ?? 0}, ${p.discountNote ?? null}, ${p.status ?? "active"}, ${p.startDate ?? null}, ${p.termMonths ?? 12}, ${p.billingDay ?? null}, ${p.stripeCustomerId ?? null}, ${p.stripeSubscriptionId ?? null}, ${p.contractNote ?? null}, NOW())`
+      (studentName, parentName, email, phone, leadId, program, planLabel, monthlyAmountCents, discountCents, discountNote, status, startDate, termMonths, billingDay, stripeCustomerId, stripeSubscriptionId, contractNote, payerId, createdAt)
+      VALUES (${p.studentName}, ${p.parentName ?? null}, ${p.email ?? null}, ${p.phone ?? null}, ${p.leadId ?? null}, ${p.program}, ${p.planLabel ?? null}, ${p.monthlyAmountCents}, ${p.discountCents ?? 0}, ${p.discountNote ?? null}, ${p.status ?? "active"}, ${p.startDate ?? null}, ${p.termMonths ?? 12}, ${p.billingDay ?? null}, ${p.stripeCustomerId ?? null}, ${p.stripeSubscriptionId ?? null}, ${p.contractNote ?? null}, ${p.payerId ?? null}, NOW())`
   ) as unknown as [{ insertId: number }];
   return r?.insertId ?? 0;
 }
@@ -3124,6 +3125,7 @@ type MembershipUpdate = Partial<{
   discountNote: string | null; status: string; startDate: string | null; termMonths: number | null;
   billingDay: number | null; contractNote: string | null; cancelEffectiveDate: string | null;
   canceledAt: string | null; stripeCustomerId: string | null; stripeSubscriptionId: string | null;
+  payerId: number | null;
 }>;
 
 export async function updateMembership(id: number, fields: MembershipUpdate): Promise<void> {
@@ -3144,8 +3146,47 @@ export async function updateMembership(id: number, fields: MembershipUpdate): Pr
   if (fields.canceledAt !== undefined) sets.push(sql`canceledAt = ${fields.canceledAt}`);
   if (fields.stripeCustomerId !== undefined) sets.push(sql`stripeCustomerId = ${fields.stripeCustomerId}`);
   if (fields.stripeSubscriptionId !== undefined) sets.push(sql`stripeSubscriptionId = ${fields.stripeSubscriptionId}`);
+  if (fields.payerId !== undefined) sets.push(sql`payerId = ${fields.payerId}`);
   if (sets.length === 0) return;
   await db.execute(sql`UPDATE memberships SET ${sql.join(sets, sql`, `)} WHERE id = ${id}`);
+}
+
+// ─── Payers (family head-of-household; holds the card on file) ────────────────
+export type PayerRow = { id: number; name: string; email: string | null; phone: string | null; stripeCustomerId: string | null; createdAt: string | Date };
+
+export async function insertPayer(p: { name: string; email?: string | null; phone?: string | null; stripeCustomerId?: string | null }): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [r] = await db.execute(sql`INSERT INTO payers (name, email, phone, stripeCustomerId, createdAt) VALUES (${p.name}, ${p.email ?? null}, ${p.phone ?? null}, ${p.stripeCustomerId ?? null}, NOW())`) as unknown as [{ insertId: number }];
+  return r?.insertId ?? 0;
+}
+
+export async function getPayer(id: number): Promise<PayerRow | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const [rows] = await db.execute(sql`SELECT id, name, email, phone, stripeCustomerId, createdAt FROM payers WHERE id = ${id} LIMIT 1`) as unknown as [PayerRow[]];
+  return Array.isArray(rows) && rows[0] ? rows[0] : null;
+}
+
+export async function listPayers(): Promise<PayerRow[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const [rows] = await db.execute(sql`SELECT id, name, email, phone, stripeCustomerId, createdAt FROM payers ORDER BY name ASC`) as unknown as [PayerRow[]];
+  return Array.isArray(rows) ? rows : [];
+}
+
+export async function updatePayerStripeCustomer(id: number, stripeCustomerId: string): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.execute(sql`UPDATE payers SET stripeCustomerId = ${stripeCustomerId} WHERE id = ${id}`);
+}
+
+/** Memberships that draw from a given payer (the family's students). */
+export async function listMembershipsByPayer(payerId: number): Promise<MembershipRow[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const [rows] = await db.execute(sql`SELECT ${MEMBERSHIP_COLS} FROM memberships WHERE payerId = ${payerId} ORDER BY createdAt DESC`) as unknown as [MembershipRow[]];
+  return Array.isArray(rows) ? rows : [];
 }
 
 // ─── Membership charges (per-month Financials ledger) ────────────────────────

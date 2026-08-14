@@ -191,6 +191,20 @@ const MIGRATIONS: { name: string; sql: string }[] = [
       "createdAt DATETIME NOT NULL, " +
       "paidAt DATETIME NULL)",
   },
+  {
+    // 2026-08-12: family payer (head of household). Holds the card(s) on a single
+    // Stripe customer; multiple students' memberships draw from it. The "primary"
+    // card is the customer's default_payment_method. See docs/OPERATIONS_SOPS.md.
+    name: "payers table",
+    sql: "CREATE TABLE IF NOT EXISTS payers (" +
+      "id BIGINT PRIMARY KEY AUTO_INCREMENT, " +
+      "name VARCHAR(255) NOT NULL, " +
+      "email VARCHAR(320) NULL, " +
+      "phone VARCHAR(40) NULL, " +
+      "stripeCustomerId VARCHAR(255) NULL, " +
+      "createdAt DATETIME NOT NULL)",
+  },
+  { name: "memberships.payerId", sql: "ALTER TABLE memberships ADD COLUMN IF NOT EXISTS payerId BIGINT NULL" },
 ];
 
 export async function runStartupMigrations(): Promise<void> {

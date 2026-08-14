@@ -59,7 +59,7 @@ import {
   // Write-action confirm-flow (2026-08-11)
   listPendingActions,
   // Membership engine (2026-08-12)
-  listMemberships, getMembership, listMembershipCharges,
+  listMemberships, getMembership, listMembershipCharges, getPayer,
   // Day camp (2026-08-12)
   insertDayCampSignup, markDayCampPaid, getDayCampSignupByPI, getDayCampSignups,
 } from "./db";
@@ -68,7 +68,7 @@ import { sendTelegramMessage } from "./telegram";
 import { tuitionConfiguredFor, ensureStripeCustomer, createAfterschoolSubscription } from "./tuition";
 import { proposeAction, confirmAction, rejectAction } from "./action-flow";
 import { createMembership, changeMembership, setMembershipDiscount, pauseMembership, resumeMembership, cancelMembership, adjustCharge } from "./membership-ops";
-import { createCardSetupSession, chargeDueMemberships } from "./membership-billing";
+import { createCardSetupSession, chargeDueMemberships, listPayerCards, setPayerPrimaryCard } from "./membership-billing";
 import { storagePut, storageGet } from "./storage";
 import { sendEmailNotification, sendProShopOrderNotification, sendCampRegistrationConfirmation, sendCampWaiverEmail, sendFieldTripConfirmation, sendTransportationForm, sendTrialReceipt, sendAfterschoolConfirmation, sendAfterschoolIntake, sendWaiverNotification, sendReviewedEmail } from "./integrations";
 import { fillTransportationPdf } from "./transportation-pdf";
@@ -2034,6 +2034,20 @@ export const appRouter = router({
     // Manual trigger for the due-charge job (also runs on a schedule). No-op unless
     // MEMBERSHIP_AUTOCHARGE_ENFORCE is on.
     chargeDueNow: publicProcedure.mutation(async () => chargeDueMemberships()),
+    // Family payer + its cards on file (primary = the default the family is charged).
+    billing: publicProcedure.input(z.object({ id: z.number().int().positive() })).query(async ({ input }) => {
+      const m = await getMembership(input.id);
+      if (!m?.payerId) return { payer: null, cards: [] as { id: string; brand: string; last4: string; exp: string; primary: boolean }[] };
+      const [payer, cards] = await Promise.all([getPayer(m.payerId), listPayerCards(m.payerId)]);
+      return { payer, cards };
+    }),
+    setPrimaryCard: publicProcedure.input(z.object({ id: z.number().int().positive(), paymentMethodId: z.string() }))
+      .mutation(async ({ input }) => {
+        const m = await getMembership(input.id);
+        if (!m?.payerId) throw new Error("No card on file for this membership yet.");
+        await setPayerPrimaryCard(m.payerId, input.paymentMethodId);
+        return { ok: true };
+      }),
   }),
 
   // Day camp signups ($60/day). Parent-facing createIntent/confirm are public;

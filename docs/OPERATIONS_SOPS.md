@@ -139,6 +139,18 @@ Every money-changing action runs through the **confirm-flow** (proposed → a pe
 sees the exact effect → confirms once, audited). The chatbot proposes; only a
 person executes.
 
+### Cards & the family payer
+- Cards live on a **payer (head of household)**, one Stripe customer per family.
+  Multiple students' memberships draw from the payer's card. The **primary** card
+  is the one charges use; a family can have more than one card on file and staff
+  pick the primary ("Make primary").
+- Adding a card: **Set up autopay** on a member opens Stripe's secure page (which
+  auto-creates + links the family payer). For an in-person swipe/tap, use a
+  **Stripe Terminal** reader (a later hardware add-on) — the reader tokenizes at
+  the device. We never handle raw card numbers in our app; that stays with Stripe
+  (keeps us PCI-light). The ZenPlanner USB swiper is replaced by Stripe Terminal,
+  NOT a raw-card popup.
+
 ---
 
 ## F. Chatbot capabilities for these actions (target)
