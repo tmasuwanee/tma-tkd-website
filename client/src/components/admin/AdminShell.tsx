@@ -35,6 +35,7 @@ import AssistantPanel from "@/components/admin/AssistantPanel";
 import PendingActionsView from "@/components/admin/PendingActionsView";
 import MembershipsView from "@/components/admin/MembershipsView";
 import MembersView from "@/components/admin/MembersView";
+import TrialsView from "@/components/admin/TrialsView";
 import DayCampView from "@/components/admin/DayCampView";
 
 // Keys double as URL segments (/admin/<key>). They match the old standalone
@@ -43,7 +44,7 @@ import DayCampView from "@/components/admin/DayCampView";
 type ViewKey =
   | "today" | "calls" | "calendar" | "leads" | "checkin" | "waivers" | "call-log" | "voice-test"
   | "sequences" | "rules" | "ads" | "students" | "camp" | "controls" | "studio" | "tasks" | "links" | "playbook"
-  | "orders" | "enrolled" | "afterschool-roster" | "invoices" | "approvals" | "memberships" | "members" | "day-camp";
+  | "orders" | "enrolled" | "afterschool-roster" | "invoices" | "approvals" | "memberships" | "members" | "trials" | "day-camp";
 
 type NavItem = { key: ViewKey; label: string; icon: any };
 type NavGroup = { group: string; items: NavItem[]; collapsible?: boolean };
@@ -65,6 +66,7 @@ const NAV: NavGroup[] = [
   ]},
   { group: "People", items: [
     { key: "members", label: "Members", icon: Users },
+    { key: "trials", label: "Trials", icon: GraduationCap },
     { key: "afterschool-roster", label: "Afterschool Roster", icon: ClipboardList },
   ]},
   { group: "Money", items: [
@@ -138,6 +140,7 @@ function renderView(key: ViewKey, email: string) {
     case "approvals": return <PendingActionsView />;
     case "memberships": return <MembershipsView />;
     case "members": return <MembersView />;
+    case "trials": return <TrialsView />;
     case "day-camp": return <DayCampView />;
   }
 }
