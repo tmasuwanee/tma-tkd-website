@@ -243,5 +243,5 @@
 - [ ] After publishing commit a776537, verify live tables, dashboard items, membership ledger actions, assistant proposal flow, day-camp pages, and parent-facing pages
 - [x] Pull commit 3e26e50 and validate assistant configuration, disabled billing gates, payer schema, membership card-linking tools, Day Camp, and public flows locally
 - [ ] After publishing commit 3e26e50, verify live payer schema, membership payer assignment, assistant approval proposal, Day Camp pages, and public flows
-- [ ] Pull commit a268c1e and validate the production build, specials migration, memberships.afterschoolRegId column/index, and dashboard features locally without configuration changes
+- [x] Pull commit a268c1e and validate the production build, specials migration, memberships.afterschoolRegId column/index, and dashboard features locally without configuration changes
 - [ ] After publishing commit a268c1e, verify live migration logs, authenticated dashboard navigation, member panels, Trials, Camps, Pro Shop Specials, Assistant proposals, and errors
