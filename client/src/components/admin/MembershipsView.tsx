@@ -10,7 +10,7 @@ import { Loader2, Users, Plus, X, Pause, Play, Ban, Tag, PencilLine, CreditCard,
  * month. See docs/OPERATIONS_SOPS.md.
  */
 
-const CATALOG: { program: string; planLabel: string; monthlyCents: number }[] = [
+export const CATALOG: { program: string; planLabel: string; monthlyCents: number }[] = [
   { program: "taekwondo", planLabel: "2 days/week", monthlyCents: 179_00 },
   { program: "taekwondo", planLabel: "3 days/week", monthlyCents: 199_00 },
   { program: "kickboxing", planLabel: "3 days/week", monthlyCents: 159_00 },
@@ -18,7 +18,7 @@ const CATALOG: { program: string; planLabel: string; monthlyCents: number }[] = 
   { program: "afterschool", planLabel: "5 days/week", monthlyCents: 500_00 },
   { program: "afterschool", planLabel: "2-3 days/week", monthlyCents: 400_00 },
 ];
-const SIBLING_DISCOUNT_CENTS = 20_00;
+export const SIBLING_DISCOUNT_CENTS = 20_00;
 const fmt = (c: number) => `$${(c / 100).toFixed(2)}`;
 const dollarsToCents = (s: string): number | null => { const n = parseFloat(s.replace(/[^0-9.]/g, "")); return Number.isFinite(n) ? Math.round(n * 100) : null; };
 

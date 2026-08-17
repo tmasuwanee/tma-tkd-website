@@ -57,6 +57,11 @@ export async function chargeDueMemberships(): Promise<{ charged: number; failed:
           amount: c.amountCents, currency: "usd", customer: customerId, payment_method: pm,
           off_session: true, confirm: true, payment_method_types: ["card"],
           metadata: { product: "membership_tuition", membershipId: String(m.id), chargeId: String(c.id), period: c.periodMonth },
+        }, {
+          // Real-money safety: keyed on the charge id so a retry / overlapping cron
+          // run never double-charges the same month. Stripe returns the original
+          // PaymentIntent instead of creating a second one.
+          idempotencyKey: `tuition-charge-${c.id}`,
         });
         if (pi.status === "succeeded") { await updateMembershipCharge(c.id, { status: "paid", stripeInvoiceId: pi.id }); summary.charged++; }
         else { await updateMembershipCharge(c.id, { note: `pending: ${pi.status}` }); }

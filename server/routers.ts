@@ -2111,6 +2111,43 @@ export const appRouter = router({
           throw e;
         }
       }),
+    // Migration helper: active students (ZenPlanner import) who don't yet have a
+    // membership record. Used by the bulk-add tool to create tuition + Financials
+    // for the existing roster when cutting over from ZenPlanner.
+    rosterCandidates: publicProcedure.query(async () => {
+      const norm = (s: string | null | undefined) => (s ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+      const [students, memberships] = await Promise.all([getAllStudents(), listMemberships()]);
+      const haveName = new Set(memberships.map(m => norm(m.studentName)));
+      return students
+        .filter(s => (s.status ?? "").toLowerCase() !== "inactive")
+        .filter(s => !haveName.has(norm(s.name)))
+        .map(s => ({ studentId: s.id, name: s.name, email: s.email, phone: s.phone, programs: s.programs, beltRank: s.beltRank }));
+    }),
+    bulkCreate: publicProcedure.input(z.object({
+      members: z.array(z.object({
+        studentName: z.string().min(1).max(255),
+        parentName: z.string().max(255).optional(),
+        email: z.string().email().optional(),
+        phone: z.string().max(40).optional(),
+        program: z.string().min(1).max(40),
+        planLabel: z.string().max(80).optional(),
+        monthlyAmountCents: z.number().int().min(0),
+        discountCents: z.number().int().min(0).optional(),
+        billingDay: z.number().int().min(1).max(28).optional(),
+        startDate: z.string().max(20).optional(),
+      })).min(1).max(500),
+    })).mutation(async ({ input }) => {
+      const norm = (s: string | null | undefined) => (s ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+      const have = new Set((await listMemberships()).map(m => norm(m.studentName)));
+      let created = 0; const skipped: string[] = [];
+      for (const mem of input.members) {
+        if (have.has(norm(mem.studentName))) { skipped.push(mem.studentName); continue; } // already has one
+        await createMembership({ ...mem, discountNote: mem.discountCents ? "Sibling discount" : undefined });
+        have.add(norm(mem.studentName));
+        created++;
+      }
+      return { created, skipped };
+    }),
   }),
 
   // Pro Shop specials — staff-managed promotions/offers with a shareable link and
