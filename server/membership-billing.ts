@@ -153,3 +153,24 @@ export async function setPayerPrimaryCard(payerId: number, paymentMethodId: stri
   const s = stripe();
   await s.customers.update(p.stripeCustomerId, { invoice_settings: { default_payment_method: paymentMethodId } });
 }
+
+/** Remove (detach) a saved card from the family payer. Verifies the card actually
+ *  belongs to this payer's Stripe customer first, and refuses to remove the primary
+ *  card while other cards remain (staff should pick a new primary first) so a
+ *  family is never left with charges pointing at a detached default. */
+export async function detachPayerCard(payerId: number, paymentMethodId: string): Promise<void> {
+  const p = await getPayer(payerId);
+  if (!p?.stripeCustomerId) throw new Error("No customer for this payer");
+  const s = stripe();
+  const cust = await s.customers.retrieve(p.stripeCustomerId) as Stripe.Customer;
+  const defaultPm = (cust.invoice_settings?.default_payment_method as string) || null;
+  const pm = await s.paymentMethods.retrieve(paymentMethodId);
+  if ((pm.customer as string | null) !== p.stripeCustomerId) throw new Error("That card is not on this family's account.");
+  if (paymentMethodId === defaultPm) {
+    const others = await s.paymentMethods.list({ customer: p.stripeCustomerId, type: "card" });
+    if (others.data.filter(x => x.id !== paymentMethodId).length > 0) {
+      throw new Error("That's the primary card. Make another card primary first, then remove this one.");
+    }
+  }
+  await s.paymentMethods.detach(paymentMethodId);
+}

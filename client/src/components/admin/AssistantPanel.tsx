@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { Markdown } from "@/components/Markdown";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
-import { Loader2, Send, Sparkles, X, Search as SearchIcon, ShieldCheck, UserSquare, Check, Ban, ExternalLink } from "lucide-react";
+import { Loader2, Send, Sparkles, X, Search as SearchIcon, ShieldCheck, UserSquare, Check, Ban, ExternalLink, CreditCard } from "lucide-react";
 import { useMemberDock } from "@/components/admin/MemberDock";
 
 /**
@@ -26,7 +26,8 @@ const SUGGESTED = [
 ];
 
 // Tool outputs the chat renders as interactive cards rather than a "Checked X" chip.
-type ToolOutput = { pendingActionId?: number; opened?: boolean; membershipId?: number; student?: string } | undefined;
+type FieldSpec = { name: string; label: string; type?: "text" | "number" | "date" | "select" | "textarea"; options?: string[]; placeholder?: string; required?: boolean };
+type ToolOutput = { pendingActionId?: number; opened?: boolean; membershipId?: number; student?: string; setupUrl?: string; formRequested?: boolean; title?: string; fields?: FieldSpec[]; note?: string } | undefined;
 
 export default function AssistantPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [input, setInput] = useState("");
@@ -114,6 +115,17 @@ export default function AssistantPanel({ open, onClose }: { open: boolean; onClo
                     if (done && name === "openMemberProfile" && output?.membershipId) {
                       return <OpenProfileButton key={i} membershipId={output.membershipId} student={output.student ?? "member"} />;
                     }
+                    if (done && name === "openCardSetupLink" && output?.setupUrl) {
+                      return (
+                        <a key={i} href={output.setupUrl} target="_blank" rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 text-sm font-semibold text-[#1a2d5a] bg-[#1a2d5a]/5 border border-[#1a2d5a]/25 rounded-lg px-3 py-2 hover:bg-[#1a2d5a]/10">
+                          <CreditCard className="w-4 h-4" /> Open secure card page <ExternalLink className="w-3.5 h-3.5 opacity-60" />
+                        </a>
+                      );
+                    }
+                    if (done && name === "requestFields" && output?.formRequested && output.fields) {
+                      return <FormRequestCard key={i} title={output.title ?? "Details"} fields={output.fields} note={output.note} disabled={busy} onSubmit={(text) => submit(text)} />;
+                    }
                     if (done && output?.pendingActionId) {
                       return <ApprovalCard key={i} actionId={output.pendingActionId} />;
                     }
@@ -147,6 +159,49 @@ export default function AssistantPanel({ open, onClose }: { open: boolean; onClo
           </Button>
         </div>
       </form>
+    </div>
+  );
+}
+
+/** Manus-style inline form: the assistant asks for fields, staff fill them, and on
+ *  submit the values go back as a message so the model continues (e.g. proposes the
+ *  update). Non-secret fields only — card numbers never come through here. */
+function FormRequestCard({ title, fields, note, disabled, onSubmit }: { title: string; fields: FieldSpec[]; note?: string; disabled: boolean; onSubmit: (text: string) => void }) {
+  const [vals, setVals] = useState<Record<string, string>>({});
+  const [submitted, setSubmitted] = useState(false);
+  const set = (n: string, v: string) => setVals(s => ({ ...s, [n]: v }));
+  const doSubmit = () => {
+    const missing = fields.filter(f => f.required && !(vals[f.name] ?? "").trim());
+    if (missing.length) { toast.error(`Fill in: ${missing.map(f => f.label).join(", ")}`); return; }
+    const lines = fields.filter(f => (vals[f.name] ?? "").trim()).map(f => `- ${f.label}: ${vals[f.name].trim()}`);
+    if (!lines.length) { toast.error("Enter at least one value."); return; }
+    onSubmit(`Here are the values for "${title}":\n${lines.join("\n")}`);
+    setSubmitted(true);
+  };
+  const inp = "mt-0.5 w-full border border-gray-300 rounded px-2 py-1 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#1a2d5a]/30";
+  if (submitted) return <div className="border border-gray-200 rounded-lg p-3 text-xs text-gray-500 flex items-center gap-2"><Check className="w-3.5 h-3.5 text-green-600" /> Submitted "{title}".</div>;
+  return (
+    <div className="border border-[#1a2d5a]/20 bg-white rounded-lg p-3 text-sm">
+      <div className="font-semibold text-[#1a2d5a] mb-2">{title}</div>
+      {note ? <div className="text-xs text-gray-500 mb-2">{note}</div> : null}
+      <div className="space-y-2">
+        {fields.map(f => (
+          <label key={f.name} className="block text-xs font-medium text-gray-600">
+            {f.label}{f.required ? " *" : ""}
+            {f.type === "textarea" ? (
+              <textarea rows={2} value={vals[f.name] ?? ""} onChange={e => set(f.name, e.target.value)} placeholder={f.placeholder} className={inp} />
+            ) : f.type === "select" ? (
+              <select value={vals[f.name] ?? ""} onChange={e => set(f.name, e.target.value)} className={inp}>
+                <option value="">— choose —</option>
+                {(f.options ?? []).map(o => <option key={o} value={o}>{o}</option>)}
+              </select>
+            ) : (
+              <input type={f.type === "number" ? "number" : f.type === "date" ? "date" : "text"} value={vals[f.name] ?? ""} onChange={e => set(f.name, e.target.value)} placeholder={f.placeholder} className={inp} />
+            )}
+          </label>
+        ))}
+      </div>
+      <button onClick={doSubmit} disabled={disabled} className="mt-2.5 inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-[#1a2d5a] hover:bg-[#142347] rounded px-3 py-1.5 disabled:opacity-50">Submit</button>
     </div>
   );
 }

@@ -718,6 +718,13 @@ export async function isExistingStudent(email: string, name?: string): Promise<b
   return result.length > 0;
 }
 
+export async function getStudentById(id: number): Promise<Student | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(students).where(eq(students.id, id)).limit(1);
+  return rows[0] ?? null;
+}
+
 export async function updateStudent(id: number, updates: Partial<InsertStudent>): Promise<Student | null> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");

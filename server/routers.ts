@@ -71,7 +71,7 @@ import { proposeAction, confirmAction, rejectAction } from "./action-flow";
 import { createMembership, changeMembership, setMembershipDiscount, pauseMembership, resumeMembership, cancelMembership, adjustCharge } from "./membership-ops";
 import { memberList, memberOverview } from "./members";
 import { listSpecials, insertSpecial, updateSpecial } from "./db";
-import { createCardSetupSession, chargeDueMemberships, listPayerCards, setPayerPrimaryCard } from "./membership-billing";
+import { createCardSetupSession, chargeDueMemberships, listPayerCards, setPayerPrimaryCard, detachPayerCard } from "./membership-billing";
 import { storagePut, storageGet } from "./storage";
 import { sendEmailNotification, sendProShopOrderNotification, sendCampRegistrationConfirmation, sendCampWaiverEmail, sendFieldTripConfirmation, sendTransportationForm, sendTrialReceipt, sendAfterschoolConfirmation, sendAfterschoolIntake, sendWaiverNotification, sendReviewedEmail } from "./integrations";
 import { fillTransportationPdf } from "./transportation-pdf";
@@ -2058,6 +2058,13 @@ export const appRouter = router({
         const m = await getMembership(input.id);
         if (!m?.payerId) throw new Error("No card on file for this membership yet.");
         await setPayerPrimaryCard(m.payerId, input.paymentMethodId);
+        return { ok: true };
+      }),
+    removeCard: publicProcedure.input(z.object({ id: z.number().int().positive(), paymentMethodId: z.string() }))
+      .mutation(async ({ input }) => {
+        const m = await getMembership(input.id);
+        if (!m?.payerId) throw new Error("No card on file for this membership.");
+        await detachPayerCard(m.payerId, input.paymentMethodId);
         return { ok: true };
       }),
     // Family payer picker: list payers, and assign this membership to one (or a

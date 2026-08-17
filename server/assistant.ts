@@ -19,8 +19,9 @@ import { ENV } from "./_core/env";
 import { adminEmailFromRequest } from "./admin-auth";
 import {
   searchLeads, searchStudents, getRosterStudents, getLeadById,
-  getAfterschoolRegistrations, listMemberships, listMembershipCharges,
+  getAfterschoolRegistrations, listMemberships, listMembershipCharges, getMembership,
 } from "./db";
+import { listPayerCards, createCardSetupSession } from "./membership-billing";
 import { retrievePlaybook } from "./playbook-rag";
 import { proposeAction } from "./action-flow";
 
@@ -94,7 +95,7 @@ function toUnix(dateStr?: string, endOfDay = false): number | undefined {
 }
 
 // ─── Read tools (no mutations) ───────────────────────────────────────────────
-function buildTools() {
+function buildTools(opts: { origin: string }) {
   return {
     findPerson: tool({
       description: "Find leads, students, or afterschool-roster children by name, email, or phone. Use this to locate a person before answering about them.",
@@ -239,6 +240,40 @@ function buildTools() {
       },
     }),
 
+    // ── Cards on file (family payer). Read + secure setup link + propose changes ──
+    listMemberCards: tool({
+      description: "List the cards on file for a student's family (brand, last 4, expiry, and which is primary — the card charged). Card numbers are never shown. Use before proposing to make a card primary or remove one; it returns each card's paymentMethodId + a label.",
+      inputSchema: z.object({ membershipId: z.number().int().positive().optional(), query: z.string().optional() }),
+      execute: async ({ membershipId, query }) => {
+        const all = await listMemberships();
+        const q = (query ?? "").toLowerCase();
+        const m = membershipId ? all.find(x => x.id === membershipId) : (q ? all.find(x => `${x.studentName} ${x.parentName ?? ""} ${x.email ?? ""}`.toLowerCase().includes(q)) : undefined);
+        if (!m) return { found: false, note: "No membership found. Use findMembership first." };
+        if (!m.payerId) return { found: true, membershipId: m.id, student: m.studentName, cards: [], note: "No family payer/card set up yet. Use openCardSetupLink to add the first card." };
+        const cards = await listPayerCards(m.payerId);
+        return { found: true, membershipId: m.id, student: m.studentName, cards: cards.map(c => ({ paymentMethodId: c.id, label: `${c.brand} ····${c.last4}`, exp: c.exp, primary: c.primary })) };
+      },
+    }),
+    openCardSetupLink: tool({
+      description: "Get a secure Stripe link to ADD or UPDATE a card on a student's family account. The card is entered on Stripe's page, never here (PCI). Returns a link the staff opens; it saves the card to the family and can cover siblings. Use for 'add a card' / 'update the card' requests.",
+      inputSchema: z.object({ membershipId: z.number().int().positive() }),
+      execute: async ({ membershipId }) => {
+        const { url } = await createCardSetupSession(membershipId, opts.origin);
+        if (!url) return { ok: false, note: "Stripe is not configured." };
+        return { ok: true, setupUrl: url, note: "Open this secure Stripe page to add/update the card. It saves to the family payer." };
+      },
+    }),
+    proposeMakePrimaryCard: tool({
+      description: "Propose making a saved card the family's PRIMARY card (the one charged). Requires membershipId + paymentMethodId (from listMemberCards); pass cardLabel for a readable preview. Applies only after the Approve button is clicked.",
+      inputSchema: z.object({ membershipId: z.number().int().positive(), paymentMethodId: z.string().min(1), cardLabel: z.string().max(120).optional() }),
+      execute: async (input) => { const { id } = await proposeAction("card_make_primary", input, "assistant"); return { proposed: true, pendingActionId: id, note: `Proposed (#${id}). Approve to apply.` }; },
+    }),
+    proposeRemoveCard: tool({
+      description: "Propose REMOVING a saved card from the family. Requires membershipId + paymentMethodId (from listMemberCards); pass cardLabel for the preview. Cannot remove the primary card unless it is the only one. Applies only after the Approve button is clicked.",
+      inputSchema: z.object({ membershipId: z.number().int().positive(), paymentMethodId: z.string().min(1), cardLabel: z.string().max(120).optional() }),
+      execute: async (input) => { const { id } = await proposeAction("card_remove", input, "assistant"); return { proposed: true, pendingActionId: id, note: `Proposed (#${id}). Approve to apply.` }; },
+    }),
+
     // ── Membership propose-tools (create a pending action; a human confirms in Approvals) ──
     proposeCreateMembership: tool({
       description: "Propose creating a NEW membership. Does NOT create it — a staff member confirms in Approvals. Ask for any missing detail first (program, plan, monthly amount). monthlyAmountCents and discountCents are in cents (e.g. $179 = 17900).",
@@ -270,6 +305,39 @@ function buildTools() {
       inputSchema: z.object({ chargeId: z.number().int().positive(), amountCents: z.number().int().min(0).optional(), status: z.enum(["scheduled", "waived", "canceled", "paid"]).optional(), note: z.string().optional() }),
       execute: async (input) => { const { id } = await proposeAction("charge_adjust", input, "assistant"); return { proposed: true, pendingActionId: id, note: `Proposed (#${id}). Confirm in Approvals.` }; },
     }),
+
+    // ── Collect info from staff (Manus-style inline form), then update a file ──
+    requestFields: tool({
+      description: "When you need the staff member to fill in specific values to proceed (e.g. a student's new date of birth, belt rank, program, phone, or a note), call this to render a small FORM in the chat instead of asking in prose. When they submit, their values come back to you as a message and you continue (usually by proposing the update). Use the SAME field names you'll pass to the update tool (e.g. dob, beltRank, phone). Never request card numbers, passwords, or secrets here.",
+      inputSchema: z.object({
+        title: z.string().min(1).max(120).describe("what this form is for, e.g. 'Update Maya Rivera's file'"),
+        fields: z.array(z.object({
+          name: z.string().min(1).max(60),
+          label: z.string().min(1).max(120),
+          type: z.enum(["text", "number", "date", "select", "textarea"]).optional(),
+          options: z.array(z.string()).max(30).optional().describe("choices for a select field"),
+          placeholder: z.string().max(120).optional(),
+          required: z.boolean().optional(),
+        })).min(1).max(10),
+        note: z.string().max(300).optional(),
+      }),
+      execute: async (input) => ({ formRequested: true, ...input }),
+    }),
+    proposeUpdateStudent: tool({
+      description: "Propose updating a student's file. Requires the student id (from findPerson → students[].id). Include ONLY the fields to change. Applies only after the Approve button. Editable fields: name, email, phone, dob (YYYY-MM-DD), beltRank, status, programs, emergencyContact.",
+      inputSchema: z.object({
+        studentId: z.number().int().positive(),
+        name: z.string().max(255).optional(),
+        email: z.string().email().optional(),
+        phone: z.string().max(40).optional(),
+        dob: z.string().max(20).optional(),
+        beltRank: z.string().max(100).optional(),
+        status: z.string().max(50).optional(),
+        programs: z.string().max(255).optional(),
+        emergencyContact: z.string().max(255).optional(),
+      }),
+      execute: async (input) => { const { id } = await proposeAction("student_update", input, "assistant"); return { proposed: true, pendingActionId: id, note: `Proposed (#${id}). Approve to apply.` }; },
+    }),
   };
 }
 
@@ -283,6 +351,8 @@ Rules:
 - To pull up / open / show a specific student's profile, call openMemberProfile (with the membership id from findMembership, or a name/email). It pops their profile open right in the dashboard for the staff member; briefly confirm you opened it.
 - Things you CAN do (each as a PROPOSAL the staff member approves — you never execute directly): draft/send an email; create a membership; change a membership's program/plan/tuition; set a recurring discount; pause or cancel a membership; and adjust one month's charge (edit / waive / cancel). When the user asks for one of these, DO IT: ask any needed follow-up (which program? which month? prorate?), use findMembership / getMembershipCharges to get the id, then propose it. Each proposal shows an Approve button right here in this chat (as well as in the Approvals view); tell the user they can approve it here, and that nothing changes until they do.
 - Only give step-by-step directions for things you CANNOT do yourself, OR when the user explicitly asks "how do I...". If you explain how to do something that you can also do yourself, end by asking whether they'd like you to do it for them.
+- Cards on file: you can list a family's cards (listMemberCards), give a secure link to add/update a card (openCardSetupLink — the card is entered on Stripe's page, NEVER typed to you or in the app), and propose making a card primary or removing one (approved via the Approve button). Never ask for or accept a card number; if someone offers one, tell them to enter it on the secure Stripe page instead.
+- To update a student's file (DOB, belt rank, program, contact, status, emergency contact): get the student id via findPerson, then propose the change with proposeUpdateStudent (applies after Approve). If you're missing the new values, call requestFields FIRST to pop a small form for the staff to fill (use field names dob/beltRank/phone/etc.), and when their values come back, propose the update. Use requestFields for gathering any record values, never for card numbers or secrets.
 - You cannot issue refunds or take actions you have no tool for; for those, say a staff member must do it in the dashboard. To pull up a member, use openMemberProfile.
 - If a person, date range, or amount is ambiguous, ask a brief clarifying question instead of guessing.
 - Money: only report amounts the tools returned. Never mention card numbers (you never receive them).
@@ -311,12 +381,15 @@ export async function handleAssistant(req: Request, res: Response): Promise<void
   }
 
   try {
+    const proto = String((req.headers["x-forwarded-proto"] as string) || "https").split(",")[0];
+    const host = req.headers.host || "tmatkd.com";
+    const origin = `${proto}://${host}`;
     const modelMessages = await convertToModelMessages(messages);
     const result = streamText({
       model: assistantOpenAI(ENV.assistantModel),
       system: SYSTEM_PROMPT,
       messages: modelMessages,
-      tools: buildTools(),
+      tools: buildTools({ origin }),
       stopWhen: stepCountIs(6),
     });
     result.pipeUIMessageStreamToResponse(res);

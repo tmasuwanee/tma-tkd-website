@@ -171,6 +171,10 @@ export function MemberPanelBody({ id, onChanged, onName }: { id: number; onChang
     onSuccess: () => { utils.memberships.billing.invalidate({ id }); toast.success("Primary card updated."); },
     onError: (e) => toast.error(e.message ?? "Failed."),
   });
+  const removeCard = trpc.memberships.removeCard.useMutation({
+    onSuccess: () => { utils.memberships.billing.invalidate({ id }); toast.success("Card removed."); },
+    onError: (e) => toast.error(e.message ?? "Failed."),
+  });
   const payers = trpc.memberships.listPayers.useQuery();
   const assignPayer = trpc.memberships.assignPayer.useMutation({
     onSuccess: () => { utils.memberships.get.invalidate({ id }); utils.memberships.billing.invalidate({ id }); utils.memberships.listPayers.invalidate(); toast.success("Family payer updated."); },
@@ -262,6 +266,8 @@ export function MemberPanelBody({ id, onChanged, onName }: { id: number; onChang
                   {c.primary
                     ? <span className="ml-auto text-[10px] uppercase tracking-wide text-green-700 bg-green-100 border border-green-200 rounded px-1.5 py-0.5">Primary</span>
                     : <button onClick={() => setPrimary.mutate({ id, paymentMethodId: c.id })} disabled={setPrimary.isPending} className="ml-auto text-xs text-[#1a2d5a] hover:underline">Make primary</button>}
+                  <button onClick={() => { if (window.confirm(`Remove this ${c.brand} ending ${c.last4}? The card is detached from the family on Stripe.`)) removeCard.mutate({ id, paymentMethodId: c.id }); }}
+                    disabled={removeCard.isPending} className={`text-xs text-gray-400 hover:text-red-600 hover:underline ${c.primary ? "ml-auto" : ""}`}>Remove</button>
                 </div>
               ))}
             </div>

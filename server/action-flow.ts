@@ -18,13 +18,15 @@
 import { z } from "zod";
 import {
   insertPendingAction, getPendingAction, claimPendingAction, finishPendingAction,
-  setPendingActionStatus, getMembership, getMembershipCharge, type PendingActionRow,
+  setPendingActionStatus, getMembership, getMembershipCharge, getStudentById, updateStudent,
+  type PendingActionRow,
 } from "./db";
 import { sendReviewedEmail } from "./integrations";
 import {
   createMembership, changeMembership, setMembershipDiscount, pauseMembership,
   cancelMembership, adjustCharge, describeMembershipOp,
 } from "./membership-ops";
+import { setPayerPrimaryCard, detachPayerCard } from "./membership-billing";
 
 const EXPIRY_MS = 24 * 60 * 60 * 1000;
 
@@ -66,6 +68,18 @@ const membershipDiscountSchema = z.object({ id: z.number().int().positive(), dis
 const membershipIdSchema = z.object({ id: z.number().int().positive() });
 const membershipCancelSchema = z.object({ id: z.number().int().positive(), immediate: z.boolean() });
 const chargeAdjustSchema = z.object({ chargeId: z.number().int().positive(), amountCents: z.number().int().min(0).optional(), status: z.enum(["scheduled", "waived", "canceled", "paid"]).optional(), note: z.string().max(255).optional() });
+const cardOpSchema = z.object({ membershipId: z.number().int().positive(), paymentMethodId: z.string().min(1).max(255), cardLabel: z.string().max(120).optional() });
+const studentUpdateSchema = z.object({
+  studentId: z.number().int().positive(),
+  name: z.string().max(255).optional(),
+  email: z.string().email().optional(),
+  phone: z.string().max(40).optional(),
+  dob: z.string().max(20).optional(),
+  beltRank: z.string().max(100).optional(),
+  status: z.string().max(50).optional(),
+  programs: z.string().max(255).optional(),
+  emergencyContact: z.string().max(255).optional(),
+});
 const rec = (o: object) => o as Record<string, unknown>;
 
 const HANDLERS: Record<string, ActionHandler> = {
@@ -165,6 +179,58 @@ const HANDLERS: Record<string, ActionHandler> = {
       const { chargeId, ...changes } = chargeAdjustSchema.parse(payload);
       await adjustCharge(chargeId, changes, "assistant (confirmed)");
       return { adjusted: true, chargeId };
+    },
+  },
+
+  card_make_primary: {
+    prepare: async (payload) => {
+      const p = cardOpSchema.parse(payload);
+      const m = await getMembership(p.membershipId);
+      if (!m) throw new Error("Membership not found");
+      return { title: `Make ${p.cardLabel ?? "card"} primary: ${m.studentName}`, preview: `${m.studentName}'s family will be charged on ${p.cardLabel ?? "the selected card"} from now on.` };
+    },
+    execute: async (payload) => {
+      const p = cardOpSchema.parse(payload);
+      const m = await getMembership(p.membershipId);
+      if (!m?.payerId) throw new Error("No family payer on this membership.");
+      await setPayerPrimaryCard(m.payerId, p.paymentMethodId);
+      return { primarySet: true, membershipId: p.membershipId };
+    },
+  },
+
+  card_remove: {
+    prepare: async (payload) => {
+      const p = cardOpSchema.parse(payload);
+      const m = await getMembership(p.membershipId);
+      if (!m) throw new Error("Membership not found");
+      return { title: `Remove ${p.cardLabel ?? "card"}: ${m.studentName}`, preview: `Detach ${p.cardLabel ?? "this card"} from ${m.studentName}'s family. If it was the only card, autopay stops until a new one is added.` };
+    },
+    execute: async (payload) => {
+      const p = cardOpSchema.parse(payload);
+      const m = await getMembership(p.membershipId);
+      if (!m?.payerId) throw new Error("No family payer on this membership.");
+      await detachPayerCard(m.payerId, p.paymentMethodId);
+      return { removed: true, membershipId: p.membershipId };
+    },
+  },
+
+  student_update: {
+    prepare: async (payload) => {
+      const p = studentUpdateSchema.parse(payload);
+      const s = await getStudentById(p.studentId);
+      if (!s) throw new Error("Student not found");
+      const { studentId: _sid, ...patch } = p;
+      const entries = Object.entries(patch).filter(([, v]) => v !== undefined);
+      if (entries.length === 0) throw new Error("No fields to change.");
+      const before = s as unknown as Record<string, unknown>;
+      const preview = entries.map(([k, v]) => `${k}: ${before[k] ?? "—"} → ${v}`).join("\n");
+      return { title: `Update ${s.name}'s file`, preview };
+    },
+    execute: async (payload) => {
+      const { studentId, ...patch } = studentUpdateSchema.parse(payload);
+      const clean = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined));
+      await updateStudent(studentId, clean);
+      return { updated: true, studentId };
     },
   },
 };
