@@ -35,7 +35,12 @@ function makeTools(record: string[]) {
     findMembership: tool({
       description: "Find a student's membership by name or email. Returns the membership id needed for any change.",
       inputSchema: z.object({ query: z.string() }),
-      execute: async () => rec("findMembership", { memberships: [{ id: 42, student: "Test Student", program: "Taekwondo", plan: "Standard", monthly: "$179/mo", status: "active", openLink: "/admin/memberships?open=42" }] }),
+      execute: async () => rec("findMembership", { memberships: [{ id: 42, student: "Test Student", program: "Taekwondo", plan: "Standard", monthly: "$179/mo", status: "active", openLink: "/admin/members?open=42" }] }),
+    }),
+    openMemberProfile: tool({
+      description: "Open a student's member profile as a popup in the dashboard. Use for requests to pull up, open, show, or see a student's profile.",
+      inputSchema: z.object({ membershipId: z.number().int().positive().optional(), query: z.string().optional() }),
+      execute: async () => rec("openMemberProfile", { found: true, opened: true, membershipId: 42, student: "Test Student", program: "Taekwondo", note: "Opened Test Student's profile in the dashboard." }),
     }),
     getPaymentSummary: tool({
       description: "List a family's succeeded payments (and total) for a date range. Dates are YYYY-MM-DD.",
@@ -81,7 +86,8 @@ const CASES: { q: string; tool: string; contains: string[] }[] = [
   { q: "How do I handle a trial no-show?", tool: "answerFromPlaybook", contains: ["48"] },
   { q: "Which afterschool families never signed a waiver?", tool: "listMissingAfterschoolWaivers", contains: ["Dana Fox"] },
   { q: "How much revenue did we collect in 2026?", tool: "getRevenueSummary", contains: ["18"] },
-  { q: "Give Test Student a $20/mo sibling discount", tool: "proposeSetDiscount", contains: ["approval"] },
+  { q: "Give Test Student a $20/mo sibling discount", tool: "proposeSetDiscount", contains: ["approve"] },
+  { q: "Open Test Student's profile", tool: "openMemberProfile", contains: ["opened"] },
 ];
 
 describe("assistant routing eval (needs OPENAI_API_KEY)", () => {
