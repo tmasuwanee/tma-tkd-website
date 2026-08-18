@@ -20,8 +20,15 @@ import { getDb } from "./db";
 import { leads, leadActivities, leadSequenceQueue } from "../drizzle/schema";
 import { eq, and, gte, sql, inArray } from "drizzle-orm";
 import { notifyOwner } from "./_core/notification";
+import { ENV } from "./_core/env";
 
 export async function handleMorningReport(req: Request, res: Response) {
+  // Disabled by default (Arfa: unneeded). The Heartbeat cron may still hit this
+  // endpoint; no-op unless TMA_MORNING_REPORT=true so nothing is sent.
+  if (!ENV.morningReportEnabled) {
+    res.json({ ok: true, skipped: true, reason: "morning report disabled (TMA_MORNING_REPORT not set)" });
+    return;
+  }
   // Respond immediately so the platform doesn't retry
   res.json({ ok: true, message: "Morning report queued" });
 

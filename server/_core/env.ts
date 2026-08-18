@@ -56,6 +56,10 @@ export const ENV = {
   // charge job never actually charges a card, so deploying is safe. Turn on only
   // after cards are on file and you have tested. See docs/OPERATIONS_SOPS.md.
   membershipAutochargeEnforce: process.env.MEMBERSHIP_AUTOCHARGE_ENFORCE === "true",
+  // 2026-08-17: the daily "morning report" health email is off by default (Arfa
+  // found it unneeded). Set TMA_MORNING_REPORT=true to re-enable. The cron may
+  // still fire; the handler no-ops unless this is on.
+  morningReportEnabled: process.env.TMA_MORNING_REPORT === "true",
   // 2026-08-11: read-only AI assistant. The @ai-sdk/openai provider reads
   // OPENAI_API_KEY from process.env directly; we surface it here only for a
   // helpful "not configured" error. Model is overridable. See docs/AI_ASSISTANT_SPEC.md.

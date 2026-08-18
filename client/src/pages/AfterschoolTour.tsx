@@ -9,6 +9,9 @@ import { CheckCircle2, Bus, BookOpen, Clock, Users } from "lucide-react";
 import { SMS_CONSENT_TEXT } from "../../../shared/smsConsent";
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+// The 4 elementary schools TMA picks up from. "Other" lets out-of-area families
+// self-identify so staff know pickup isn't available.
+const SCHOOLS = ["Jackson Elementary", "Walnut Grove Elementary", "McKendree Elementary", "Benefield Elementary", "Other (not listed)"];
 
 function getUtmParams() {
   const p = new URLSearchParams(window.location.search);
@@ -34,6 +37,8 @@ export default function AfterschoolTour() {
   const [parentName, setParentName] = useState(prefill.parentName || "");
   const [kidName,    setKidName]    = useState(prefill.kidName || "");
   const [grade,      setGrade]      = useState("");
+  const [school,     setSchool]     = useState("");
+  const [otherSchool, setOtherSchool] = useState("");
   const [phone,      setPhone]      = useState(prefill.phone || "");
   const [email,      setEmail]      = useState(prefill.email || "");
   const [days,       setDays]       = useState<string[]>([]);
@@ -53,8 +58,12 @@ export default function AfterschoolTour() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!parentName.trim() || !kidName.trim() || !grade.trim() || !phone.trim()) {
+    if (!parentName.trim() || !kidName.trim() || !grade.trim() || !phone.trim() || !school) {
       toast.error("Please fill in all required fields.");
+      return;
+    }
+    if (school === "Other (not listed)" && !otherSchool.trim()) {
+      toast.error("Please tell us which school your child attends.");
       return;
     }
     if (!smsConsent) {
@@ -62,6 +71,7 @@ export default function AfterschoolTour() {
       return;
     }
 
+    const schoolLabel = school === "Other (not listed)" ? `${otherSchool.trim()} (not a pickup school)` : school;
     const preferredDays = days.length > 0
       ? `Preferred tour days: ${days.join(", ")}.`
       : "No preferred days specified.";
@@ -75,7 +85,7 @@ export default function AfterschoolTour() {
         programInterest: "Afterschool",
         email:           email.trim() || "",
         phone:           phone.trim(),
-        additionalNotes: `Tour request - afterschool program. ${preferredDays} We will call to confirm tour time (M-F 2pm-4pm window, flexible upon speaking with staff).`,
+        additionalNotes: `School: ${schoolLabel}. Tour request - afterschool program. ${preferredDays} We will call to confirm tour time (M-F 2pm-4pm window, flexible upon speaking with staff).`,
         tags:            ["tour_request"],
         smsConsent:      true,
         smsConsentText:  SMS_CONSENT_TEXT,
@@ -134,13 +144,13 @@ export default function AfterschoolTour() {
             Schedule Your Afterschool Tour
           </h1>
           <p className="text-white/70 text-sm">
-            Come see the program in action. We pick up from Jackson, Walnut Grove, and McKendree
-            Elementary. Homework done. Taekwondo and kickboxing. Home by 6:30.
+            Come see the program in action. We pick up from Jackson, Walnut Grove, McKendree,
+            and Benefield Elementary. Homework done. Taekwondo and kickboxing. Home by 6:30.
           </p>
 
           <div className="grid grid-cols-2 gap-2.5 mt-5">
             {[
-              { icon: Bus,     text: "Bus pickup from 3 schools" },
+              { icon: Bus,     text: "Bus pickup from 4 schools" },
               { icon: BookOpen, text: "Homework done daily" },
               { icon: Clock,    text: "Done by 6:30 PM" },
               { icon: Users,    text: "K-5, 4 days a week" },
@@ -198,6 +208,27 @@ export default function AfterschoolTour() {
                 className="text-base"
               />
             </div>
+          </div>
+
+          <div>
+            <Label className="text-gray-700 font-medium mb-1.5 block">Child's school <span className="text-[#c41e3a]">*</span></Label>
+            <select
+              value={school}
+              onChange={e => setSchool(e.target.value)}
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+            >
+              <option value="">Select your child's school</option>
+              {SCHOOLS.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+            {school === "Other (not listed)" && (
+              <Input
+                value={otherSchool}
+                onChange={e => setOtherSchool(e.target.value)}
+                placeholder="Which school? (we may not pick up there)"
+                className="text-base mt-2"
+              />
+            )}
+            <p className="text-xs text-gray-400 mt-1">We pick up from Jackson, Walnut Grove, McKendree, and Benefield Elementary.</p>
           </div>
 
           <div>
