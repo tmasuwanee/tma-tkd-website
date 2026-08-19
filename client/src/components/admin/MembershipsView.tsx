@@ -187,6 +187,7 @@ export function MemberPanelBody({ id, onChanged, onName }: { id: number; onChang
 
   const m = q.data?.membership;
   const charges = q.data?.charges ?? [];
+  const paymentsEnabled = billing.data?.paymentsEnabled ?? false;
 
   const changeAmount = () => {
     const s = window.prompt("New monthly tuition (dollars):", m ? String((m.monthlyAmountCents / 100).toFixed(2)) : "");
@@ -233,13 +234,20 @@ export function MemberPanelBody({ id, onChanged, onName }: { id: number; onChang
               : <ActionBtn onClick={() => { if (window.confirm("Pause this membership now?")) pause.mutate({ id }); }} icon={<Pause className="w-3.5 h-3.5" />} label="Pause" />}
             <ActionBtn onClick={() => { if (window.confirm("Schedule cancellation with a 60-day notice? They can attend until then.")) cancel.mutate({ id, immediate: false }); }} icon={<Ban className="w-3.5 h-3.5" />} label="Cancel (60-day)" />
             <ActionBtn danger onClick={() => { if (window.confirm("Cancel this membership IMMEDIATELY? This ends it now.")) cancel.mutate({ id, immediate: true }); }} icon={<Ban className="w-3.5 h-3.5" />} label="Cancel now" />
-            <ActionBtn onClick={() => setupCard.mutate({ id })} icon={<CreditCard className="w-3.5 h-3.5" />} label={m.stripeCustomerId ? "Update card" : "Set up autopay"} />
+            <ActionBtn onClick={() => setupCard.mutate({ id })} disabled={!paymentsEnabled}
+              title={!paymentsEnabled ? "Payments are off. Turn on billing to collect cards." : undefined}
+              icon={<CreditCard className="w-3.5 h-3.5" />} label={m.stripeCustomerId ? "Update card" : "Set up autopay"} />
           </div>
         </div>
       </PanelSection>
 
       {/* Family cards on file (one payer, shared across their students) */}
       <PanelSection title={`Cards on file${billing.data?.payer ? ` · ${billing.data.payer.name}` : ""}`}>
+        {!paymentsEnabled && (
+          <div className="mb-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            Payments are off, so card setup is disabled. Turn on billing (MEMBERSHIP_AUTOCHARGE_ENFORCE) when you go live to collect cards.
+          </div>
+        )}
         <div className="flex items-center gap-2 text-sm mb-2 flex-wrap">
           <span className="text-gray-500">Family payer:</span>
           <select value={m.payerId ?? ""} onChange={e => onPickPayer(e.target.value)} disabled={assignPayer.isPending}
@@ -278,20 +286,20 @@ export function MemberPanelBody({ id, onChanged, onName }: { id: number; onChang
 
       {/* Financials */}
       <PanelSection title="Financials (monthly charges)" defaultOpen={false}>
-        <div className="border border-gray-200 rounded-lg overflow-hidden">
-          <table className="w-full text-sm">
-            <thead><tr className="bg-gray-50 text-left text-xs text-gray-500"><th className="px-3 py-2">Month</th><th className="px-3 py-2">Amount</th><th className="px-3 py-2">Status</th><th className="px-3 py-2 text-right">Edit</th></tr></thead>
+        <div className="border border-gray-200 rounded-lg overflow-x-auto">
+          <table className="w-full text-sm min-w-[400px]">
+            <thead><tr className="bg-gray-50 text-left text-xs text-gray-500"><th className="px-3 py-2 font-semibold">Month</th><th className="px-3 py-2 font-semibold text-right">Amount</th><th className="px-3 py-2 font-semibold">Status</th><th className="px-3 py-2 text-right font-semibold">Actions</th></tr></thead>
             <tbody>
               {charges.length === 0 ? (
                 <tr><td colSpan={4} className="px-3 py-6 text-center text-gray-400">No charges scheduled.</td></tr>
               ) : charges.map(ch => (
                 <tr key={ch.id} className="border-t border-gray-100">
-                  <td className="px-3 py-2 tabular-nums">{ch.periodMonth}</td>
-                  <td className={`px-3 py-2 tabular-nums ${CHARGE_STYLE[ch.status] ?? ""}`}>{fmt(ch.amountCents)}{ch.amountCents !== ch.baseAmountCents ? <span className="text-[10px] text-gray-400 line-through ml-1">{fmt(ch.baseAmountCents)}</span> : null}</td>
-                  <td className="px-3 py-2"><span className="text-xs text-gray-500">{ch.status}</span>{ch.note ? <span className="text-[10px] text-gray-400"> · {ch.note}</span> : null}</td>
-                  <td className="px-3 py-2 text-right whitespace-nowrap">
-                    <button onClick={() => editCharge(ch.id, ch.amountCents)} className="text-xs text-[#1a2d5a] hover:underline mr-2">Edit</button>
-                    <button onClick={() => adjust.mutate({ chargeId: ch.id, amountCents: 0, status: "waived", note: "Waived" })} className="text-xs text-amber-700 hover:underline mr-2">Waive</button>
+                  <td className="px-3 py-2.5 tabular-nums whitespace-nowrap">{ch.periodMonth}</td>
+                  <td className={`px-3 py-2.5 tabular-nums text-right font-semibold whitespace-nowrap ${CHARGE_STYLE[ch.status] ?? ""}`}>{fmt(ch.amountCents)}{ch.amountCents !== ch.baseAmountCents ? <span className="text-[10px] text-gray-400 line-through ml-1 font-normal">{fmt(ch.baseAmountCents)}</span> : null}</td>
+                  <td className="px-3 py-2.5"><span className="text-xs text-gray-600 capitalize">{ch.status}</span>{ch.note ? <div className="text-[10px] text-gray-400">{ch.note}</div> : null}</td>
+                  <td className="px-3 py-2.5 text-right whitespace-nowrap">
+                    <button onClick={() => editCharge(ch.id, ch.amountCents)} className="text-xs text-[#1a2d5a] hover:underline mr-2.5">Edit</button>
+                    <button onClick={() => adjust.mutate({ chargeId: ch.id, amountCents: 0, status: "waived", note: "Waived" })} className="text-xs text-amber-700 hover:underline mr-2.5">Waive</button>
                     <button onClick={() => adjust.mutate({ chargeId: ch.id, status: "canceled", note: "Canceled" })} className="text-xs text-gray-500 hover:text-red-600 hover:underline">Cancel</button>
                   </td>
                 </tr>
@@ -316,9 +324,10 @@ function PanelSection({ title, defaultOpen = true, children }: { title: string; 
   );
 }
 
-function ActionBtn({ onClick, icon, label, danger }: { onClick: () => void; icon: React.ReactNode; label: string; danger?: boolean }) {
+function ActionBtn({ onClick, icon, label, danger, disabled, title }: { onClick: () => void; icon: React.ReactNode; label: string; danger?: boolean; disabled?: boolean; title?: string }) {
   return (
-    <button onClick={onClick} className={`inline-flex items-center gap-1.5 text-xs font-medium rounded-lg border px-2.5 py-1.5 ${danger ? "text-red-600 border-red-200 hover:bg-red-50" : "text-gray-700 border-gray-200 hover:border-[#1a2d5a]/40"}`}>
+    <button onClick={onClick} disabled={disabled} title={title}
+      className={`inline-flex items-center gap-1.5 text-xs font-medium rounded-lg border px-2.5 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed ${danger ? "text-red-600 border-red-200 hover:bg-red-50" : "text-gray-700 border-gray-200 hover:border-[#1a2d5a]/40"}`}>
       {icon}{label}
     </button>
   );

@@ -52,7 +52,7 @@ export function MemberDockProvider({ children }: { children: React.ReactNode }) 
       <div className="fixed bottom-0 right-0 z-40 max-w-full pointer-events-none">
       <div className="flex items-end gap-3 p-3 max-w-full overflow-x-auto pointer-events-auto">
         {panels.map(p => (
-          <div key={p.id} className="pointer-events-auto w-[370px] max-w-[92vw] bg-white rounded-t-xl shadow-2xl border border-gray-200 flex flex-col shrink-0" style={{ maxHeight: "82vh" }}>
+          <div key={p.id} className="pointer-events-auto w-[460px] max-w-[94vw] bg-white rounded-t-xl shadow-2xl border border-gray-200 flex flex-col shrink-0" style={{ maxHeight: "82vh" }}>
             <div className="h-11 shrink-0 flex items-center gap-2 px-3 bg-[#1a2d5a] text-white rounded-t-xl cursor-pointer select-none" onClick={() => toggleMin(p.id)}>
               <CreditCard className="w-4 h-4 shrink-0 opacity-80" />
               <div className="text-sm font-semibold truncate flex-1">{p.name}</div>

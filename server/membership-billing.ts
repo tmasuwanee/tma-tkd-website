@@ -78,7 +78,8 @@ export async function chargeDueMemberships(): Promise<{ charged: number; failed:
 /** Ensure the membership has a family payer with a Stripe customer, then return a
  *  Checkout (setup) URL to collect a card onto that payer. */
 export async function createCardSetupSession(membershipId: number, origin: string): Promise<{ url: string | null }> {
-  if (!ENV.tmaStripeSecretKey) return { url: null };
+  // Payments off: never mint a card-setup link (covers the assistant path too).
+  if (!ENV.membershipAutochargeEnforce || !ENV.tmaStripeSecretKey) return { url: null };
   const m = await getMembership(membershipId);
   if (!m) throw new Error("Membership not found");
   const s = stripe();

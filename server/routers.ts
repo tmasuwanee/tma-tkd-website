@@ -2038,6 +2038,9 @@ export const appRouter = router({
     // webhook attaches it to the membership on completion.
     setupCardSession: publicProcedure.input(z.object({ id: z.number().int().positive() }))
       .mutation(async ({ input, ctx }) => {
+        // Payments off: refuse to mint a card-setup link so nothing "goes through"
+        // while billing is disabled. Flip MEMBERSHIP_AUTOCHARGE_ENFORCE at go-live.
+        if (!ENV.membershipAutochargeEnforce) throw new Error("Payments are currently off. Turn on billing before collecting cards.");
         const proto = String((ctx.req.headers["x-forwarded-proto"] as string) || "https").split(",")[0];
         const host = ctx.req.headers.host || "tmatkd.com";
         return createCardSetupSession(input.id, `${proto}://${host}`);
@@ -2047,11 +2050,16 @@ export const appRouter = router({
     chargeDueNow: publicProcedure.mutation(async () => chargeDueMemberships()),
     // Family payer + its cards on file (primary = the default the family is charged).
     billing: publicProcedure.input(z.object({ id: z.number().int().positive() })).query(async ({ input }) => {
+      // paymentsEnabled = the master payments switch. While off, the dashboard
+      // hides the card-setup link and the server refuses to create one, so no
+      // card collection / charging can happen. Flip MEMBERSHIP_AUTOCHARGE_ENFORCE
+      // at go-live (after test-clock testing) to turn it back on.
+      const paymentsEnabled = ENV.membershipAutochargeEnforce && !!ENV.tmaStripeSecretKey;
       const m = await getMembership(input.id);
-      const empty = { payer: null, cards: [] as { id: string; brand: string; last4: string; exp: string; primary: boolean }[], siblings: [] as { id: number; student: string; program: string }[] };
+      const empty = { payer: null, cards: [] as { id: string; brand: string; last4: string; exp: string; primary: boolean }[], siblings: [] as { id: number; student: string; program: string }[], paymentsEnabled };
       if (!m?.payerId) return empty;
       const [payer, cards, members] = await Promise.all([getPayer(m.payerId), listPayerCards(m.payerId), listMembershipsByPayer(m.payerId)]);
-      return { payer, cards, siblings: members.filter(x => x.id !== m.id).map(x => ({ id: x.id, student: x.studentName, program: x.program })) };
+      return { payer, cards, siblings: members.filter(x => x.id !== m.id).map(x => ({ id: x.id, student: x.studentName, program: x.program })), paymentsEnabled };
     }),
     setPrimaryCard: publicProcedure.input(z.object({ id: z.number().int().positive(), paymentMethodId: z.string() }))
       .mutation(async ({ input }) => {
