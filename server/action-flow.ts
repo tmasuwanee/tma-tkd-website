@@ -82,6 +82,26 @@ const studentUpdateSchema = z.object({
 });
 const rec = (o: object) => o as Record<string, unknown>;
 
+// Catalog guardrail: the ASSISTANT (this confirm-flow) may only set a membership
+// to a real TMA plan price, so the model can't invent an off-catalog amount like
+// "4.5 day/week / $450". Staff setting a custom rate directly in the dashboard go
+// through memberships.change (NOT this flow), so they keep full flexibility.
+const CATALOG_PRICES_CENTS: Record<string, number[]> = {
+  taekwondo: [17900, 19900],   // 2 or 3 days/week
+  kickboxing: [15900],
+  bjj: [15900],
+  afterschool: [40000, 50000], // 2-3 or 4-5 days/week
+};
+function assertCatalogPrice(program: string | undefined, cents: number | undefined): void {
+  if (cents === undefined) return;
+  const allowed = CATALOG_PRICES_CENTS[(program || "").toLowerCase()];
+  if (!allowed) return; // unknown program → don't block
+  if (!allowed.includes(cents)) {
+    const opts = allowed.map(c => `$${(c / 100).toFixed(0)}`).join(" or ");
+    throw new Error(`$${(cents / 100).toFixed(0)}/mo is not a TMA ${program} plan price (valid: ${opts}). Use one of those, apply a discount for a reduced rate, or have a staff member set a custom price directly in the dashboard.`);
+  }
+}
+
 const HANDLERS: Record<string, ActionHandler> = {
   send_email: {
     prepare: async (payload) => {
@@ -102,6 +122,7 @@ const HANDLERS: Record<string, ActionHandler> = {
   membership_create: {
     prepare: async (payload) => {
       const p = membershipCreateSchema.parse(payload);
+      assertCatalogPrice(p.program, p.monthlyAmountCents);
       return { title: `New membership: ${p.studentName}`, preview: describeMembershipOp("membership_create", rec(p)) };
     },
     execute: async (payload) => {
@@ -116,6 +137,7 @@ const HANDLERS: Record<string, ActionHandler> = {
       const p = membershipChangeSchema.parse(payload);
       const m = await getMembership(p.id);
       if (!m) throw new Error("Membership not found");
+      assertCatalogPrice(p.program ?? m.program, p.monthlyAmountCents);
       return { title: `Change membership: ${m.studentName}`, preview: describeMembershipOp("membership_change", rec(p), m) };
     },
     execute: async (payload) => {
