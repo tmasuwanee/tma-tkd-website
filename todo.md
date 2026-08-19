@@ -248,5 +248,5 @@
 - [x] Pull commit cc8f483 and validate the production build, migration status, disabled billing and morning-report gates, dashboard source, and afterschool tour dropdown locally
 - [x] Fix and verify the memberships.afterschoolRegId unique-index startup migration so repeated boots succeed without a migration failure
 - [ ] After publishing commit cc8f483, verify live authenticated dashboard behavior, afterschool tour dropdown, and console/network health
-- [ ] Pull commit e35c794 and validate the production build, idempotent migrations, disabled gates, Financials full-view popup, dashboard source, and afterschool tour locally
+- [x] Pull commit e35c794 and validate the production build, idempotent migrations, disabled gates, Financials full-view popup, dashboard source, and afterschool tour locally
 - [ ] After publishing commit e35c794, verify live authenticated dashboard behavior, Financials popup, afterschool tour dropdown, and console/network health
