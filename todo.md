@@ -245,3 +245,5 @@
 - [ ] After publishing commit 3e26e50, verify live payer schema, membership payer assignment, assistant approval proposal, Day Camp pages, and public flows
 - [x] Pull commit a268c1e and validate the production build, specials migration, memberships.afterschoolRegId column/index, and dashboard features locally without configuration changes
 - [ ] After publishing commit a268c1e, verify live migration logs, authenticated dashboard navigation, member panels, Trials, Camps, Pro Shop Specials, Assistant proposals, and errors
+- [ ] Pull commit cc8f483 and validate the production build, migration status, disabled billing and morning-report gates, dashboard source, and afterschool tour dropdown locally
+- [ ] After publishing commit cc8f483, verify live authenticated dashboard behavior, afterschool tour dropdown, and console/network health
