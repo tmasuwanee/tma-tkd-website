@@ -234,7 +234,7 @@ const MIGRATIONS: { name: string; sql: string }[] = [
   },
   {
     name: "memberships.afterschoolRegId unique index",
-    sql: "ALTER TABLE memberships ADD UNIQUE INDEX uniq_membership_afterschool_reg (afterschoolRegId)",
+    sql: "CREATE UNIQUE INDEX IF NOT EXISTS uniq_membership_afterschool_reg ON memberships (afterschoolRegId)",
   },
 ];
 
