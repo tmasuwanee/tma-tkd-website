@@ -250,3 +250,5 @@
 - [ ] After publishing commit cc8f483, verify live authenticated dashboard behavior, afterschool tour dropdown, and console/network health
 - [x] Pull commit e35c794 and validate the production build, idempotent migrations, disabled gates, Financials full-view popup, dashboard source, and afterschool tour locally
 - [ ] After publishing commit e35c794, verify live authenticated dashboard behavior, Financials popup, afterschool tour dropdown, and console/network health
+- [ ] Pull commit 69b15f6 and validate the production build, fresh migrations, disabled gates, member waiver and belt-testing tools, and public pages locally
+- [ ] After publishing commit 69b15f6, verify live authenticated member waiver/testing behavior, public pages, admin views, and console/network health
