@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Loader2, Users, Plus, X, Pause, Play, Ban, Tag, PencilLine, CreditCard, ChevronDown, ChevronRight, Maximize2, FileSignature, ExternalLink, Copy, Check, ShieldCheck, AlertTriangle, Award, ArrowUp, ArrowDown } from "lucide-react";
+import { Loader2, Users, Plus, X, Pause, Play, Ban, Tag, PencilLine, CreditCard, ChevronDown, ChevronRight, Maximize2, FileSignature, ExternalLink, Copy, Check, ShieldCheck, AlertTriangle, Award, ArrowUp, ArrowDown, MessageSquare } from "lucide-react";
 import { BELT_SEQUENCE } from "@shared/beltRanks";
 
 /**
@@ -505,6 +505,16 @@ function AttachWaiverModal({ membershipId, waiverData, onClose, onDone }: {
     try { const r = await getLink(kind); window.open(r.url, "_blank", "noopener"); }
     catch { toast.error("Could not open link."); }
   };
+  const textParent = async (kind: "martial_arts" | "afterschool") => {
+    try {
+      const r = await getLink(kind);
+      if (!r.phone) { toast.error("No phone number on file for this family."); return; }
+      const label = kind === "afterschool" ? "after-school" : "martial arts";
+      const body = `Hi! Please sign your Top Martial Arts ${label} form here: ${r.url}`;
+      // sms: opens the messaging app with the number + message prefilled (mobile / iPad).
+      window.location.href = `sms:${r.phone.replace(/[^0-9+]/g, "")}?&body=${encodeURIComponent(body)}`;
+    } catch { toast.error("Could not build the text."); }
+  };
   const doAttest = (kind: "martial_arts" | "afterschool") => {
     const note = window.prompt("Optional note (e.g. 'paper waiver in file cabinet'):") ?? undefined;
     attest.mutate({ id: membershipId, kind, note: note || undefined });
@@ -521,6 +531,9 @@ function AttachWaiverModal({ membershipId, waiverData, onClose, onDone }: {
           <div key={k.key} className="border border-gray-200 rounded-lg p-3">
             <div className="text-sm font-semibold text-gray-800 mb-2">{k.label} <span className="text-xs font-normal text-gray-400">({k.status.replace("_", " ")})</span></div>
             <div className="flex flex-wrap gap-2">
+              <button onClick={() => textParent(k.key)} className="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-[#1a2d5a] hover:bg-[#142347] rounded px-2.5 py-1.5">
+                <MessageSquare className="w-3.5 h-3.5" /> Text to parent
+              </button>
               <button onClick={() => copyLink(k.key)} disabled={busy === `${k.key}-copy`} className="inline-flex items-center gap-1.5 text-xs font-medium text-[#1a2d5a] border border-[#1a2d5a]/30 hover:bg-[#1a2d5a]/5 rounded px-2.5 py-1.5 disabled:opacity-50">
                 {busy === `${k.key}-copy` ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Copy className="w-3.5 h-3.5" />} Copy signing link
               </button>

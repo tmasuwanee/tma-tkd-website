@@ -2196,7 +2196,7 @@ export const appRouter = router({
         // Send both key styles: /agreement reads studentName, /afterschool-waiver reads student.
         const params = new URLSearchParams({ studentName: m.studentName || "", student: m.studentName || "", parentName: m.parentName || "", email: m.email || "", phone: m.phone || "" }).toString();
         const path = input.kind === "afterschool" ? "/afterschool-waiver" : "/agreement";
-        return { url: `${proto}://${host}${path}?${params}` };
+        return { url: `${proto}://${host}${path}?${params}`, phone: m.phone || null, studentName: m.studentName || "" };
       }),
     // Belt status for a member (resolves the membership to a roster student). Returns
     // { linked:false } when there is no student record to attach belts to.
