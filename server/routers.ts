@@ -2177,6 +2177,13 @@ export const appRouter = router({
         const path = input.kind === "afterschool" ? "/afterschool-waiver" : "/agreement";
         return { url: `${proto}://${host}${path}?${params}` };
       }),
+    // Full detail of one signed waiver (incl. signature image) for the view popup.
+    waiverDetail: publicProcedure.input(z.object({ waiverId: z.number().int().positive() }))
+      .query(async ({ input }) => {
+        const w = (await getAllWaivers()).find(x => x.id === input.waiverId);
+        if (!w) return null;
+        return { id: w.id, source: w.source, signedName: w.signedName ?? null, signedDate: w.signedDate, signatureData: w.signatureData ?? null, disclaimerText: w.disclaimerText ?? null, pdfUrl: w.pdfUrl ?? null };
+      }),
     bulkCreate: publicProcedure.input(z.object({
       members: z.array(z.object({
         studentName: z.string().min(1).max(255),

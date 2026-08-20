@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Loader2, Users, Plus, X, Pause, Play, Ban, Tag, PencilLine, CreditCard, ChevronDown, ChevronRight, Maximize2 } from "lucide-react";
+import { Loader2, Users, Plus, X, Pause, Play, Ban, Tag, PencilLine, CreditCard, ChevronDown, ChevronRight, Maximize2, FileSignature, ExternalLink, Copy, Check, ShieldCheck, AlertTriangle } from "lucide-react";
 
 /**
  * Memberships + Financials. A person does everything here directly (with an inline
@@ -175,6 +175,7 @@ export function MemberPanelBody({ id, onChanged, onName }: { id: number; onChang
     onSuccess: () => { utils.memberships.billing.invalidate({ id }); toast.success("Card removed."); },
     onError: (e) => toast.error(e.message ?? "Failed."),
   });
+  const waiverQ = trpc.members.waivers.useQuery({ id });
   const payers = trpc.memberships.listPayers.useQuery();
   const assignPayer = trpc.memberships.assignPayer.useMutation({
     onSuccess: () => { utils.memberships.get.invalidate({ id }); utils.memberships.billing.invalidate({ id }); utils.memberships.listPayers.invalidate(); toast.success("Family payer updated."); },
@@ -189,6 +190,10 @@ export function MemberPanelBody({ id, onChanged, onName }: { id: number; onChang
   const charges = q.data?.charges ?? [];
   const paymentsEnabled = billing.data?.paymentsEnabled ?? false;
   const [financialsOpen, setFinancialsOpen] = useState(false);
+  const [attachWaiverOpen, setAttachWaiverOpen] = useState(false);
+  const [viewWaiverId, setViewWaiverId] = useState<number | null>(null);
+  const wv = waiverQ.data;
+  const anyWaiverMissing = !!wv && (wv.martialArts.status === "missing" || wv.afterschool.status === "missing");
 
   const changeAmount = () => {
     const s = window.prompt("New monthly tuition (dollars):", m ? String((m.monthlyAmountCents / 100).toFixed(2)) : "");
@@ -239,6 +244,12 @@ export function MemberPanelBody({ id, onChanged, onName }: { id: number; onChang
               title={!paymentsEnabled ? "Payments are off. Turn on billing to collect cards." : undefined}
               icon={<CreditCard className="w-3.5 h-3.5" />} label={m.stripeCustomerId ? "Update card" : "Set up autopay"} />
           </div>
+          {anyWaiverMissing && (
+            <button onClick={() => setAttachWaiverOpen(true)}
+              className="w-full inline-flex items-center justify-center gap-2 text-sm font-semibold text-amber-900 bg-amber-50 border-2 border-amber-400 rounded-lg px-3 py-2 animate-pulse hover:animate-none hover:bg-amber-100">
+              <AlertTriangle className="w-4 h-4" /> Waiver missing — add now
+            </button>
+          )}
         </div>
       </PanelSection>
 
@@ -286,6 +297,22 @@ export function MemberPanelBody({ id, onChanged, onName }: { id: number; onChang
       </PanelSection>
 
       {/* Financials */}
+      {/* Waivers & agreements */}
+      <PanelSection title="Waivers & agreements">
+        {waiverQ.isLoading || !wv ? (
+          <div className="py-3 text-center text-gray-400"><Loader2 className="w-4 h-4 animate-spin mx-auto" /></div>
+        ) : (
+          <div className="space-y-2">
+            <WaiverKindRow label="Martial arts (TKD / Kickboxing / BJJ)" data={wv.martialArts} onView={setViewWaiverId} onAttach={() => setAttachWaiverOpen(true)} />
+            <WaiverKindRow label="After-School" data={wv.afterschool} onView={setViewWaiverId} onAttach={() => setAttachWaiverOpen(true)} />
+            {wv.martialArts.status === "na" && wv.afterschool.status === "na" ? (
+              <div className="text-xs text-gray-400">No waiver required for this member's programs.</div>
+            ) : null}
+            <button onClick={() => setAttachWaiverOpen(true)} className="text-xs font-medium text-[#1a2d5a] hover:underline inline-flex items-center gap-1"><Plus className="w-3 h-3" /> Add / attach a waiver</button>
+          </div>
+        )}
+      </PanelSection>
+
       {/* Financials opens a full centered popup — the ledger needs more width than
           the docked panel gives. */}
       <button onClick={() => setFinancialsOpen(true)}
@@ -327,7 +354,134 @@ export function MemberPanelBody({ id, onChanged, onName }: { id: number; onChang
           </div>
         </Overlay>
       )}
+
+      {attachWaiverOpen && wv && (
+        <AttachWaiverModal membershipId={id} waiverData={wv} onClose={() => setAttachWaiverOpen(false)}
+          onDone={() => { utils.members.waivers.invalidate({ id }); setAttachWaiverOpen(false); }} />
+      )}
+      {viewWaiverId !== null && (
+        <WaiverViewModal waiverId={viewWaiverId} onClose={() => setViewWaiverId(null)} />
+      )}
     </div>
+  );
+}
+
+function WaiverKindRow({ label, data, onView, onAttach }: {
+  label: string;
+  data: { status: "on_file" | "missing" | "needs_review" | "na"; waivers: Array<{ id: number; attested: boolean; signedName: string | null; signedDate: string; needsReview: boolean }> };
+  onView: (id: number) => void; onAttach: () => void;
+}) {
+  if (data.status === "na") return null;
+  const badge = data.status === "on_file" ? { t: "On file", c: "bg-green-100 text-green-800 border-green-200" }
+    : data.status === "needs_review" ? { t: "Needs review", c: "bg-amber-100 text-amber-800 border-amber-200" }
+    : { t: "Missing", c: "bg-red-100 text-red-700 border-red-200" };
+  return (
+    <div className="border border-gray-200 rounded-lg p-2.5">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-sm font-medium text-gray-800">{label}</span>
+        <span className={`text-[11px] rounded-full border px-2 py-0.5 font-medium shrink-0 ${badge.c}`}>{badge.t}</span>
+      </div>
+      {data.waivers.length > 0 ? (
+        <div className="mt-1.5 space-y-1">
+          {data.waivers.map(w => (
+            <button key={w.id} onClick={() => onView(w.id)} className="w-full flex items-center gap-2 text-xs text-left text-gray-600 hover:text-[#1a2d5a] hover:bg-gray-50 rounded px-1.5 py-1">
+              {w.attested ? <ShieldCheck className="w-3.5 h-3.5 text-gray-400 shrink-0" /> : <FileSignature className="w-3.5 h-3.5 text-gray-400 shrink-0" />}
+              <span className="truncate">{w.attested ? "Attested on file" : "Signed"} · {w.signedDate}{w.signedName ? ` · ${w.signedName}` : ""}</span>
+              {w.needsReview ? <span className="text-amber-600 text-[10px] shrink-0">review match</span> : null}
+              <span className="ml-auto text-[#1a2d5a] font-medium shrink-0">View</span>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <button onClick={onAttach} className="mt-1.5 text-xs font-semibold text-[#1a2d5a] hover:underline">Attach waiver →</button>
+      )}
+    </div>
+  );
+}
+
+function AttachWaiverModal({ membershipId, waiverData, onClose, onDone }: {
+  membershipId: number;
+  waiverData: { martialArts: { status: string }; afterschool: { status: string } };
+  onClose: () => void; onDone: () => void;
+}) {
+  const utils = trpc.useUtils();
+  const [busy, setBusy] = useState<string | null>(null);
+  const attest = trpc.members.attestWaiver.useMutation({
+    onSuccess: () => { toast.success("Recorded on file."); onDone(); },
+    onError: (e) => toast.error(e.message ?? "Failed."),
+  });
+  const getLink = async (kind: "martial_arts" | "afterschool") => utils.members.generateWaiverLink.fetch({ id: membershipId, kind });
+  const copyLink = async (kind: "martial_arts" | "afterschool") => {
+    setBusy(`${kind}-copy`);
+    try { const r = await getLink(kind); await navigator.clipboard.writeText(r.url); toast.success("Signing link copied."); }
+    catch { toast.error("Could not get link."); } finally { setBusy(null); }
+  };
+  const openLink = async (kind: "martial_arts" | "afterschool") => {
+    try { const r = await getLink(kind); window.open(r.url, "_blank", "noopener"); }
+    catch { toast.error("Could not open link."); }
+  };
+  const doAttest = (kind: "martial_arts" | "afterschool") => {
+    const note = window.prompt("Optional note (e.g. 'paper waiver in file cabinet'):") ?? undefined;
+    attest.mutate({ id: membershipId, kind, note: note || undefined });
+  };
+  const kinds = ([
+    { key: "martial_arts" as const, label: "Martial Arts agreement (TKD / Kickboxing / BJJ)", status: waiverData.martialArts.status },
+    { key: "afterschool" as const, label: "After-School waiver", status: waiverData.afterschool.status },
+  ]).filter(k => k.status !== "na");
+  return (
+    <Overlay onClose={onClose} title="Add / attach a waiver" wide>
+      <div className="space-y-3">
+        <p className="text-xs text-gray-500">Send the signing link to the parent, open it on the front-desk iPad to sign now, or attest that a signed paper waiver is already on file. A student may need more than one.</p>
+        {kinds.map(k => (
+          <div key={k.key} className="border border-gray-200 rounded-lg p-3">
+            <div className="text-sm font-semibold text-gray-800 mb-2">{k.label} <span className="text-xs font-normal text-gray-400">({k.status.replace("_", " ")})</span></div>
+            <div className="flex flex-wrap gap-2">
+              <button onClick={() => copyLink(k.key)} disabled={busy === `${k.key}-copy`} className="inline-flex items-center gap-1.5 text-xs font-medium text-[#1a2d5a] border border-[#1a2d5a]/30 hover:bg-[#1a2d5a]/5 rounded px-2.5 py-1.5 disabled:opacity-50">
+                {busy === `${k.key}-copy` ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Copy className="w-3.5 h-3.5" />} Copy signing link
+              </button>
+              <button onClick={() => openLink(k.key)} className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-700 border border-gray-200 hover:border-[#1a2d5a]/40 rounded px-2.5 py-1.5">
+                <ExternalLink className="w-3.5 h-3.5" /> Open on this device
+              </button>
+              <button onClick={() => doAttest(k.key)} disabled={attest.isPending} className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-600 border border-gray-200 hover:border-gray-300 rounded px-2.5 py-1.5 disabled:opacity-50">
+                <ShieldCheck className="w-3.5 h-3.5" /> Attest on file (paper)
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </Overlay>
+  );
+}
+
+function WaiverViewModal({ waiverId, onClose }: { waiverId: number; onClose: () => void }) {
+  const q = trpc.members.waiverDetail.useQuery({ waiverId });
+  const w = q.data;
+  const attested = !!w && (w.source || "").startsWith("attested");
+  return (
+    <Overlay onClose={onClose} title={attested ? "Attested waiver" : "Signed waiver"} xwide>
+      {q.isLoading ? (
+        <div className="py-10 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></div>
+      ) : !w ? (
+        <div className="py-8 text-center text-sm text-gray-400">Waiver not found.</div>
+      ) : (
+        <div className="space-y-3 text-sm">
+          <div className="text-xs text-gray-500">{attested ? "Attested" : "Signed"} on {w.signedDate}{w.signedName ? ` · ${w.signedName}` : ""}</div>
+          {w.pdfUrl ? <a href={w.pdfUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#1a2d5a] hover:underline"><ExternalLink className="w-4 h-4" /> Open signed PDF</a> : null}
+          {w.signatureData && !attested ? (
+            <div>
+              <div className="text-xs font-semibold text-gray-600 mb-1">Signature</div>
+              <img src={w.signatureData} alt="signature" className="max-h-40 border border-gray-200 rounded bg-white" />
+            </div>
+          ) : null}
+          {w.disclaimerText ? (
+            <div>
+              <div className="text-xs font-semibold text-gray-600 mb-1">Agreed wording</div>
+              <div className="border border-gray-200 rounded-lg p-3 bg-gray-50 max-h-[50vh] overflow-y-auto whitespace-pre-wrap text-xs text-gray-700">{w.disclaimerText}</div>
+            </div>
+          ) : null}
+        </div>
+      )}
+    </Overlay>
   );
 }
 

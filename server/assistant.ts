@@ -22,6 +22,7 @@ import {
   getAfterschoolRegistrations, listMemberships, listMembershipCharges, getMembership,
 } from "./db";
 import { listPayerCards, createCardSetupSession } from "./membership-billing";
+import { memberWaivers } from "./members";
 import { retrievePlaybook } from "./playbook-rag";
 import { proposeAction } from "./action-flow";
 
@@ -240,6 +241,28 @@ function buildTools(opts: { origin: string }) {
       },
     }),
 
+    // ── Waivers on file (martial-arts + afterschool) ──
+    checkWaiverStatus: tool({
+      description: "Check which signed waivers a student has on file: a martial-arts waiver (shared for Taekwondo/Kickboxing/BJJ) and an afterschool waiver. Returns per-kind status (on file / needs review / missing / not required) with signed dates. Use for 'does <student> have their waiver?' or verifying a specific person. For the global list of afterschool signups missing a waiver, use listMissingAfterschoolWaivers instead.",
+      inputSchema: z.object({ membershipId: z.number().int().positive().optional(), query: z.string().optional().describe("name or email if you don't have the membership id") }),
+      execute: async ({ membershipId, query }) => {
+        let id = membershipId;
+        if (!id) {
+          const q = (query ?? "").toLowerCase();
+          if (!q) return { found: false, note: "Give a student name/email or membership id." };
+          const m = (await listMemberships()).find(x => `${x.studentName} ${x.parentName ?? ""} ${x.email ?? ""}`.toLowerCase().includes(q));
+          if (!m) return { found: false, note: `No membership found matching "${query}". They may be an afterschool-only signup without a membership yet.` };
+          id = m.id;
+        }
+        const w = await memberWaivers(id);
+        const summarize = (s: { status: string; waivers: Array<{ attested: boolean; signedDate: string; signedName: string | null; needsReview: boolean }> }) => ({
+          status: s.status,
+          onFile: s.waivers.map(x => ({ kind: x.attested ? "attested" : "signed", date: x.signedDate, by: x.signedName, needsReview: x.needsReview })),
+        });
+        return { found: true, student: w.person.name, programs: w.person.programs, martialArts: summarize(w.martialArts), afterschool: summarize(w.afterschool) };
+      },
+    }),
+
     // ── Cards on file (family payer). Read + secure setup link + propose changes ──
     listMemberCards: tool({
       description: "List the cards on file for a student's family (brand, last 4, expiry, and which is primary — the card charged). Card numbers are never shown. Use before proposing to make a card primary or remove one; it returns each card's paymentMethodId + a label.",
@@ -352,6 +375,7 @@ Rules:
 - Things you CAN do (each as a PROPOSAL the staff member approves — you never execute directly): draft/send an email; create a membership; change a membership's program/plan/tuition; set a recurring discount; pause or cancel a membership; and adjust one month's charge (edit / waive / cancel). When the user asks for one of these, DO IT: ask any needed follow-up (which program? which month? prorate?), use findMembership / getMembershipCharges to get the id, then propose it. Each proposal shows an Approve button right here in this chat (as well as in the Approvals view); tell the user they can approve it here, and that nothing changes until they do.
 - Only give step-by-step directions for things you CANNOT do yourself, OR when the user explicitly asks "how do I...". If you explain how to do something that you can also do yourself, end by asking whether they'd like you to do it for them.
 - Cards on file: you can list a family's cards (listMemberCards), give a secure link to add/update a card (openCardSetupLink — the card is entered on Stripe's page, NEVER typed to you or in the app), and propose making a card primary or removing one (approved via the Approve button). Never ask for or accept a card number; if someone offers one, tell them to enter it on the secure Stripe page instead.
+- Waivers: to check if a specific student has their waiver(s) on file (martial-arts and/or afterschool), use checkWaiverStatus; for the global list of afterschool signups missing a waiver, use listMissingAfterschoolWaivers. Staff attach/collect waivers from the member's popup in the dashboard.
 - To update a student's file (DOB, belt rank, program, contact, status, emergency contact): get the student id via findPerson, then propose the change with proposeUpdateStudent (applies after Approve). If you're missing the new values, call requestFields FIRST to pop a small form for the staff to fill (use field names dob/beltRank/phone/etc.), and when their values come back, propose the update. Use requestFields for gathering any record values, never for card numbers or secrets.
 - You cannot issue refunds or take actions you have no tool for; for those, say a staff member must do it in the dashboard. To pull up a member, use openMemberProfile.
 - If a person, date range, or amount is ambiguous, ask a brief clarifying question instead of guessing.
