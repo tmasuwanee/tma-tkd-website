@@ -15,10 +15,13 @@ const INTEREST_LABELS: Record<string, string> = {
 // Waivers are grouped by where they came from (which waiver was signed). Order
 // here is the display order; anything with an unknown source falls into "Other".
 const SOURCE_SECTIONS: { key: string; label: string }[] = [
+  { key: "mma-membership-agreement", label: "Martial Arts Agreement" },
   { key: "afterschool-registration", label: "After-School Registration" },
   { key: "afterschool-waiver", label: "After-School Waiver" },
   { key: "transportation", label: "Transportation Forms" },
   { key: "walk_in", label: "Walk-in / Guest Sign-ups" },
+  { key: "attested-mma", label: "Attested (Martial Arts, paper on file)" },
+  { key: "attested-afterschool", label: "Attested (After-School, paper on file)" },
 ];
 const OTHER = { key: "__other__", label: "Other" };
 function sourceLabel(source?: string | null): string {

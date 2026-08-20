@@ -15,6 +15,7 @@ import FieldTripPay from "./pages/FieldTripPay";
 import SupplyFeePay from "./pages/SupplyFeePay";
 import DayCamp from "./pages/DayCamp";
 import DayCampSheet from "./pages/DayCampSheet";
+import MartialArtsMembershipAgreement from "./pages/MartialArtsMembershipAgreement";
 import OpenHouse from "./pages/OpenHouse";
 import AfterschoolWaiver from "./pages/AfterschoolWaiver";
 import FreeClass from "./pages/FreeClass";
@@ -51,6 +52,7 @@ function Router() {
       <Route path={"/day-camp-sheet"} component={DayCampSheet} />
       <Route path={"/open-house"} component={OpenHouse} />
       <Route path={"/afterschool-waiver"} component={AfterschoolWaiver} />
+      <Route path={"/agreement"} component={MartialArtsMembershipAgreement} />
       <Route path={"/free-class"} component={FreeClass} />
       {/* In-person sign-up + waiver (QR / iPad / link). /waiver is an alias. */}
       <Route path={"/enroll"} component={StudentWaiver} />

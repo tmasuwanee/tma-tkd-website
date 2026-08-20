@@ -80,6 +80,8 @@ import { buildAfterschoolIntakePdf } from "./afterschool-intake-pdf";
 import { buildInvoicePdf } from "./invoice-pdf";
 import { buildAfterschoolWaiverPdf } from "./afterschool-waiver-pdf";
 import { afterschoolWaiverPlainText } from "@shared/afterschoolWaiver";
+import { martialArtsAgreementPlainText } from "@shared/martialArtsAgreement";
+import { buildMmaAgreementPdf } from "./mma-agreement-pdf";
 import { fireLeadEvent, firePurchaseEvent } from "./meta-capi";
 import { computeOrderCents, buildOrderSummary } from "../shared/christmasPricing";
 import { getAdInsights, syncAdInsights } from "./facebook-ads";
@@ -2424,6 +2426,59 @@ export const appRouter = router({
           sourceLabel: "After-School Waiver",
         });
 
+        return { success: true, pdfUrl, waiverId };
+      }),
+  }),
+
+  // ─── Martial Arts Membership Agreement (TKD / KB / BJJ) ───────────────────
+  // Standalone signing of the martial-arts membership agreement. Stamps a signed
+  // PDF, stores it, and files it under waivers with source
+  // "mma-membership-agreement". Reached via members.generateWaiverLink (/agreement).
+  mmaAgreement: router({
+    submit: publicProcedure
+      .input(z.object({
+        parentName: z.string().min(1).max(255),
+        email: z.string().email(),
+        phone: z.string().min(1).max(40),
+        studentName: z.string().min(1).max(255),
+        signedRelationship: z.string().max(120).optional(),
+        signedDate: z.string().min(1).max(40),
+        signaturePngDataUrl: z.string().min(1),
+        agreedToTerms: z.literal(true),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const ip = (ctx?.req as any)?.ip || (ctx?.req as any)?.headers?.["cf-connecting-ip"] || (ctx?.req as any)?.headers?.["x-forwarded-for"] || null;
+        const pdfBytes = await buildMmaAgreementPdf({
+          parentName: input.parentName, studentName: input.studentName,
+          signedRelationship: input.signedRelationship, signedDate: input.signedDate,
+          signaturePngDataUrl: input.signaturePngDataUrl,
+        });
+        let pdfUrl: string | null = null;
+        try {
+          const safe = input.studentName.replace(/[^a-z0-9]+/gi, "-").toLowerCase();
+          const key = `mma-agreement/${new Date().toISOString().slice(0, 10)}-${safe}-${Math.floor(Math.random() * 1e6)}.pdf`;
+          const put = await storagePut(key, Buffer.from(pdfBytes), "application/pdf");
+          pdfUrl = put.url;
+        } catch (err) { console.error("[mma-agreement] PDF storage failed (continuing):", err); }
+
+        let waiverId: number | undefined;
+        try {
+          const result = await submitWaiver({
+            parentName: input.parentName, email: input.email, phone: input.phone,
+            students: [{ name: input.studentName, dob: "" }],
+            interests: ["martial_arts"],
+            signatureData: input.signaturePngDataUrl,
+            signedName: input.parentName, signedDate: input.signedDate,
+            disclaimerText: `Martial Arts Membership Agreement\nStudent: ${input.studentName}\n\n${martialArtsAgreementPlainText()}`,
+            source: "mma-membership-agreement",
+            recordType: "form_only",
+            pdfUrl, ip: ip ? String(ip) : null,
+          });
+          waiverId = result.waiverId;
+        } catch (err) { console.error("[mma-agreement] waiver record failed (continuing):", err); }
+
+        void sendTelegramMessage(`🥋 <b>Martial arts agreement signed</b>\n${input.parentName} · ${input.studentName}\n${adminLink("/admin/waivers")}`).catch(() => {});
+        void sendWaiverNotification({ parentName: input.parentName, studentName: input.studentName, phone: input.phone, email: input.email, sourceLabel: "Martial Arts Agreement" });
         return { success: true, pdfUrl, waiverId };
       }),
   }),
