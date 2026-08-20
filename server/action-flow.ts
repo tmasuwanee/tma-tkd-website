@@ -75,7 +75,6 @@ const studentUpdateSchema = z.object({
   email: z.string().email().optional(),
   phone: z.string().max(40).optional(),
   dob: z.string().max(20).optional(),
-  beltRank: z.string().max(100).optional(),
   status: z.string().max(50).optional(),
   programs: z.string().max(255).optional(),
   emergencyContact: z.string().max(255).optional(),

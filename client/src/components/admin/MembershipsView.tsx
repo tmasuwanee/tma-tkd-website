@@ -195,6 +195,8 @@ export function MemberPanelBody({ id, onChanged, onName }: { id: number; onChang
   const [viewWaiverId, setViewWaiverId] = useState<number | null>(null);
   const wv = waiverQ.data;
   const anyWaiverMissing = !!wv && (wv.martialArts.status === "missing" || wv.afterschool.status === "missing");
+  const anyWaiverReview = !!wv && (wv.martialArts.status === "needs_review" || wv.afterschool.status === "needs_review");
+  const waiverNeedsAttention = anyWaiverMissing || anyWaiverReview;
 
   const changeAmount = () => {
     const s = window.prompt("New monthly tuition (dollars):", m ? String((m.monthlyAmountCents / 100).toFixed(2)) : "");
@@ -245,10 +247,10 @@ export function MemberPanelBody({ id, onChanged, onName }: { id: number; onChang
               title={!paymentsEnabled ? "Payments are off. Turn on billing to collect cards." : undefined}
               icon={<CreditCard className="w-3.5 h-3.5" />} label={m.stripeCustomerId ? "Update card" : "Set up autopay"} />
           </div>
-          {anyWaiverMissing && (
+          {waiverNeedsAttention && (
             <button onClick={() => setAttachWaiverOpen(true)}
               className="w-full inline-flex items-center justify-center gap-2 text-sm font-semibold text-amber-900 bg-amber-50 border-2 border-amber-400 rounded-lg px-3 py-2 animate-pulse hover:animate-none hover:bg-amber-100">
-              <AlertTriangle className="w-4 h-4" /> Waiver missing — add now
+              <AlertTriangle className="w-4 h-4" /> {anyWaiverMissing ? "Waiver missing — add now" : "Waiver match needs review"}
             </button>
           )}
         </div>
@@ -461,7 +463,7 @@ function WaiverKindRow({ label, data, onView, onAttach }: {
         <span className="text-sm font-medium text-gray-800">{label}</span>
         <span className={`text-[11px] rounded-full border px-2 py-0.5 font-medium shrink-0 ${badge.c}`}>{badge.t}</span>
       </div>
-      {data.waivers.length > 0 ? (
+      {data.waivers.length > 0 && (
         <div className="mt-1.5 space-y-1">
           {data.waivers.map(w => (
             <button key={w.id} onClick={() => onView(w.id)} className="w-full flex items-center gap-2 text-xs text-left text-gray-600 hover:text-[#1a2d5a] hover:bg-gray-50 rounded px-1.5 py-1">
@@ -472,8 +474,11 @@ function WaiverKindRow({ label, data, onView, onAttach }: {
             </button>
           ))}
         </div>
-      ) : (
-        <button onClick={onAttach} className="mt-1.5 text-xs font-semibold text-[#1a2d5a] hover:underline">Attach waiver →</button>
+      )}
+      {(data.status === "missing" || data.status === "needs_review") && (
+        <button onClick={onAttach} className="mt-1.5 text-xs font-semibold text-[#1a2d5a] hover:underline">
+          {data.status === "needs_review" ? "Confirm or attach a waiver →" : "Attach waiver →"}
+        </button>
       )}
     </div>
   );

@@ -367,14 +367,13 @@ function buildTools(opts: { origin: string }) {
       execute: async (input) => ({ formRequested: true, ...input }),
     }),
     proposeUpdateStudent: tool({
-      description: "Propose updating a student's file. Requires the student id (from findPerson → students[].id). Include ONLY the fields to change. Applies only after the Approve button. Editable fields: name, email, phone, dob (YYYY-MM-DD), beltRank, status, programs, emergencyContact.",
+      description: "Propose updating a student's file. Requires the student id (from findPerson → students[].id). Include ONLY the fields to change. Applies only after the Approve button. Editable fields: name, email, phone, dob (YYYY-MM-DD), status, programs, emergencyContact. Belt rank is NOT here: use proposePromoteBelt (or tell staff to use the belt dropdown) so rank changes keep validation + history.",
       inputSchema: z.object({
         studentId: z.number().int().positive(),
         name: z.string().max(255).optional(),
         email: z.string().email().optional(),
         phone: z.string().max(40).optional(),
         dob: z.string().max(20).optional(),
-        beltRank: z.string().max(100).optional(),
         status: z.string().max(50).optional(),
         programs: z.string().max(255).optional(),
         emergencyContact: z.string().max(255).optional(),

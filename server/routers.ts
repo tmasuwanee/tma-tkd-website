@@ -2193,7 +2193,8 @@ export const appRouter = router({
         if (!m) throw new Error("Membership not found.");
         const proto = String((ctx.req.headers["x-forwarded-proto"] as string) || "https").split(",")[0];
         const host = ctx.req.headers.host || "tmatkd.com";
-        const params = new URLSearchParams({ studentName: m.studentName || "", parentName: m.parentName || "", email: m.email || "", phone: m.phone || "" }).toString();
+        // Send both key styles: /agreement reads studentName, /afterschool-waiver reads student.
+        const params = new URLSearchParams({ studentName: m.studentName || "", student: m.studentName || "", parentName: m.parentName || "", email: m.email || "", phone: m.phone || "" }).toString();
         const path = input.kind === "afterschool" ? "/afterschool-waiver" : "/agreement";
         return { url: `${proto}://${host}${path}?${params}` };
       }),

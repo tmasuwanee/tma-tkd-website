@@ -25,6 +25,7 @@ const PUBLIC_PATHS = new Set<string>([
   "leads.submit", "leads.bookManual",
   "afterschool.submitIntake", "afterschool.createIntent", "afterschool.confirm",
   "afterschoolWaiver.submit",
+  "mmaAgreement.submit",
   "students.getAll",                       // the public /attendance kiosk reads this
   "attendance.checkIn", "attendance.countSincePromotion", "attendance.setCount",
   "backToSchool.createIntent", "backToSchool.confirm",

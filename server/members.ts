@@ -180,8 +180,10 @@ function parseWaiverStudents(json: string | null): { name: string }[] {
   if (!json) return [];
   try { const a = JSON.parse(json); return Array.isArray(a) ? a.filter((x: unknown) => !!x && typeof (x as { name?: unknown }).name === "string") as { name: string }[] : []; } catch { return []; }
 }
-function waiverKind(source: string): MemberWaiverKind {
-  return (source === "afterschool-waiver" || source === "attested-afterschool") ? "afterschool" : "martial_arts";
+function waiverKind(source: string): MemberWaiverKind | "other" {
+  if (source === "afterschool-waiver" || source === "afterschool-registration" || source === "attested-afterschool") return "afterschool";
+  if (source === "transportation") return "other"; // not a membership waiver
+  return "martial_arts"; // walk_in | online | ipad | mma-membership-agreement | attested-mma
 }
 
 export async function memberWaivers(membershipId: number): Promise<{ martialArts: MemberWaiverStatus; afterschool: MemberWaiverStatus; person: { name: string; email: string | null; programs: string[] } }> {
@@ -192,28 +194,38 @@ export async function memberWaivers(membershipId: number): Promise<{ martialArts
   const rows = await memberList();
   const person = rows.find(r => r.primaryMembershipId === membershipId);
   const programs = person?.programs ?? [norm(m.program)];
-  const needsMA = programs.some(p => p === "taekwondo" || p === "kickboxing" || p === "bjj");
   const needsAS = programs.includes("afterschool");
+  // Any non-afterschool program needs the martial-arts agreement (covers off-list
+  // labels like "tkd" or "lil dragons" so nobody silently drops out of the check).
+  const needsMA = programs.some(p => !!p && p !== "afterschool");
 
   const memEmail = norm(m.email);
   const memName = normName(m.studentName);
   const all: Waiver[] = await getAllWaivers();
   const matched: MatchedWaiver[] = [];
   for (const w of all) {
+    const source = w.source || "";
+    const kind = waiverKind(source);
+    if (kind === "other") continue; // e.g. transportation form, not a membership waiver
     const students = parseWaiverStudents(w.students);
     const nameInJson = !!memName && students.some(s => normName(s.name) === memName);
-    let matchedBy: MatchedWaiver["matchedBy"] | null = null;
-    if (m.leadId && w.leadId === m.leadId) matchedBy = "lead";
-    else if (memEmail && norm(w.email) === memEmail && nameInJson) matchedBy = "email+name";
-    else if (nameInJson) matchedBy = "name";
-    else if (memEmail && norm(w.email) === memEmail) matchedBy = "email-only"; // shared-email: unconfirmed
-    if (!matchedBy) continue;
-    const source = w.source || "";
+    const leadMatch = !!(m.leadId && w.leadId === m.leadId);
+    const emailMatch = !!(memEmail && norm(w.email) === memEmail);
+    if (!nameInJson && !leadMatch && !emailMatch) continue; // no relation at all
+    // CONFIRMED (on file) only when the child's NAME is on the waiver AND it is tied
+    // to this family by lead or email. leadId/email alone are shared across siblings
+    // (submitWaiver reuses one lead per email), and a name alone can collide across
+    // families, so those are needs-review.
+    let matchedBy: MatchedWaiver["matchedBy"];
+    let needsReview: boolean;
+    if (nameInJson && (leadMatch || emailMatch)) { matchedBy = leadMatch ? "lead" : "email+name"; needsReview = false; }
+    else if (nameInJson) { matchedBy = "name"; needsReview = true; }       // same name, maybe different family
+    else { matchedBy = leadMatch ? "lead" : "email-only"; needsReview = true; } // family waiver, but not this child
     matched.push({
-      id: w.id, source, kind: waiverKind(source), attested: source.startsWith("attested"),
+      id: w.id, source, kind, attested: source.startsWith("attested"),
       signedName: w.signedName ?? null, signedDate: w.signedDate, hasSignature: !!w.signatureData,
       pdfUrl: w.pdfUrl ?? null, disclaimerText: w.disclaimerText ?? null,
-      matchedBy, needsReview: matchedBy === "email-only", studentsCovered: students.map(s => s.name),
+      matchedBy, needsReview, studentsCovered: students.map(s => s.name),
     });
   }
   const maW = matched.filter(w => w.kind === "martial_arts");
@@ -236,9 +248,15 @@ export async function resolveStudentIdForMembership(membershipId: number): Promi
   const roster = await getAllStudents();
   const memName = normName(m.studentName);
   const memEmail = norm(m.email);
+  // Tier 1: email + name (confident).
   let match = roster.find(s => normName(s.name) === memName && !!memEmail && norm(s.email) === memEmail);
-  if (!match) match = roster.find(s => normName(s.name) === memName);
-  if (!match && memEmail) match = roster.find(s => norm(s.email) === memEmail);
+  // Tier 2: name-only, but ONLY when exactly one roster student has that name (no
+  // collision). No email-only fallback: a sibling shares the parent email, so
+  // email-only would link the wrong child and belt edits would hit them.
+  if (!match && memName) {
+    const byName = roster.filter(s => normName(s.name) === memName);
+    if (byName.length === 1) match = byName[0];
+  }
   return match?.id ?? null;
 }
 

@@ -888,13 +888,13 @@ export async function promoteBeltRank(studentId: number, opts?: { note?: string;
   if (!db) throw new Error("Database not available");
   const student = await db.select().from(students).where(eq(students.id, studentId)).limit(1);
   if (!student.length) return null;
-  const currentRank = student[0].beltRank;
+  const currentRank = student[0].beltRank ?? "White"; // null belt is treated as White
   const nextRank = getNextRank(currentRank);
   if (!nextRank) return student[0]; // Already at highest rank
-  await recordBeltPromotion(studentId, currentRank ?? null, nextRank, "promote", opts?.note ?? null, opts?.by ?? null);
-  // New rank resets the promotion date (months-at-rank restarts) and clears any
-  // manual readiness override.
-  await db.update(students).set({ beltRank: nextRank, lastPromotedAt: new Date(), testingReadiness: null }).where(eq(students.id, studentId));
+  await recordBeltPromotion(studentId, student[0].beltRank ?? null, nextRank, "promote", opts?.note ?? null, opts?.by ?? null);
+  // New rank resets the promotion date (months-at-rank restarts) and clears both
+  // readiness overrides so it re-evaluates at the new rank.
+  await db.update(students).set({ beltRank: nextRank, lastPromotedAt: new Date(), testingReadiness: null, isEligibleOverride: 0 }).where(eq(students.id, studentId));
   const updated = await db.select().from(students).where(eq(students.id, studentId)).limit(1);
   return updated[0] ?? null;
 }
@@ -904,7 +904,7 @@ export async function demoteBeltRank(studentId: number, opts?: { note?: string; 
   if (!db) throw new Error("Database not available");
   const student = await db.select().from(students).where(eq(students.id, studentId)).limit(1);
   if (!student.length) return null;
-  const currentRank = student[0].beltRank;
+  const currentRank = student[0].beltRank ?? "White"; // null belt is treated as White
   const previousRank = getPreviousRank(currentRank);
   if (!previousRank) return student[0]; // Already at lowest rank
   await recordBeltPromotion(studentId, currentRank ?? null, previousRank, "demote", opts?.note ?? null, opts?.by ?? null);
@@ -927,7 +927,7 @@ export async function setBeltRankTo(studentId: number, toRank: string, opts?: { 
   if (from === toRank) return student[0];
   const forward = BELT_SEQUENCE.indexOf(toRank as (typeof BELT_SEQUENCE)[number]) > BELT_SEQUENCE.indexOf((from ?? "White") as (typeof BELT_SEQUENCE)[number]);
   await recordBeltPromotion(studentId, from, toRank, forward ? "promote" : "correction", opts?.note ?? null, opts?.by ?? null);
-  await db.update(students).set({ beltRank: toRank, testingReadiness: null, ...(forward ? { lastPromotedAt: new Date() } : {}) }).where(eq(students.id, studentId));
+  await db.update(students).set({ beltRank: toRank, testingReadiness: null, ...(forward ? { lastPromotedAt: new Date(), isEligibleOverride: 0 } : {}) }).where(eq(students.id, studentId));
   const updated = await db.select().from(students).where(eq(students.id, studentId)).limit(1);
   return updated[0] ?? null;
 }
@@ -960,7 +960,9 @@ export async function getBeltStatus(studentId: number): Promise<BeltStatus | nul
   const monthsSince = s.lastPromotedAt ? Math.floor((Date.now() - new Date(s.lastPromotedAt).getTime()) / (30 * 86400000)) : null;
   const autoEligible = threshold ? (classesSince >= threshold.classes && (monthsSince === null || monthsSince >= threshold.months)) : false;
   const manualReadiness = (s.testingReadiness as "ready" | "not_ready" | null) ?? null;
-  const ready = manualReadiness === "ready" ? true : manualReadiness === "not_ready" ? false : autoEligible;
+  // Bridge the legacy roster "eligible" override into readiness so the two surfaces
+  // agree: a roster override reads as ready unless the popup explicitly holds them back.
+  const ready = manualReadiness === "ready" ? true : manualReadiness === "not_ready" ? false : (autoEligible || s.isEligibleOverride === 1);
   return {
     studentId, name: s.name, currentRank, nextRank: getNextRank(currentRank) ?? null, prevRank: getPreviousRank(currentRank) ?? null,
     classesSince, monthsSince, threshold, autoEligible, manualReadiness, ready,
