@@ -69,7 +69,8 @@ import { sendTelegramMessage } from "./telegram";
 import { tuitionConfiguredFor, ensureStripeCustomer, createAfterschoolSubscription } from "./tuition";
 import { proposeAction, confirmAction, rejectAction } from "./action-flow";
 import { createMembership, changeMembership, setMembershipDiscount, pauseMembership, resumeMembership, cancelMembership, adjustCharge } from "./membership-ops";
-import { memberList, memberOverview } from "./members";
+import { memberList, memberOverview, memberWaivers } from "./members";
+import { createWaiver } from "./db";
 import { listSpecials, insertSpecial, updateSpecial } from "./db";
 import { createCardSetupSession, chargeDueMemberships, listPayerCards, setPayerPrimaryCard, detachPayerCard } from "./membership-billing";
 import { storagePut, storageGet } from "./storage";
@@ -2138,6 +2139,44 @@ export const appRouter = router({
         .filter(s => !haveName.has(norm(s.name)))
         .map(s => ({ studentId: s.id, name: s.name, email: s.email, phone: s.phone, programs: s.programs, beltRank: s.beltRank }));
     }),
+    // Waivers a member has (martial-arts + afterschool), matched by lead/name/email.
+    waivers: publicProcedure.input(z.object({ id: z.number().int().positive() }))
+      .query(async ({ input }) => memberWaivers(input.id)),
+    // Staff attests a signed waiver is on file (migration/legacy escape hatch). Records
+    // an `attested-*` waiver row stamped with who/when, styled distinctly in the UI so
+    // it is never mistaken for a drawn signature.
+    attestWaiver: publicProcedure.input(z.object({ id: z.number().int().positive(), kind: z.enum(["martial_arts", "afterschool"]), note: z.string().max(500).optional() }))
+      .mutation(async ({ input, ctx }) => {
+        const m = await getMembership(input.id);
+        if (!m) throw new Error("Membership not found.");
+        const by = ctx.adminEmail ?? "admin";
+        const today = new Date().toISOString().slice(0, 10);
+        const label = input.kind === "afterschool" ? "After-School" : "Martial Arts";
+        await createWaiver({
+          leadId: m.leadId ?? null,
+          parentName: m.parentName || m.studentName,
+          email: m.email || "",
+          phone: m.phone || "",
+          students: JSON.stringify([{ name: m.studentName }]),
+          signedName: by,
+          signedDate: today,
+          disclaimerText: `ATTESTED: ${label} waiver on file. Recorded by ${by} on ${today}.${input.note ? ` Note: ${input.note}` : ""}`,
+          source: input.kind === "afterschool" ? "attested-afterschool" : "attested-mma",
+        });
+        return { ok: true };
+      }),
+    // A prefilled signing link for the parent (email/iPad). Afterschool routes to the
+    // existing waiver page; martial-arts to the new agreement page.
+    generateWaiverLink: publicProcedure.input(z.object({ id: z.number().int().positive(), kind: z.enum(["martial_arts", "afterschool"]) }))
+      .query(async ({ input, ctx }) => {
+        const m = await getMembership(input.id);
+        if (!m) throw new Error("Membership not found.");
+        const proto = String((ctx.req.headers["x-forwarded-proto"] as string) || "https").split(",")[0];
+        const host = ctx.req.headers.host || "tmatkd.com";
+        const params = new URLSearchParams({ studentName: m.studentName || "", parentName: m.parentName || "", email: m.email || "", phone: m.phone || "" }).toString();
+        const path = input.kind === "afterschool" ? "/afterschool-waiver" : "/agreement";
+        return { url: `${proto}://${host}${path}?${params}` };
+      }),
     bulkCreate: publicProcedure.input(z.object({
       members: z.array(z.object({
         studentName: z.string().min(1).max(255),

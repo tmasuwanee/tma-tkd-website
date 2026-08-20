@@ -18,7 +18,8 @@
  * that already has a Stripe customer) points at a card. The member popup does the
  * authoritative card lookup when opened.
  */
-import { listMemberships, getAfterschoolRegistrations, listPayers, type MembershipRow, type AfterschoolRegistrationRow } from "./db";
+import { listMemberships, getAfterschoolRegistrations, listPayers, getMembership, getAllWaivers, type MembershipRow, type AfterschoolRegistrationRow } from "./db";
+import type { Waiver } from "../drizzle/schema";
 
 export type MemberBilling = "up_to_date" | "past_due" | "setup_needed" | "none";
 export type MemberWaiver = "on_file" | "missing" | "na";
@@ -156,6 +157,74 @@ export async function memberList(): Promise<MemberRow[]> {
   // Canceled/former members drop off the default roster (keeps the count honest
   // against the overview tiles, which also exclude canceled).
   return Array.from(map.values()).filter(m => m.status !== "canceled").sort((a, b) => a.name.localeCompare(b.name));
+}
+
+// ─── Member waivers (which signed docs a person has) ─────────────────────────
+// Waivers all live in one `waivers` table, classified by `source`. A member can
+// hold BOTH a martial-arts waiver (TKD/KB/BJJ, shared) and an afterschool waiver,
+// plus staff attestations. Matching a waiver to a person is the top correctness
+// risk (a shared parent email must NOT attach a sibling's waiver), so we prefer
+// leadId + the student's name INSIDE the waiver over a bare email match, and flag
+// email-only matches as needs-review rather than confirmed.
+export type MemberWaiverKind = "martial_arts" | "afterschool";
+export type MatchedWaiver = {
+  id: number; source: string; kind: MemberWaiverKind; attested: boolean;
+  signedName: string | null; signedDate: string; hasSignature: boolean;
+  pdfUrl: string | null; disclaimerText: string | null;
+  matchedBy: "lead" | "email+name" | "name" | "email-only"; needsReview: boolean;
+  studentsCovered: string[];
+};
+export type MemberWaiverStatus = { status: "on_file" | "missing" | "needs_review" | "na"; waivers: MatchedWaiver[] };
+
+function parseWaiverStudents(json: string | null): { name: string }[] {
+  if (!json) return [];
+  try { const a = JSON.parse(json); return Array.isArray(a) ? a.filter((x: unknown) => !!x && typeof (x as { name?: unknown }).name === "string") as { name: string }[] : []; } catch { return []; }
+}
+function waiverKind(source: string): MemberWaiverKind {
+  return (source === "afterschool-waiver" || source === "attested-afterschool") ? "afterschool" : "martial_arts";
+}
+
+export async function memberWaivers(membershipId: number): Promise<{ martialArts: MemberWaiverStatus; afterschool: MemberWaiverStatus; person: { name: string; email: string | null; programs: string[] } }> {
+  const m = await getMembership(membershipId);
+  if (!m) return { martialArts: { status: "na", waivers: [] }, afterschool: { status: "na", waivers: [] }, person: { name: "", email: null, programs: [] } };
+  // Person's programs come from the unified member row (covers a person who has
+  // both an afterschool signup and a martial-arts membership).
+  const rows = await memberList();
+  const person = rows.find(r => r.primaryMembershipId === membershipId);
+  const programs = person?.programs ?? [norm(m.program)];
+  const needsMA = programs.some(p => p === "taekwondo" || p === "kickboxing" || p === "bjj");
+  const needsAS = programs.includes("afterschool");
+
+  const memEmail = norm(m.email);
+  const memName = normName(m.studentName);
+  const all: Waiver[] = await getAllWaivers();
+  const matched: MatchedWaiver[] = [];
+  for (const w of all) {
+    const students = parseWaiverStudents(w.students);
+    const nameInJson = !!memName && students.some(s => normName(s.name) === memName);
+    let matchedBy: MatchedWaiver["matchedBy"] | null = null;
+    if (m.leadId && w.leadId === m.leadId) matchedBy = "lead";
+    else if (memEmail && norm(w.email) === memEmail && nameInJson) matchedBy = "email+name";
+    else if (nameInJson) matchedBy = "name";
+    else if (memEmail && norm(w.email) === memEmail) matchedBy = "email-only"; // shared-email: unconfirmed
+    if (!matchedBy) continue;
+    const source = w.source || "";
+    matched.push({
+      id: w.id, source, kind: waiverKind(source), attested: source.startsWith("attested"),
+      signedName: w.signedName ?? null, signedDate: w.signedDate, hasSignature: !!w.signatureData,
+      pdfUrl: w.pdfUrl ?? null, disclaimerText: w.disclaimerText ?? null,
+      matchedBy, needsReview: matchedBy === "email-only", studentsCovered: students.map(s => s.name),
+    });
+  }
+  const maW = matched.filter(w => w.kind === "martial_arts");
+  const asW = matched.filter(w => w.kind === "afterschool");
+  const statusFor = (needed: boolean, ws: MatchedWaiver[]): MemberWaiverStatus["status"] =>
+    !needed ? "na" : ws.length === 0 ? "missing" : ws.every(w => w.needsReview) ? "needs_review" : "on_file";
+  return {
+    martialArts: { status: statusFor(needsMA, maW), waivers: maW },
+    afterschool: { status: statusFor(needsAS, asW), waivers: asW },
+    person: { name: person?.name ?? m.studentName, email: person?.email ?? m.email, programs },
+  };
 }
 
 export type MemberOverview = { total: number; activeThisMonth: number; billingIssues: number; waiversMissing: number };
