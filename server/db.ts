@@ -24,7 +24,8 @@ import {
 } from "../drizzle/schema";
 import { lte } from "drizzle-orm";
 import { ENV } from './_core/env';
-import { getNextRank, getPreviousRank } from "../shared/beltRanks";
+import { getNextRank, getPreviousRank, promotionThreshold, BELT_SEQUENCE } from "../shared/beltRanks";
+import { beltPromotions, type BeltPromotion } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 let _pool: ReturnType<typeof mysql.createPool> | null = null;
@@ -872,46 +873,99 @@ export async function getEligibleStudents(): Promise<(Student & { attendanceSinc
 
 // ─── Belt Rank ───────────────────────────────────────────────────────────────
 
-export async function promoteBeltRank(studentId: number): Promise<Student | null> {
+// Write one append-only history row. Snapshots the attendance-since count so the
+// audit shows how close they were at the moment of the change.
+async function recordBeltPromotion(studentId: number, fromRank: string | null, toRank: string, direction: string, note: string | null, by: string | null): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  let classesAtEvent: number | null = null;
+  try { classesAtEvent = await getAttendanceSincePromotion(studentId); } catch { /* noop */ }
+  await db.insert(beltPromotions).values({ studentId, fromRank, toRank, direction, classesAtEvent, note: note ?? null, promotedBy: by ?? null, createdAt: new Date() });
+}
+
+export async function promoteBeltRank(studentId: number, opts?: { note?: string; by?: string }): Promise<Student | null> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-
   const student = await db.select().from(students).where(eq(students.id, studentId)).limit(1);
   if (!student.length) return null;
-
   const currentRank = student[0].beltRank;
   const nextRank = getNextRank(currentRank);
-
   if (!nextRank) return student[0]; // Already at highest rank
-
-  await db.update(students).set({
-    beltRank: nextRank,
-    lastPromotedAt: new Date(),
-  }).where(eq(students.id, studentId));
-
+  await recordBeltPromotion(studentId, currentRank ?? null, nextRank, "promote", opts?.note ?? null, opts?.by ?? null);
+  // New rank resets the promotion date (months-at-rank restarts) and clears any
+  // manual readiness override.
+  await db.update(students).set({ beltRank: nextRank, lastPromotedAt: new Date(), testingReadiness: null }).where(eq(students.id, studentId));
   const updated = await db.select().from(students).where(eq(students.id, studentId)).limit(1);
   return updated[0] ?? null;
 }
 
-export async function demoteBeltRank(studentId: number): Promise<Student | null> {
+export async function demoteBeltRank(studentId: number, opts?: { note?: string; by?: string }): Promise<Student | null> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-
   const student = await db.select().from(students).where(eq(students.id, studentId)).limit(1);
   if (!student.length) return null;
-
   const currentRank = student[0].beltRank;
   const previousRank = getPreviousRank(currentRank);
-
   if (!previousRank) return student[0]; // Already at lowest rank
-
-  await db.update(students).set({
-    beltRank: previousRank,
-    lastPromotedAt: new Date(),
-  }).where(eq(students.id, studentId));
-
+  await recordBeltPromotion(studentId, currentRank ?? null, previousRank, "demote", opts?.note ?? null, opts?.by ?? null);
+  // A demote/correction does NOT reset lastPromotedAt (that would corrupt
+  // months-at-rank); only the belt changes.
+  await db.update(students).set({ beltRank: previousRank }).where(eq(students.id, studentId));
   const updated = await db.select().from(students).where(eq(students.id, studentId)).limit(1);
   return updated[0] ?? null;
+}
+
+// Jump directly to a specific rank (the dropdown). A forward jump bumps the
+// promotion date (new baseline); a backward correction leaves it, preserving
+// months-at-rank.
+export async function setBeltRankTo(studentId: number, toRank: string, opts?: { note?: string; by?: string }): Promise<Student | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const student = await db.select().from(students).where(eq(students.id, studentId)).limit(1);
+  if (!student.length) return null;
+  const from = student[0].beltRank ?? null;
+  if (from === toRank) return student[0];
+  const forward = BELT_SEQUENCE.indexOf(toRank as (typeof BELT_SEQUENCE)[number]) > BELT_SEQUENCE.indexOf((from ?? "White") as (typeof BELT_SEQUENCE)[number]);
+  await recordBeltPromotion(studentId, from, toRank, forward ? "promote" : "correction", opts?.note ?? null, opts?.by ?? null);
+  await db.update(students).set({ beltRank: toRank, testingReadiness: null, ...(forward ? { lastPromotedAt: new Date() } : {}) }).where(eq(students.id, studentId));
+  const updated = await db.select().from(students).where(eq(students.id, studentId)).limit(1);
+  return updated[0] ?? null;
+}
+
+export async function getBeltHistory(studentId: number): Promise<BeltPromotion[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(beltPromotions).where(eq(beltPromotions.studentId, studentId)).orderBy(desc(beltPromotions.createdAt));
+}
+
+export async function setTestingReadiness(studentId: number, value: "ready" | "not_ready" | null): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(students).set({ testingReadiness: value }).where(eq(students.id, studentId));
+}
+
+export type BeltStatus = {
+  studentId: number; name: string; currentRank: string; nextRank: string | null; prevRank: string | null;
+  classesSince: number; monthsSince: number | null; threshold: { classes: number; months: number } | null;
+  autoEligible: boolean; manualReadiness: "ready" | "not_ready" | null; ready: boolean;
+  lastPromotedAt: string | Date | null; history: BeltPromotion[];
+};
+
+export async function getBeltStatus(studentId: number): Promise<BeltStatus | null> {
+  const s = await getStudentById(studentId);
+  if (!s) return null;
+  const currentRank = s.beltRank ?? "White";
+  const classesSince = await getAttendanceSincePromotion(studentId).catch(() => 0);
+  const threshold = promotionThreshold(currentRank);
+  const monthsSince = s.lastPromotedAt ? Math.floor((Date.now() - new Date(s.lastPromotedAt).getTime()) / (30 * 86400000)) : null;
+  const autoEligible = threshold ? (classesSince >= threshold.classes && (monthsSince === null || monthsSince >= threshold.months)) : false;
+  const manualReadiness = (s.testingReadiness as "ready" | "not_ready" | null) ?? null;
+  const ready = manualReadiness === "ready" ? true : manualReadiness === "not_ready" ? false : autoEligible;
+  return {
+    studentId, name: s.name, currentRank, nextRank: getNextRank(currentRank) ?? null, prevRank: getPreviousRank(currentRank) ?? null,
+    classesSince, monthsSince, threshold, autoEligible, manualReadiness, ready,
+    lastPromotedAt: s.lastPromotedAt ?? null, history: await getBeltHistory(studentId),
+  };
 }
 
 /**

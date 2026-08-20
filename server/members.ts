@@ -18,7 +18,7 @@
  * that already has a Stripe customer) points at a card. The member popup does the
  * authoritative card lookup when opened.
  */
-import { listMemberships, getAfterschoolRegistrations, listPayers, getMembership, getAllWaivers, type MembershipRow, type AfterschoolRegistrationRow } from "./db";
+import { listMemberships, getAfterschoolRegistrations, listPayers, getMembership, getAllWaivers, getAllStudents, type MembershipRow, type AfterschoolRegistrationRow } from "./db";
 import type { Waiver } from "../drizzle/schema";
 
 export type MemberBilling = "up_to_date" | "past_due" | "setup_needed" | "none";
@@ -225,6 +225,21 @@ export async function memberWaivers(membershipId: number): Promise<{ martialArts
     afterschool: { status: statusFor(needsAS, asW), waivers: asW },
     person: { name: person?.name ?? m.studentName, email: person?.email ?? m.email, programs },
   };
+}
+
+// Resolve a membership to a roster `students` row (belts live there). Prefers an
+// email+name match, then name, then email. Returns null when there is no confident
+// student record (the Belt UI then offers to link/create one).
+export async function resolveStudentIdForMembership(membershipId: number): Promise<number | null> {
+  const m = await getMembership(membershipId);
+  if (!m) return null;
+  const roster = await getAllStudents();
+  const memName = normName(m.studentName);
+  const memEmail = norm(m.email);
+  let match = roster.find(s => normName(s.name) === memName && !!memEmail && norm(s.email) === memEmail);
+  if (!match) match = roster.find(s => normName(s.name) === memName);
+  if (!match && memEmail) match = roster.find(s => norm(s.email) === memEmail);
+  return match?.id ?? null;
 }
 
 export type MemberOverview = { total: number; activeThisMonth: number; billingIssues: number; waiversMissing: number };

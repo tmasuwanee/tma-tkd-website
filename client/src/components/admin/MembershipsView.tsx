@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Loader2, Users, Plus, X, Pause, Play, Ban, Tag, PencilLine, CreditCard, ChevronDown, ChevronRight, Maximize2, FileSignature, ExternalLink, Copy, Check, ShieldCheck, AlertTriangle } from "lucide-react";
+import { Loader2, Users, Plus, X, Pause, Play, Ban, Tag, PencilLine, CreditCard, ChevronDown, ChevronRight, Maximize2, FileSignature, ExternalLink, Copy, Check, ShieldCheck, AlertTriangle, Award, ArrowUp, ArrowDown } from "lucide-react";
+import { BELT_SEQUENCE } from "@shared/beltRanks";
 
 /**
  * Memberships + Financials. A person does everything here directly (with an inline
@@ -313,6 +314,11 @@ export function MemberPanelBody({ id, onChanged, onName }: { id: number; onChang
         )}
       </PanelSection>
 
+      {/* Belt & testing (Taekwondo / martial-arts students) */}
+      <PanelSection title="Belt & testing" defaultOpen={false}>
+        <BeltSection membershipId={id} />
+      </PanelSection>
+
       {/* Financials opens a full centered popup — the ledger needs more width than
           the docked panel gives. */}
       <button onClick={() => setFinancialsOpen(true)}
@@ -361,6 +367,80 @@ export function MemberPanelBody({ id, onChanged, onName }: { id: number; onChang
       )}
       {viewWaiverId !== null && (
         <WaiverViewModal waiverId={viewWaiverId} onClose={() => setViewWaiverId(null)} />
+      )}
+    </div>
+  );
+}
+
+function BeltSection({ membershipId }: { membershipId: number }) {
+  const utils = trpc.useUtils();
+  const q = trpc.members.beltForMember.useQuery({ id: membershipId });
+  const refresh = () => utils.members.beltForMember.invalidate({ id: membershipId });
+  const opts = { onSuccess: () => refresh(), onError: (e: { message?: string }) => toast.error(e.message ?? "Failed.") };
+  const promote = trpc.students.promoteBelt.useMutation({ ...opts, onSuccess: () => { toast.success("Promoted."); refresh(); } });
+  const demote = trpc.students.demoteBelt.useMutation({ ...opts, onSuccess: () => { toast.success("Rank adjusted."); refresh(); } });
+  const setBelt = trpc.students.setBelt.useMutation({ ...opts, onSuccess: () => { toast.success("Rank set."); refresh(); } });
+  const setReadiness = trpc.students.setReadiness.useMutation(opts);
+
+  if (q.isLoading) return <div className="py-3 text-center text-gray-400"><Loader2 className="w-4 h-4 animate-spin mx-auto" /></div>;
+  const data = q.data;
+  if (!data) return null;
+  if (!data.linked || !data.status) {
+    return <div className="text-xs text-gray-500">No martial-arts roster record is linked to this member, so belt tracking is not available. Add them to the students roster to track belts.</div>;
+  }
+  const s = data.status;
+  const readinessVal = s.manualReadiness ?? "auto";
+  const sel = "border border-gray-300 rounded px-2 py-1 text-sm";
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <div className="text-[11px] uppercase tracking-wide text-gray-400">Current belt</div>
+          <div className="font-semibold text-[#1a2d5a] flex items-center gap-1.5"><Award className="w-4 h-4" /> {s.currentRank}</div>
+        </div>
+        <span className={`text-[11px] rounded-full border px-2 py-0.5 font-medium ${s.ready ? "bg-green-100 text-green-800 border-green-200" : "bg-gray-100 text-gray-600 border-gray-200"}`}>{s.ready ? "Ready to test" : "Not ready"}</span>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <button onClick={() => demote.mutate({ studentId: s.studentId })} disabled={!s.prevRank || demote.isPending} title="Down one rank" className="inline-flex items-center gap-1 text-xs font-medium text-gray-600 border border-gray-200 rounded px-2 py-1.5 disabled:opacity-40"><ArrowDown className="w-3.5 h-3.5" /> Down</button>
+        <select value={s.currentRank} onChange={e => setBelt.mutate({ studentId: s.studentId, toRank: e.target.value })} className={sel}>
+          {BELT_SEQUENCE.map(b => <option key={b} value={b}>{b}</option>)}
+        </select>
+        <button onClick={() => promote.mutate({ studentId: s.studentId })} disabled={!s.nextRank || promote.isPending} title="Up one rank" className="inline-flex items-center gap-1 text-xs font-semibold text-[#1a2d5a] border border-[#1a2d5a]/30 hover:bg-[#1a2d5a]/5 rounded px-2 py-1.5 disabled:opacity-40"><ArrowUp className="w-3.5 h-3.5" /> Up</button>
+      </div>
+
+      <label className="flex items-center gap-2 text-xs text-gray-600">Testing readiness
+        <select value={readinessVal} onChange={e => setReadiness.mutate({ studentId: s.studentId, value: e.target.value as "ready" | "not_ready" | "auto" })} className={sel}>
+          <option value="auto">Auto (from attendance)</option>
+          <option value="ready">Ready to test</option>
+          <option value="not_ready">Not ready</option>
+        </select>
+      </label>
+
+      <div className="text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-lg p-2.5">
+        {s.threshold ? (
+          <div className="flex flex-wrap gap-x-4 gap-y-0.5">
+            <span>Classes since last promotion: <b className="tabular-nums">{s.classesSince}</b> / {s.threshold.classes}</span>
+            <span>Months at rank: <b className="tabular-nums">{s.monthsSince ?? "?"}</b> / {s.threshold.months}</span>
+          </div>
+        ) : <span>Pre-Black and Dan ranks are by invitation (no auto threshold).</span>}
+        <div className="text-[11px] text-gray-400 mt-1">Attendance is from kiosk check-ins and may be approximate. Use the readiness override to decide.</div>
+      </div>
+
+      {s.history.length > 0 && (
+        <div>
+          <div className="text-[11px] uppercase tracking-wide text-gray-400 mb-1">Promotion history</div>
+          <div className="space-y-1 max-h-40 overflow-y-auto">
+            {s.history.map(h => (
+              <div key={h.id} className="text-xs text-gray-600 flex items-center gap-2">
+                <span className="tabular-nums text-gray-400 shrink-0">{String(h.createdAt).slice(0, 10)}</span>
+                <span className="capitalize text-gray-400">{h.direction}</span>
+                <span>{h.fromRank ? `${h.fromRank} → ` : ""}{h.toRank}</span>
+                {h.promotedBy ? <span className="ml-auto text-[10px] text-gray-400 truncate">{h.promotedBy}</span> : null}
+              </div>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   );

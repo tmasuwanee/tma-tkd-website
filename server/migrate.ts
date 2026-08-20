@@ -236,6 +236,30 @@ const MIGRATIONS: { name: string; sql: string }[] = [
     name: "memberships.afterschoolRegId unique index",
     sql: "CREATE UNIQUE INDEX IF NOT EXISTS uniq_membership_afterschool_reg ON memberships (afterschoolRegId)",
   },
+  {
+    // 2026-08-17: manual testing-readiness override. null = auto (attendance vs the
+    // rank threshold), 'ready' = staff marked ready to test, 'not_ready' = held back.
+    // The auto value is only a hint (attendance data is not reliable).
+    name: "students.testingReadiness",
+    sql: "ALTER TABLE students ADD COLUMN IF NOT EXISTS testingReadiness VARCHAR(16) NULL",
+  },
+  {
+    // 2026-08-17: append-only belt promotion history. Previously the only record was
+    // students.lastPromotedAt, a single timestamp that even a demotion overwrote, so
+    // there was no audit trail. Each promote/demote/correction/baseline writes a row.
+    name: "beltPromotions table",
+    sql: "CREATE TABLE IF NOT EXISTS beltPromotions (" +
+      "id BIGINT PRIMARY KEY AUTO_INCREMENT, " +
+      "studentId INT NOT NULL, " +
+      "fromRank VARCHAR(100) NULL, " +
+      "toRank VARCHAR(100) NOT NULL, " +
+      "direction VARCHAR(16) NOT NULL DEFAULT 'promote', " +
+      "classesAtEvent INT NULL, " +
+      "note VARCHAR(255) NULL, " +
+      "promotedBy VARCHAR(120) NULL, " +
+      "createdAt DATETIME NOT NULL, " +
+      "INDEX belt_promo_student_idx (studentId, createdAt))",
+  },
 ];
 
 export async function runStartupMigrations(): Promise<void> {

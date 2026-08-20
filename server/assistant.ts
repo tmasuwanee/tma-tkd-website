@@ -263,6 +263,26 @@ function buildTools(opts: { origin: string }) {
       },
     }),
 
+    // ── Belt rank + testing readiness (Taekwondo / martial arts) ──
+    getBeltStatus: tool({
+      description: "Get a martial-arts student's belt rank and testing readiness: current rank, next rank, classes since last promotion vs the requirement, months at rank, and whether they are marked ready to test. Pass the student id (from findPerson) or a name/email.",
+      inputSchema: z.object({ studentId: z.number().int().positive().optional(), query: z.string().optional() }),
+      execute: async ({ studentId, query }) => {
+        const { getBeltStatus, searchStudents } = await import("./db");
+        let id = studentId;
+        if (!id && query) { const found = await searchStudents(query) as Array<{ id: number }>; id = Array.isArray(found) && found[0] ? found[0].id : undefined; }
+        if (!id) return { found: false, note: "Give a student name/email or id." };
+        const st = await getBeltStatus(id);
+        if (!st) return { found: false, note: "No belt record for that student." };
+        return { found: true, studentId: st.studentId, student: st.name, currentRank: st.currentRank, nextRank: st.nextRank, classesSince: st.classesSince, monthsSince: st.monthsSince, requirement: st.threshold, ready: st.ready, readiness: st.manualReadiness ?? "auto (from attendance)" };
+      },
+    }),
+    proposePromoteBelt: tool({
+      description: "Propose promoting a student ONE belt rank up (records history; applied only after Approve). Requires the student id (from getBeltStatus/findPerson). Do not skip ranks; to jump to a specific rank tell the user to use the belt dropdown in the member popup.",
+      inputSchema: z.object({ studentId: z.number().int().positive(), note: z.string().max(255).optional() }),
+      execute: async (input) => { const { id } = await proposeAction("belt_promote", input, "assistant"); return { proposed: true, pendingActionId: id, note: `Proposed (#${id}). Approve to apply.` }; },
+    }),
+
     // ── Cards on file (family payer). Read + secure setup link + propose changes ──
     listMemberCards: tool({
       description: "List the cards on file for a student's family (brand, last 4, expiry, and which is primary — the card charged). Card numbers are never shown. Use before proposing to make a card primary or remove one; it returns each card's paymentMethodId + a label.",
@@ -376,6 +396,7 @@ Rules:
 - Only give step-by-step directions for things you CANNOT do yourself, OR when the user explicitly asks "how do I...". If you explain how to do something that you can also do yourself, end by asking whether they'd like you to do it for them.
 - Cards on file: you can list a family's cards (listMemberCards), give a secure link to add/update a card (openCardSetupLink — the card is entered on Stripe's page, NEVER typed to you or in the app), and propose making a card primary or removing one (approved via the Approve button). Never ask for or accept a card number; if someone offers one, tell them to enter it on the secure Stripe page instead.
 - Waivers: to check if a specific student has their waiver(s) on file (martial-arts and/or afterschool), use checkWaiverStatus; for the global list of afterschool signups missing a waiver, use listMissingAfterschoolWaivers. Staff attach/collect waivers from the member's popup in the dashboard.
+- Belts: use getBeltStatus for a student's rank + testing readiness. You can propose a one-rank promotion with proposePromoteBelt (applied after Approve). Do NOT use proposeUpdateStudent to change a belt (it skips rank-order + history); to jump to a specific rank, tell the user to use the belt dropdown in the member popup.
 - To update a student's file (DOB, belt rank, program, contact, status, emergency contact): get the student id via findPerson, then propose the change with proposeUpdateStudent (applies after Approve). If you're missing the new values, call requestFields FIRST to pop a small form for the staff to fill (use field names dob/beltRank/phone/etc.), and when their values come back, propose the update. Use requestFields for gathering any record values, never for card numbers or secrets.
 - You cannot issue refunds or take actions you have no tool for; for those, say a staff member must do it in the dashboard. To pull up a member, use openMemberProfile.
 - If a person, date range, or amount is ambiguous, ask a brief clarifying question instead of guessing.

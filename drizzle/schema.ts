@@ -1,4 +1,4 @@
-﻿import { int, mysqlEnum, mysqlTable, text, mediumtext, timestamp, varchar, uniqueIndex, tinyint, index, boolean } from "drizzle-orm/mysql-core";
+﻿import { int, bigint, mysqlEnum, mysqlTable, text, mediumtext, timestamp, varchar, uniqueIndex, tinyint, index, boolean } from "drizzle-orm/mysql-core";
 
 export const users = mysqlTable("users", {
   id: int("id").autoincrement().primaryKey(),
@@ -138,6 +138,9 @@ export const students = mysqlTable("students", {
   status: varchar("status", { length: 50 }),
   emergencyContact: varchar("emergencyContact", { length: 255 }),
   isEligibleOverride: tinyint("isEligibleOverride").default(0).notNull(),
+  // Manual testing-readiness override: null = auto (attendance vs threshold),
+  // "ready" = staff marked ready, "not_ready" = held back.
+  testingReadiness: varchar("testingReadiness", { length: 16 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -155,6 +158,21 @@ export const attendance = mysqlTable("attendance", {
 });
 
 export type Attendance = typeof attendance.$inferSelect;
+
+// Append-only belt promotion history (audit trail for rank changes).
+export const beltPromotions = mysqlTable("beltPromotions", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  studentId: int("studentId").notNull(),
+  fromRank: varchar("fromRank", { length: 100 }),
+  toRank: varchar("toRank", { length: 100 }).notNull(),
+  direction: varchar("direction", { length: 16 }).default("promote").notNull(), // promote|demote|correction|baseline
+  classesAtEvent: int("classesAtEvent"),
+  note: varchar("note", { length: 255 }),
+  promotedBy: varchar("promotedBy", { length: 120 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type BeltPromotion = typeof beltPromotions.$inferSelect;
 export type InsertAttendance = typeof attendance.$inferInsert;
 
 export const campRegistrations = mysqlTable("campRegistrations", {

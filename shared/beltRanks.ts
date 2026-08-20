@@ -57,3 +57,20 @@ export function getPreviousRank(currentRank: string | null | undefined): BeltRan
 export function isValidBeltRank(rank: string): rank is BeltRank {
   return BELT_SEQUENCE.includes(rank as BeltRank);
 }
+
+/**
+ * Minimum attendance + time-at-rank to test OUT of a given belt, from TMA's
+ * membership agreement, applied per step within each band:
+ *   up to Orange (White, Yellow, Orange): 16 classes, 2 months at rank
+ *   through Brown (Green, Purple, Blue, Brown): 36 classes, 4 months
+ *   Red / High-Red: 49 classes, 6 months
+ * Pre-Black and the Dan ranks are by invitation/testing only, so no auto threshold
+ * (returns null). The auto check is a HINT only; staff can override readiness.
+ */
+export function promotionThreshold(currentRank: string | null | undefined): { classes: number; months: number } | null {
+  const r = (currentRank ?? "White");
+  if (r === "White" || r === "Yellow" || r === "Orange") return { classes: 16, months: 2 };
+  if (r === "Green" || r === "Purple" || r === "Blue" || r === "Brown") return { classes: 36, months: 4 };
+  if (r === "Red" || r === "High-Red") return { classes: 49, months: 6 };
+  return null; // Pre-Black and Dan ranks: manual / by invitation
+}

@@ -236,6 +236,23 @@ const HANDLERS: Record<string, ActionHandler> = {
     },
   },
 
+  belt_promote: {
+    prepare: async (payload) => {
+      const p = z.object({ studentId: z.number().int().positive(), note: z.string().max(255).optional() }).parse(payload);
+      const { getBeltStatus } = await import("./db");
+      const st = await getBeltStatus(p.studentId);
+      if (!st) throw new Error("Student not found");
+      if (!st.nextRank) throw new Error(`${st.name} is already at the highest rank.`);
+      return { title: `Promote ${st.name} to ${st.nextRank}`, preview: `${st.currentRank} to ${st.nextRank}. Classes since last promotion: ${st.classesSince}${st.threshold ? ` of ${st.threshold.classes}` : ""}.${st.ready ? "" : " Not currently marked ready to test."}` };
+    },
+    execute: async (payload) => {
+      const p = z.object({ studentId: z.number().int().positive(), note: z.string().max(255).optional() }).parse(payload);
+      const { promoteBeltRank } = await import("./db");
+      await promoteBeltRank(p.studentId, { note: p.note, by: "assistant (confirmed)" });
+      return { promoted: true, studentId: p.studentId };
+    },
+  },
+
   student_update: {
     prepare: async (payload) => {
       const p = studentUpdateSchema.parse(payload);

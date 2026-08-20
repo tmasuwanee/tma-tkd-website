@@ -69,7 +69,7 @@ import { sendTelegramMessage } from "./telegram";
 import { tuitionConfiguredFor, ensureStripeCustomer, createAfterschoolSubscription } from "./tuition";
 import { proposeAction, confirmAction, rejectAction } from "./action-flow";
 import { createMembership, changeMembership, setMembershipDiscount, pauseMembership, resumeMembership, cancelMembership, adjustCharge } from "./membership-ops";
-import { memberList, memberOverview, memberWaivers } from "./members";
+import { memberList, memberOverview, memberWaivers, resolveStudentIdForMembership } from "./members";
 import { createWaiver } from "./db";
 import { listSpecials, insertSpecial, updateSpecial } from "./db";
 import { createCardSetupSession, chargeDueMemberships, listPayerCards, setPayerPrimaryCard, detachPayerCard } from "./membership-billing";
@@ -1054,20 +1054,38 @@ export const appRouter = router({
       const { getEligibleStudents } = await import('./db');
       return getEligibleStudents();
     }),
-    // Promote a student's belt rank
+    // Promote a student's belt rank (records history).
     promoteBelt: publicProcedure
-      .input(z.object({ studentId: z.number() }))
-      .mutation(async ({ input }) => {
+      .input(z.object({ studentId: z.number(), note: z.string().max(255).optional() }))
+      .mutation(async ({ input, ctx }) => {
         const { promoteBeltRank } = await import('./db');
-        return promoteBeltRank(input.studentId);
+        return promoteBeltRank(input.studentId, { note: input.note, by: ctx.adminEmail ?? "staff" });
       }),
-    // Demote a student's belt rank
+    // Demote a student's belt rank (records history; does not reset the promotion date).
     demoteBelt: publicProcedure
-      .input(z.object({ studentId: z.number() }))
-      .mutation(async ({ input }) => {
+      .input(z.object({ studentId: z.number(), note: z.string().max(255).optional() }))
+      .mutation(async ({ input, ctx }) => {
         const { demoteBeltRank } = await import('./db');
-        return demoteBeltRank(input.studentId);
+        return demoteBeltRank(input.studentId, { note: input.note, by: ctx.adminEmail ?? "staff" });
       }),
+    // Jump directly to a specific rank (the dropdown). Validated against the sequence.
+    setBelt: publicProcedure
+      .input(z.object({ studentId: z.number().int().positive(), toRank: z.string().min(1), note: z.string().max(255).optional() }))
+      .mutation(async ({ input, ctx }) => {
+        const { setBeltRankTo } = await import('./db');
+        const { isValidBeltRank } = await import('@shared/beltRanks');
+        if (!isValidBeltRank(input.toRank)) throw new Error(`"${input.toRank}" is not a valid belt rank.`);
+        return setBeltRankTo(input.studentId, input.toRank, { note: input.note, by: ctx.adminEmail ?? "staff" });
+      }),
+    // Testing readiness: current rank, next/prev, attendance vs threshold, auto vs
+    // manual, and history. The auto flag is a hint; manualReadiness overrides it.
+    beltStatus: publicProcedure.input(z.object({ studentId: z.number().int().positive() }))
+      .query(async ({ input }) => { const { getBeltStatus } = await import('./db'); return getBeltStatus(input.studentId); }),
+    beltHistory: publicProcedure.input(z.object({ studentId: z.number().int().positive() }))
+      .query(async ({ input }) => { const { getBeltHistory } = await import('./db'); return getBeltHistory(input.studentId); }),
+    // Manual ready/not-ready override (null = back to auto).
+    setReadiness: publicProcedure.input(z.object({ studentId: z.number().int().positive(), value: z.enum(["ready", "not_ready", "auto"]) }))
+      .mutation(async ({ input }) => { const { setTestingReadiness } = await import('./db'); await setTestingReadiness(input.studentId, input.value === "auto" ? null : input.value); return { ok: true }; }),
     // Update an existing student
     update: publicProcedure
       .input(z.object({
@@ -2176,6 +2194,15 @@ export const appRouter = router({
         const params = new URLSearchParams({ studentName: m.studentName || "", parentName: m.parentName || "", email: m.email || "", phone: m.phone || "" }).toString();
         const path = input.kind === "afterschool" ? "/afterschool-waiver" : "/agreement";
         return { url: `${proto}://${host}${path}?${params}` };
+      }),
+    // Belt status for a member (resolves the membership to a roster student). Returns
+    // { linked:false } when there is no student record to attach belts to.
+    beltForMember: publicProcedure.input(z.object({ id: z.number().int().positive() }))
+      .query(async ({ input }) => {
+        const studentId = await resolveStudentIdForMembership(input.id);
+        if (!studentId) return { linked: false as const };
+        const { getBeltStatus } = await import("./db");
+        return { linked: true as const, studentId, status: await getBeltStatus(studentId) };
       }),
     // Full detail of one signed waiver (incl. signature image) for the view popup.
     waiverDetail: publicProcedure.input(z.object({ waiverId: z.number().int().positive() }))
