@@ -752,3 +752,44 @@ export const campWaivers = mysqlTable("campWaivers", {
 }));
 export type CampWaiver = typeof campWaivers.$inferSelect;
 export type InsertCampWaiver = typeof campWaivers.$inferInsert;
+
+// Immutable payments ledger (2026-08-21): legacy imported payments + future real
+// Stripe payments. INSERT-only, never updated. method: legacy|cash|card|stripe.
+export const membershipPayments = mysqlTable("membershipPayments", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  membershipId: bigint("membershipId", { mode: "number" }).notNull(),
+  studentName: varchar("studentName", { length: 255 }),
+  amountCents: int("amountCents").notNull(),
+  paidAt: timestamp("paidAt").notNull(),
+  method: varchar("method", { length: 16 }).default("legacy").notNull(),
+  source: varchar("source", { length: 64 }).default("import").notNull(),
+  stripePaymentIntentId: varchar("stripePaymentIntentId", { length: 255 }),
+  paidThroughDate: varchar("paidThroughDate", { length: 20 }),
+  importDedupKey: varchar("importDedupKey", { length: 128 }),
+  importBatchId: bigint("importBatchId", { mode: "number" }),
+  note: varchar("note", { length: 500 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  membershipIdx: index("mempay_membership_idx").on(table.membershipId, table.paidAt),
+  piUniq: uniqueIndex("uniq_mempay_pi").on(table.stripePaymentIntentId),
+  dedupUniq: uniqueIndex("uniq_mempay_dedup").on(table.importDedupKey),
+}));
+export type MembershipPayment = typeof membershipPayments.$inferSelect;
+export type InsertMembershipPayment = typeof membershipPayments.$inferInsert;
+
+// Bulk-import audit (2026-08-21): one row per import run (roster, payments,
+// waivers, belts) so a bad migration is diagnosable and reversible.
+export const importBatches = mysqlTable("importBatches", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  kind: varchar("kind", { length: 64 }).notNull(),
+  createdCount: int("createdCount").default(0).notNull(),
+  skippedCount: int("skippedCount").default(0).notNull(),
+  needsReviewCount: int("needsReviewCount").default(0).notNull(),
+  actor: varchar("actor", { length: 120 }),
+  note: varchar("note", { length: 500 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  kindIdx: index("import_batches_kind_idx").on(table.kind, table.createdAt),
+}));
+export type ImportBatch = typeof importBatches.$inferSelect;
+export type InsertImportBatch = typeof importBatches.$inferInsert;

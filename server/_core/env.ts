@@ -56,6 +56,12 @@ export const ENV = {
   // charge job never actually charges a card, so deploying is safe. Turn on only
   // after cards are on file and you have tested. See docs/OPERATIONS_SOPS.md.
   membershipAutochargeEnforce: process.env.MEMBERSHIP_AUTOCHARGE_ENFORCE === "true",
+  // 2026-08-21: card collection is gated INDEPENDENTLY of charging. Turn this on
+  // to let staff collect/save cards (Stripe setup links, card UI) WITHOUT enabling
+  // any charge. MEMBERSHIP_AUTOCHARGE_ENFORCE still gates the actual charging, so
+  // the safe go-live order is: collect cards for a while (this flag on, autocharge
+  // off), verify, then flip autocharge on. See docs/OPERATIONS_SOPS.md.
+  cardCollectionEnabled: process.env.CARD_COLLECTION_ENABLED === "true",
   // 2026-08-17: the daily "morning report" health email is off by default (Arfa
   // found it unneeded). Set TMA_MORNING_REPORT=true to re-enable. The cron may
   // still fire; the handler no-ops unless this is on.

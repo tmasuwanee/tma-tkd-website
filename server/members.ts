@@ -18,7 +18,7 @@
  * that already has a Stripe customer) points at a card. The member popup does the
  * authoritative card lookup when opened.
  */
-import { listMemberships, getAfterschoolRegistrations, listPayers, getMembership, getAllWaivers, getAllStudents, type MembershipRow, type AfterschoolRegistrationRow } from "./db";
+import { listMemberships, getAfterschoolRegistrations, listPayers, getMembership, getAllWaivers, getAllStudents, listMembershipIdsWithPastDueCharge, type MembershipRow, type AfterschoolRegistrationRow } from "./db";
 import type { Waiver } from "../drizzle/schema";
 
 export type MemberBilling = "up_to_date" | "past_due" | "setup_needed" | "none";
@@ -73,8 +73,9 @@ function buildKeyer(records: { name: string; email: string | null }[]) {
   };
 }
 
-function membershipBilling(m: MembershipRow, payerHasCard: Set<number>): MemberBilling {
+function membershipBilling(m: MembershipRow, payerHasCard: Set<number>, hasPastDueCharge: boolean): MemberBilling {
   if (m.status === "canceled") return "none";
+  if (hasPastDueCharge) return "past_due"; // a failed ledger charge outranks "card on file"
   if (m.stripeSubscriptionId) return "up_to_date";
   if (m.stripeCustomerId) return "up_to_date";
   if (m.payerId && payerHasCard.has(m.payerId)) return "up_to_date"; // card lives on the family payer
@@ -90,7 +91,7 @@ function afterschoolBilling(r: AfterschoolRegistrationRow): MemberBilling {
 }
 
 export async function memberList(): Promise<MemberRow[]> {
-  const [memberships, regsAll, payers] = await Promise.all([listMemberships(), getAfterschoolRegistrations(), listPayers()]);
+  const [memberships, regsAll, payers, pastDueMembershipIds] = await Promise.all([listMemberships(), getAfterschoolRegistrations(), listPayers(), listMembershipIdsWithPastDueCharge()]);
   const regs = regsAll.filter(r => (r.stripePaymentStatus ?? "").toLowerCase() !== "failed"); // drop never-completed signups
   const payerHasCard = new Set(payers.filter(p => p.stripeCustomerId).map(p => p.id));
   const keyOf = buildKeyer([
@@ -124,7 +125,7 @@ export async function memberList(): Promise<MemberRow[]> {
     addProgram(m, ms.program);
     if (ms.status !== "canceled") m.monthlyCents += Math.max(0, ms.monthlyAmountCents - (ms.discountCents || 0));
     if ((STATUS_RANK[ms.status] ?? 0) > (STATUS_RANK[m.status] ?? 0)) m.status = ms.status === "pending" ? "active" : ms.status;
-    m.billing = worseBilling(m.billing, membershipBilling(ms, payerHasCard));
+    m.billing = worseBilling(m.billing, membershipBilling(ms, payerHasCard, pastDueMembershipIds.has(ms.id)));
     if (m.payerId === null && ms.payerId !== null) m.payerId = ms.payerId;
     if (ms.parentName && !m.parentName) m.parentName = ms.parentName;
     if (!m.phone && ms.phone) m.phone = ms.phone;

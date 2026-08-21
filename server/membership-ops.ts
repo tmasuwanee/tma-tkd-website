@@ -20,7 +20,8 @@ import { sendTelegramMessage } from "./telegram";
 
 const dollars = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 
-/** YYYY-MM for `count` months starting from `from` (default this month). */
+/** YYYY-MM for `count` months starting from `from` (default this month). Used by
+ *  the re-price / discount loops to find "this month" and forward. */
 function monthKeys(count: number, from?: Date): string[] {
   const base = from ? new Date(from.getFullYear(), from.getMonth(), 1) : new Date();
   base.setDate(1);
@@ -32,19 +33,44 @@ function monthKeys(count: number, from?: Date): string[] {
   return out;
 }
 
+/** Parse a stored YYYY-MM-DD (date-only) string into a local Date, avoiding
+ *  `new Date(str)`'s UTC-midnight parse + local-getter month/day shift near
+ *  timezone boundaries. */
+function parseDateOnly(s: string): Date {
+  const [y, mo, d] = s.slice(0, 10).split("-").map(Number);
+  return new Date(y, (mo || 1) - 1, d || 1);
+}
+
 /** Create/refresh the next `months` scheduled charges for a membership at its
- *  current net monthly amount. Idempotent per month (won't overwrite an existing
- *  month's edited amount). */
+ *  current net monthly amount, anchored to the REAL cycle:
+ *   - first charge lands on the billing day on/after the membership start date;
+ *   - any month already covered by paidThroughDate (legacy import) is skipped, so
+ *     importing a mid-cycle family never bills a month they already paid.
+ *  Idempotent per month (won't overwrite an existing month's edited amount). */
 export async function generateCharges(membershipId: number, months = 12): Promise<void> {
   const m = await getMembership(membershipId);
   if (!m) return;
   const net = Math.max(0, m.monthlyAmountCents - (m.discountCents || 0));
-  const start = m.startDate ? new Date(String(m.startDate)) : new Date();
+  const start = m.startDate ? parseDateOnly(String(m.startDate)) : new Date();
   const day = m.billingDay && m.billingDay >= 1 && m.billingDay <= 28 ? m.billingDay : 1;
-  for (const period of monthKeys(months, start)) {
-    const [y, mo] = period.split("-").map(Number);
-    const due = `${y}-${String(mo).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-    await upsertMembershipCharge({ membershipId, periodMonth: period, dueDate: due, baseAmountCents: net, amountCents: net });
+  const paidThrough = m.paidThroughDate ? String(m.paidThroughDate).slice(0, 10) : null;
+
+  // Anchor: the billing day in the start month, or next month if start is later in
+  // the month than the billing day (don't back-date a charge before enrollment).
+  let anchor = new Date(start.getFullYear(), start.getMonth(), day);
+  if (anchor < new Date(start.getFullYear(), start.getMonth(), start.getDate())) {
+    anchor = new Date(start.getFullYear(), start.getMonth() + 1, day);
+  }
+  const dueStr = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  // Skip forward past any month already paid through the imported anchor.
+  while (paidThrough && dueStr(anchor) <= paidThrough) {
+    anchor = new Date(anchor.getFullYear(), anchor.getMonth() + 1, day);
+  }
+
+  for (let i = 0; i < months; i++) {
+    const d = new Date(anchor.getFullYear(), anchor.getMonth() + i, day);
+    const period = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    await upsertMembershipCharge({ membershipId, periodMonth: period, dueDate: dueStr(d), baseAmountCents: net, amountCents: net });
   }
 }
 
@@ -54,6 +80,7 @@ export async function createMembership(input: {
   studentName: string; parentName?: string | null; email?: string | null; phone?: string | null;
   leadId?: number | null; program: string; planLabel?: string | null; monthlyAmountCents: number;
   discountCents?: number; discountNote?: string | null; startDate?: string | null;
+  paidThroughDate?: string | null;
   termMonths?: number | null; billingDay?: number | null; contractNote?: string | null;
   afterschoolRegId?: number | null;
 }): Promise<{ id: number }> {
@@ -132,6 +159,14 @@ export async function cancelMembership(id: number, opts: { immediate: boolean })
   } else {
     const eff = new Date(Date.now() + 60 * 86400000).toISOString().slice(0, 10);
     await updateMembership(id, { cancelEffectiveDate: eff });
+    // Keep the ledger honest: cancel any still-scheduled charge whose due date
+    // falls after the effective date, so nothing lingers to be charged later.
+    // (The charge job also refuses these at runtime; this is defense in depth.)
+    for (const c of await listMembershipCharges(id)) {
+      if (c.status !== "scheduled") continue;
+      const due = c.dueDate ? String(c.dueDate).slice(0, 10) : null;
+      if (due && due > eff) await updateMembershipCharge(c.id, { status: "canceled", note: "canceled: past 60-day notice date" });
+    }
     void sendTelegramMessage(`🚫 <b>Cancellation scheduled</b>\n${m.studentName} · ${m.program}\n60-day notice, effective ${eff} (can attend until then)`).catch(() => {});
   }
 }

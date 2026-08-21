@@ -260,6 +260,54 @@ const MIGRATIONS: { name: string; sql: string }[] = [
       "createdAt DATETIME NOT NULL, " +
       "INDEX belt_promo_student_idx (studentId, createdAt))",
   },
+  // ─── Pre-migration hardening (2026-08-21) ────────────────────────────────
+  // Billing anchor: what a family has already paid through. The charge sweeper
+  // and generator skip any month whose dueDate <= paidThroughDate, so importing
+  // a mid-cycle roster never bills already-paid months.
+  { name: "memberships.paidThroughDate", sql: "ALTER TABLE memberships ADD COLUMN IF NOT EXISTS paidThroughDate DATE NULL" },
+  // Charge-level payment metadata + retry tracking. status is already VARCHAR(24)
+  // so it physically holds 'past_due'/'processing' with no DDL change.
+  { name: "membershipCharges.paidAt", sql: "ALTER TABLE membershipCharges ADD COLUMN IF NOT EXISTS paidAt DATETIME NULL" },
+  { name: "membershipCharges.stripePaymentIntentId", sql: "ALTER TABLE membershipCharges ADD COLUMN IF NOT EXISTS stripePaymentIntentId VARCHAR(255) NULL" },
+  { name: "membershipCharges.attemptCount", sql: "ALTER TABLE membershipCharges ADD COLUMN IF NOT EXISTS attemptCount INT NOT NULL DEFAULT 0" },
+  // Immutable payments ledger: legacy imported payments + future real Stripe
+  // payments. INSERT-only. importDedupKey makes a re-run of the same import a
+  // no-op; the unique index on stripePaymentIntentId (NULLs allowed) makes a
+  // future webhook insert idempotent.
+  {
+    name: "membershipPayments table",
+    sql: "CREATE TABLE IF NOT EXISTS membershipPayments (" +
+      "id BIGINT PRIMARY KEY AUTO_INCREMENT, " +
+      "membershipId BIGINT NOT NULL, " +
+      "studentName VARCHAR(255) NULL, " +
+      "amountCents INT NOT NULL, " +
+      "paidAt DATETIME NOT NULL, " +
+      "method VARCHAR(16) NOT NULL DEFAULT 'legacy', " +
+      "source VARCHAR(64) NOT NULL DEFAULT 'import', " +
+      "stripePaymentIntentId VARCHAR(255) NULL, " +
+      "paidThroughDate DATE NULL, " +
+      "importDedupKey VARCHAR(128) NULL, " +
+      "importBatchId BIGINT NULL, " +
+      "note VARCHAR(500) NULL, " +
+      "createdAt DATETIME NOT NULL, " +
+      "INDEX mempay_membership_idx (membershipId, paidAt))",
+  },
+  { name: "membershipPayments.stripePaymentIntentId unique index", sql: "CREATE UNIQUE INDEX IF NOT EXISTS uniq_mempay_pi ON membershipPayments (stripePaymentIntentId)" },
+  { name: "membershipPayments.importDedupKey unique index", sql: "CREATE UNIQUE INDEX IF NOT EXISTS uniq_mempay_dedup ON membershipPayments (importDedupKey)" },
+  // One row per bulk-import run so a bad migration is diagnosable / reversible.
+  {
+    name: "importBatches table",
+    sql: "CREATE TABLE IF NOT EXISTS importBatches (" +
+      "id BIGINT PRIMARY KEY AUTO_INCREMENT, " +
+      "kind VARCHAR(64) NOT NULL, " +
+      "createdCount INT NOT NULL DEFAULT 0, " +
+      "skippedCount INT NOT NULL DEFAULT 0, " +
+      "needsReviewCount INT NOT NULL DEFAULT 0, " +
+      "actor VARCHAR(120) NULL, " +
+      "note VARCHAR(500) NULL, " +
+      "createdAt DATETIME NOT NULL, " +
+      "INDEX import_batches_kind_idx (kind, createdAt))",
+  },
 ];
 
 export async function runStartupMigrations(): Promise<void> {

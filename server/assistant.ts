@@ -20,6 +20,7 @@ import { adminEmailFromRequest } from "./admin-auth";
 import {
   searchLeads, searchStudents, getRosterStudents, getLeadById,
   getAfterschoolRegistrations, listMemberships, listMembershipCharges, getMembership,
+  listMembershipIdsWithPastDueCharge,
 } from "./db";
 import { listPayerCards, createCardSetupSession } from "./membership-billing";
 import { memberWaivers } from "./members";
@@ -137,12 +138,19 @@ function buildTools(opts: { origin: string }) {
     }),
 
     listPastDueTuition: tool({
-      description: "List afterschool families whose recurring tuition subscription is past due.",
+      description: "List families whose payment is past due — both afterschool subscriptions and membership tuition charges.",
       inputSchema: z.object({}),
       execute: async () => {
-        const regs = await getAfterschoolRegistrations();
-        const pastDue = regs.filter(r => r.subscriptionStatus === "past_due");
-        return { count: pastDue.length, families: pastDue.map(r => ({ parent: r.parentName, child: r.childName, email: r.email, phone: r.phone, monthly: r.monthlyAmountCents ? `$${(r.monthlyAmountCents / 100).toFixed(0)}/mo` : null })) };
+        const [regs, memberships, pastDueIds] = await Promise.all([getAfterschoolRegistrations(), listMemberships("active"), listMembershipIdsWithPastDueCharge()]);
+        const subPastDue = regs.filter(r => r.subscriptionStatus === "past_due");
+        const memberPastDue = memberships.filter(m => pastDueIds.has(m.id));
+        return {
+          count: subPastDue.length + memberPastDue.length,
+          families: [
+            ...subPastDue.map(r => ({ parent: r.parentName, child: r.childName, email: r.email, phone: r.phone, monthly: r.monthlyAmountCents ? `$${(r.monthlyAmountCents / 100).toFixed(0)}/mo` : null, source: "afterschool subscription" })),
+            ...memberPastDue.map(m => ({ parent: m.parentName, child: m.studentName, email: m.email, phone: m.phone, monthly: `$${(Math.max(0, m.monthlyAmountCents - (m.discountCents || 0)) / 100).toFixed(0)}/mo`, source: "membership tuition" })),
+          ],
+        };
       },
     }),
 

@@ -3135,6 +3135,7 @@ export type MembershipRow = {
   discountNote: string | null;
   status: string;
   startDate: string | Date | null;
+  paidThroughDate: string | Date | null;
   termMonths: number | null;
   billingDay: number | null;
   stripeCustomerId: string | null;
@@ -3147,12 +3148,13 @@ export type MembershipRow = {
   createdAt: string | Date;
 };
 
-const MEMBERSHIP_COLS = sql`id, studentName, parentName, email, phone, leadId, program, planLabel, monthlyAmountCents, discountCents, discountNote, status, startDate, termMonths, billingDay, stripeCustomerId, stripeSubscriptionId, contractNote, cancelEffectiveDate, canceledAt, payerId, afterschoolRegId, createdAt`;
+const MEMBERSHIP_COLS = sql`id, studentName, parentName, email, phone, leadId, program, planLabel, monthlyAmountCents, discountCents, discountNote, status, startDate, paidThroughDate, termMonths, billingDay, stripeCustomerId, stripeSubscriptionId, contractNote, cancelEffectiveDate, canceledAt, payerId, afterschoolRegId, createdAt`;
 
 export async function insertMembership(p: {
   studentName: string; parentName?: string | null; email?: string | null; phone?: string | null;
   leadId?: number | null; program: string; planLabel?: string | null; monthlyAmountCents: number;
   discountCents?: number; discountNote?: string | null; status?: string; startDate?: string | null;
+  paidThroughDate?: string | null;
   termMonths?: number | null; billingDay?: number | null; contractNote?: string | null;
   stripeCustomerId?: string | null; stripeSubscriptionId?: string | null; payerId?: number | null;
   afterschoolRegId?: number | null;
@@ -3161,8 +3163,8 @@ export async function insertMembership(p: {
   if (!db) throw new Error("DB not available");
   const [r] = await db.execute(
     sql`INSERT INTO memberships
-      (studentName, parentName, email, phone, leadId, program, planLabel, monthlyAmountCents, discountCents, discountNote, status, startDate, termMonths, billingDay, stripeCustomerId, stripeSubscriptionId, contractNote, payerId, afterschoolRegId, createdAt)
-      VALUES (${p.studentName}, ${p.parentName ?? null}, ${p.email ?? null}, ${p.phone ?? null}, ${p.leadId ?? null}, ${p.program}, ${p.planLabel ?? null}, ${p.monthlyAmountCents}, ${p.discountCents ?? 0}, ${p.discountNote ?? null}, ${p.status ?? "active"}, ${p.startDate ?? null}, ${p.termMonths ?? 12}, ${p.billingDay ?? null}, ${p.stripeCustomerId ?? null}, ${p.stripeSubscriptionId ?? null}, ${p.contractNote ?? null}, ${p.payerId ?? null}, ${p.afterschoolRegId ?? null}, NOW())`
+      (studentName, parentName, email, phone, leadId, program, planLabel, monthlyAmountCents, discountCents, discountNote, status, startDate, paidThroughDate, termMonths, billingDay, stripeCustomerId, stripeSubscriptionId, contractNote, payerId, afterschoolRegId, createdAt)
+      VALUES (${p.studentName}, ${p.parentName ?? null}, ${p.email ?? null}, ${p.phone ?? null}, ${p.leadId ?? null}, ${p.program}, ${p.planLabel ?? null}, ${p.monthlyAmountCents}, ${p.discountCents ?? 0}, ${p.discountNote ?? null}, ${p.status ?? "active"}, ${p.startDate ?? null}, ${p.paidThroughDate ?? null}, ${p.termMonths ?? 12}, ${p.billingDay ?? null}, ${p.stripeCustomerId ?? null}, ${p.stripeSubscriptionId ?? null}, ${p.contractNote ?? null}, ${p.payerId ?? null}, ${p.afterschoolRegId ?? null}, NOW())`
   ) as unknown as [{ insertId: number }];
   return r?.insertId ?? 0;
 }
@@ -3196,7 +3198,8 @@ export async function listMemberships(status?: string): Promise<MembershipRow[]>
 
 type MembershipUpdate = Partial<{
   program: string; planLabel: string | null; monthlyAmountCents: number; discountCents: number;
-  discountNote: string | null; status: string; startDate: string | null; termMonths: number | null;
+  discountNote: string | null; status: string; startDate: string | null; paidThroughDate: string | null;
+  termMonths: number | null;
   billingDay: number | null; contractNote: string | null; cancelEffectiveDate: string | null;
   canceledAt: string | null; stripeCustomerId: string | null; stripeSubscriptionId: string | null;
   payerId: number | null;
@@ -3213,6 +3216,7 @@ export async function updateMembership(id: number, fields: MembershipUpdate): Pr
   if (fields.discountNote !== undefined) sets.push(sql`discountNote = ${fields.discountNote}`);
   if (fields.status !== undefined) sets.push(sql`status = ${fields.status}`);
   if (fields.startDate !== undefined) sets.push(sql`startDate = ${fields.startDate}`);
+  if (fields.paidThroughDate !== undefined) sets.push(sql`paidThroughDate = ${fields.paidThroughDate}`);
   if (fields.termMonths !== undefined) sets.push(sql`termMonths = ${fields.termMonths}`);
   if (fields.billingDay !== undefined) sets.push(sql`billingDay = ${fields.billingDay}`);
   if (fields.contractNote !== undefined) sets.push(sql`contractNote = ${fields.contractNote}`);
@@ -3310,10 +3314,12 @@ export async function updateSpecial(id: number, fields: Partial<{ title: string;
 export type MembershipChargeRow = {
   id: number; membershipId: number; periodMonth: string; dueDate: string | Date | null;
   baseAmountCents: number; amountCents: number; status: string; note: string | null;
-  adjustedBy: string | null; stripeInvoiceId: string | null; createdAt: string | Date;
+  adjustedBy: string | null; stripeInvoiceId: string | null;
+  paidAt: string | Date | null; stripePaymentIntentId: string | null; attemptCount: number;
+  createdAt: string | Date;
 };
 
-const CHARGE_COLS = sql`id, membershipId, periodMonth, dueDate, baseAmountCents, amountCents, status, note, adjustedBy, stripeInvoiceId, createdAt`;
+const CHARGE_COLS = sql`id, membershipId, periodMonth, dueDate, baseAmountCents, amountCents, status, note, adjustedBy, stripeInvoiceId, paidAt, stripePaymentIntentId, attemptCount, createdAt`;
 
 /** Create a month's charge if it doesn't already exist (idempotent per month). */
 export async function upsertMembershipCharge(p: {
@@ -3342,7 +3348,7 @@ export async function getMembershipCharge(id: number): Promise<MembershipChargeR
   return Array.isArray(rows) && rows[0] ? rows[0] : null;
 }
 
-export async function updateMembershipCharge(id: number, fields: Partial<{ amountCents: number; status: string; note: string | null; adjustedBy: string | null; stripeInvoiceId: string | null }>): Promise<void> {
+export async function updateMembershipCharge(id: number, fields: Partial<{ amountCents: number; status: string; note: string | null; adjustedBy: string | null; stripeInvoiceId: string | null; paidAt: string | null; stripePaymentIntentId: string | null; attemptCount: number }>): Promise<void> {
   const db = await getDb();
   if (!db) return;
   const sets: ReturnType<typeof sql>[] = [];
@@ -3351,8 +3357,81 @@ export async function updateMembershipCharge(id: number, fields: Partial<{ amoun
   if (fields.note !== undefined) sets.push(sql`note = ${fields.note}`);
   if (fields.adjustedBy !== undefined) sets.push(sql`adjustedBy = ${fields.adjustedBy}`);
   if (fields.stripeInvoiceId !== undefined) sets.push(sql`stripeInvoiceId = ${fields.stripeInvoiceId}`);
+  if (fields.paidAt !== undefined) sets.push(sql`paidAt = ${fields.paidAt}`);
+  if (fields.stripePaymentIntentId !== undefined) sets.push(sql`stripePaymentIntentId = ${fields.stripePaymentIntentId}`);
+  if (fields.attemptCount !== undefined) sets.push(sql`attemptCount = ${fields.attemptCount}`);
   if (sets.length === 0) return;
   await db.execute(sql`UPDATE membershipCharges SET ${sql.join(sets, sql`, `)} WHERE id = ${id}`);
+}
+
+/** Membership ids with at least one past_due charge (for the dashboard billing
+ *  badge + the assistant's past-due list). One cheap DISTINCT query. */
+export async function listMembershipIdsWithPastDueCharge(): Promise<Set<number>> {
+  const db = await getDb();
+  if (!db) return new Set();
+  const [rows] = await db.execute(sql`SELECT DISTINCT membershipId FROM membershipCharges WHERE status = 'past_due'`) as unknown as [{ membershipId: number }[]];
+  return new Set(Array.isArray(rows) ? rows.map(r => r.membershipId) : []);
+}
+
+// ─── Import batches + immutable membership payments ledger ────────────────────
+export async function createImportBatch(p: { kind: string; actor?: string | null; note?: string | null }): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [r] = await db.execute(sql`INSERT INTO importBatches (kind, actor, note, createdAt) VALUES (${p.kind}, ${p.actor ?? null}, ${p.note ?? null}, NOW())`) as unknown as [{ insertId: number }];
+  return r?.insertId ?? 0;
+}
+
+export async function completeImportBatch(id: number, counts: { createdCount: number; skippedCount: number; needsReviewCount: number }): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.execute(sql`UPDATE importBatches SET createdCount = ${counts.createdCount}, skippedCount = ${counts.skippedCount}, needsReviewCount = ${counts.needsReviewCount} WHERE id = ${id}`);
+}
+
+/** Insert an immutable payment ledger row. Idempotent on importDedupKey: a
+ *  re-run of the same import returns false without inserting a duplicate. */
+export async function insertMembershipPayment(p: {
+  membershipId: number; studentName?: string | null; amountCents: number; paidAt: string;
+  method?: string; source?: string; stripePaymentIntentId?: string | null;
+  paidThroughDate?: string | null; importDedupKey?: string | null; importBatchId?: number | null; note?: string | null;
+}): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  try {
+    await db.execute(sql`INSERT INTO membershipPayments
+      (membershipId, studentName, amountCents, paidAt, method, source, stripePaymentIntentId, paidThroughDate, importDedupKey, importBatchId, note, createdAt)
+      VALUES (${p.membershipId}, ${p.studentName ?? null}, ${p.amountCents}, ${p.paidAt}, ${p.method ?? "legacy"}, ${p.source ?? "import"}, ${p.stripePaymentIntentId ?? null}, ${p.paidThroughDate ?? null}, ${p.importDedupKey ?? null}, ${p.importBatchId ?? null}, ${p.note ?? null}, NOW())`);
+    return true;
+  } catch (e) {
+    // Unique-key collision (importDedupKey / stripePaymentIntentId) = already imported.
+    if (/duplicate/i.test(String((e as Error).message))) return false;
+    throw e;
+  }
+}
+
+export async function listMembershipPayments(membershipId: number): Promise<Array<{ id: number; amountCents: number; paidAt: string | Date; method: string; source: string; note: string | null }>> {
+  const db = await getDb();
+  if (!db) return [];
+  const [rows] = await db.execute(sql`SELECT id, amountCents, paidAt, method, source, note FROM membershipPayments WHERE membershipId = ${membershipId} ORDER BY paidAt DESC`) as unknown as [Array<{ id: number; amountCents: number; paidAt: string | Date; method: string; source: string; note: string | null }>];
+  return Array.isArray(rows) ? rows : [];
+}
+
+/** Advance a membership's paidThroughDate forward only (never backward). */
+export async function bumpMembershipPaidThrough(membershipId: number, paidThroughDate: string): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.execute(sql`UPDATE memberships SET paidThroughDate = ${paidThroughDate} WHERE id = ${membershipId} AND (paidThroughDate IS NULL OR paidThroughDate < ${paidThroughDate})`);
+}
+
+/** Insert a single belt baseline row for an imported student, only if that student
+ *  has no belt history yet (idempotent on re-import). Returns true if written. */
+export async function ensureImportedBeltBaseline(studentId: number, toRank: string, promotedAt: string): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  const [existing] = await db.execute(sql`SELECT id FROM beltPromotions WHERE studentId = ${studentId} LIMIT 1`) as unknown as [{ id: number }[]];
+  if (Array.isArray(existing) && existing.length > 0) return false;
+  await db.execute(sql`INSERT INTO beltPromotions (studentId, fromRank, toRank, direction, classesAtEvent, note, promotedBy, createdAt)
+    VALUES (${studentId}, ${null}, ${toRank || "White"}, 'baseline', ${null}, 'ZenPlanner roster baseline import', 'zenplanner-import', ${promotedAt})`);
+  return true;
 }
 
 // ─── Day camp signups ────────────────────────────────────────────────────────

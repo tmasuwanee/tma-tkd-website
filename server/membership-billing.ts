@@ -22,7 +22,20 @@ import {
 import { sendTelegramMessage } from "./telegram";
 
 function stripe() { return new Stripe(ENV.tmaStripeSecretKey); }
-const today = () => new Date().toISOString().slice(0, 10);
+
+/** YYYY-MM-DD business date in America/New_York, regardless of server timezone,
+ *  so an evening (UTC-late) cron run bills on the club's actual local date, not a
+ *  day early/late. Intl.DateTimeFormat with a timeZone is built into Node (no dep). */
+function etDateString(d: Date = new Date()): string {
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(d);
+  const get = (t: string) => parts.find(p => p.type === t)!.value;
+  return `${get("year")}-${get("month")}-${get("day")}`;
+}
+const today = () => etDateString();
+
+// A charge stops being retried after this many failed attempts; it stays past_due
+// and a human follows up. Rough cadence: the daily job re-attempts each run.
+const MAX_CHARGE_ATTEMPTS = 4;
 
 /** The Stripe customer that bills a membership: the family payer's customer if
  *  linked, else the membership's own (legacy). */
@@ -38,6 +51,14 @@ export async function chargeDueMemberships(): Promise<{ charged: number; failed:
   const cutoff = today();
 
   for (const m of await listMemberships("active")) {
+    // Honor a scheduled cancellation: once the 60-day-notice date has passed, this
+    // membership's remaining charges must never fire (status stays "active" until
+    // then, so the charge job is the only thing enforcing the effective date).
+    const cancelDate = m.cancelEffectiveDate ? String(m.cancelEffectiveDate).slice(0, 10) : null;
+    if (cancelDate && cancelDate <= cutoff) continue;
+    // Paid-through anchor (set by legacy import): never bill a month already paid.
+    const paidThrough = m.paidThroughDate ? String(m.paidThroughDate).slice(0, 10) : null;
+
     const customerId = await billingCustomerId(m);
     if (!customerId) continue;
     let pm: string | null = null;
@@ -48,27 +69,44 @@ export async function chargeDueMemberships(): Promise<{ charged: number; failed:
     if (!pm) continue; // no card on file yet
 
     for (const c of await listMembershipCharges(m.id)) {
-      if (c.status !== "scheduled") continue;
-      if (!c.dueDate || String(c.dueDate).slice(0, 10) > cutoff) continue;
+      const attempts = c.attemptCount ?? 0;
+      if (c.status === "past_due" && attempts >= MAX_CHARGE_ATTEMPTS) continue; // retries exhausted, manual follow-up
+      if (c.status !== "scheduled" && c.status !== "past_due") continue;
+      if (!c.dueDate) continue;
+      const due = String(c.dueDate).slice(0, 10);
+      if (due > cutoff) continue;
+      if (paidThrough && due <= paidThrough) { await updateMembershipCharge(c.id, { status: "waived", note: "auto: already paid through import" }); continue; }
       summary.total++;
       if (c.amountCents <= 0) { await updateMembershipCharge(c.id, { status: "waived", note: "auto: $0" }); continue; }
       try {
         const pi = await s.paymentIntents.create({
           amount: c.amountCents, currency: "usd", customer: customerId, payment_method: pm,
           off_session: true, confirm: true, payment_method_types: ["card"],
+          statement_descriptor_suffix: "TMA TKD",
+          ...(m.email ? { receipt_email: m.email } : {}),
           metadata: { product: "membership_tuition", membershipId: String(m.id), chargeId: String(c.id), period: c.periodMonth },
         }, {
-          // Real-money safety: keyed on the charge id so a retry / overlapping cron
-          // run never double-charges the same month. Stripe returns the original
-          // PaymentIntent instead of creating a second one.
-          idempotencyKey: `tuition-charge-${c.id}`,
+          // Real-money safety: keyed on charge id + the ET business date, so a retry
+          // or overlapping cron run on the SAME day returns the original PaymentIntent
+          // (never double-charges), while a genuine next-day retry gets a fresh attempt.
+          idempotencyKey: `tuition-charge-${c.id}-${cutoff}`,
         });
-        if (pi.status === "succeeded") { await updateMembershipCharge(c.id, { status: "paid", stripeInvoiceId: pi.id }); summary.charged++; }
-        else { await updateMembershipCharge(c.id, { note: `pending: ${pi.status}` }); }
+        if (pi.status === "succeeded") {
+          await updateMembershipCharge(c.id, { status: "paid", stripeInvoiceId: pi.id, stripePaymentIntentId: pi.id, paidAt: new Date().toISOString().slice(0, 19).replace("T", " ") });
+          summary.charged++;
+        } else {
+          await updateMembershipCharge(c.id, { status: "past_due", note: `pending: ${pi.status}`, attemptCount: attempts + 1, stripePaymentIntentId: pi.id });
+          summary.failed++;
+        }
       } catch (e) {
         summary.failed++;
-        await updateMembershipCharge(c.id, { note: `charge failed: ${(e as Error).message}`.slice(0, 240) });
-        void sendTelegramMessage(`⚠️ <b>Tuition charge failed</b>\n${m.studentName} · ${c.periodMonth} · $${(c.amountCents / 100).toFixed(2)}\n${(e as Error).message}`).catch(() => {});
+        const nextAttempt = attempts + 1;
+        await updateMembershipCharge(c.id, { status: "past_due", note: `charge failed (attempt ${nextAttempt}): ${(e as Error).message}`.slice(0, 240), attemptCount: nextAttempt });
+        void sendTelegramMessage(
+          nextAttempt >= MAX_CHARGE_ATTEMPTS
+            ? `⚠️ <b>Tuition charge failed — retries exhausted</b>\n${m.studentName} · ${c.periodMonth} · $${(c.amountCents / 100).toFixed(2)}\nAttempt ${nextAttempt}/${MAX_CHARGE_ATTEMPTS}. Manual follow-up needed.\n${(e as Error).message}`
+            : `⚠️ <b>Tuition charge failed</b>\n${m.studentName} · ${c.periodMonth} · $${(c.amountCents / 100).toFixed(2)}\nAttempt ${nextAttempt}/${MAX_CHARGE_ATTEMPTS}, will retry.\n${(e as Error).message}`
+        ).catch(() => {});
       }
     }
   }
@@ -78,8 +116,9 @@ export async function chargeDueMemberships(): Promise<{ charged: number; failed:
 /** Ensure the membership has a family payer with a Stripe customer, then return a
  *  Checkout (setup) URL to collect a card onto that payer. */
 export async function createCardSetupSession(membershipId: number, origin: string): Promise<{ url: string | null }> {
-  // Payments off: never mint a card-setup link (covers the assistant path too).
-  if (!ENV.membershipAutochargeEnforce || !ENV.tmaStripeSecretKey) return { url: null };
+  // Card collection is its OWN gate now (separate from charging). Never mint a
+  // card-setup link unless card collection is enabled.
+  if (!ENV.cardCollectionEnabled || !ENV.tmaStripeSecretKey) return { url: null };
   const m = await getMembership(membershipId);
   if (!m) throw new Error("Membership not found");
   const s = stripe();
