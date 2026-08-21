@@ -41,6 +41,34 @@ function parseDateOnly(s: string): Date {
   return new Date(y, (mo || 1) - 1, d || 1);
 }
 
+const dueStr = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+/** The anchor Date for a membership's FIRST scheduled charge, given its start date,
+ *  billing day, and paid-through date. Shared by generateCharges and the import
+ *  preview so "when does billing actually start" is computed one way. */
+function chargeAnchor(startDate: string | null | undefined, paidThroughDate: string | null | undefined, billingDay: number | null | undefined): Date {
+  const start = startDate ? parseDateOnly(String(startDate)) : new Date();
+  const day = billingDay && billingDay >= 1 && billingDay <= 28 ? billingDay : 1;
+  const paidThrough = paidThroughDate ? String(paidThroughDate).slice(0, 10) : null;
+  // Billing day in the start month, or next month if start is later in the month
+  // than the billing day (never back-date a charge before enrollment).
+  let anchor = new Date(start.getFullYear(), start.getMonth(), day);
+  if (anchor < new Date(start.getFullYear(), start.getMonth(), start.getDate())) {
+    anchor = new Date(start.getFullYear(), start.getMonth() + 1, day);
+  }
+  // Skip forward past any month already covered by paidThroughDate.
+  while (paidThrough && dueStr(anchor) <= paidThrough) {
+    anchor = new Date(anchor.getFullYear(), anchor.getMonth() + 1, day);
+  }
+  return anchor;
+}
+
+/** Preview: the period + due date of the first charge that WOULD be scheduled. */
+export function firstChargeInfo(startDate: string | null | undefined, paidThroughDate: string | null | undefined, billingDay: number | null | undefined): { periodMonth: string; dueDate: string } {
+  const a = chargeAnchor(startDate, paidThroughDate, billingDay);
+  return { periodMonth: `${a.getFullYear()}-${String(a.getMonth() + 1).padStart(2, "0")}`, dueDate: dueStr(a) };
+}
+
 /** Create/refresh the next `months` scheduled charges for a membership at its
  *  current net monthly amount, anchored to the REAL cycle:
  *   - first charge lands on the billing day on/after the membership start date;
@@ -51,22 +79,8 @@ export async function generateCharges(membershipId: number, months = 12): Promis
   const m = await getMembership(membershipId);
   if (!m) return;
   const net = Math.max(0, m.monthlyAmountCents - (m.discountCents || 0));
-  const start = m.startDate ? parseDateOnly(String(m.startDate)) : new Date();
   const day = m.billingDay && m.billingDay >= 1 && m.billingDay <= 28 ? m.billingDay : 1;
-  const paidThrough = m.paidThroughDate ? String(m.paidThroughDate).slice(0, 10) : null;
-
-  // Anchor: the billing day in the start month, or next month if start is later in
-  // the month than the billing day (don't back-date a charge before enrollment).
-  let anchor = new Date(start.getFullYear(), start.getMonth(), day);
-  if (anchor < new Date(start.getFullYear(), start.getMonth(), start.getDate())) {
-    anchor = new Date(start.getFullYear(), start.getMonth() + 1, day);
-  }
-  const dueStr = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  // Skip forward past any month already paid through the imported anchor.
-  while (paidThrough && dueStr(anchor) <= paidThrough) {
-    anchor = new Date(anchor.getFullYear(), anchor.getMonth() + 1, day);
-  }
-
+  const anchor = chargeAnchor(m.startDate ? String(m.startDate) : null, m.paidThroughDate ? String(m.paidThroughDate) : null, m.billingDay);
   for (let i = 0; i < months; i++) {
     const d = new Date(anchor.getFullYear(), anchor.getMonth() + i, day);
     const period = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;

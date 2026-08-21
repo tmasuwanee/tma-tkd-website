@@ -182,9 +182,9 @@ function parseWaiverStudents(json: string | null): { name: string }[] {
   try { const a = JSON.parse(json); return Array.isArray(a) ? a.filter((x: unknown) => !!x && typeof (x as { name?: unknown }).name === "string") as { name: string }[] : []; } catch { return []; }
 }
 function waiverKind(source: string): MemberWaiverKind | "other" {
-  if (source === "afterschool-waiver" || source === "afterschool-registration" || source === "attested-afterschool") return "afterschool";
+  if (source === "afterschool-waiver" || source === "afterschool-registration" || source === "attested-afterschool" || source === "legacy-afterschool") return "afterschool";
   if (source === "transportation") return "other"; // not a membership waiver
-  return "martial_arts"; // walk_in | online | ipad | mma-membership-agreement | attested-mma
+  return "martial_arts"; // walk_in | online | ipad | mma-membership-agreement | attested-mma | legacy-mma
 }
 
 export async function memberWaivers(membershipId: number): Promise<{ martialArts: MemberWaiverStatus; afterschool: MemberWaiverStatus; person: { name: string; email: string | null; programs: string[] } }> {

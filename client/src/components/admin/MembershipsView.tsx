@@ -318,6 +318,11 @@ export function MemberPanelBody({ id, onChanged, onName }: { id: number; onChang
         <BeltSection membershipId={id} />
       </PanelSection>
 
+      {/* Payment history (imported legacy payments + real payments once charged) */}
+      <PanelSection title="Payment history" defaultOpen={false}>
+        <PaymentHistorySection membershipId={id} />
+      </PanelSection>
+
       {/* Financials opens a full centered popup — the ledger needs more width than
           the docked panel gives. */}
       <button onClick={() => setFinancialsOpen(true)}
@@ -400,6 +405,25 @@ export function MemberPanelBody({ id, onChanged, onName }: { id: number; onChang
       {viewWaiverId !== null && (
         <WaiverViewModal waiverId={viewWaiverId} onClose={() => setViewWaiverId(null)} />
       )}
+    </div>
+  );
+}
+
+function PaymentHistorySection({ membershipId }: { membershipId: number }) {
+  const q = trpc.members.paymentHistory.useQuery({ id: membershipId });
+  if (q.isLoading) return <div className="py-2 text-center text-gray-400"><Loader2 className="w-4 h-4 animate-spin mx-auto" /></div>;
+  const rows = q.data ?? [];
+  if (rows.length === 0) return <div className="text-xs text-gray-500">No recorded payments yet. Legacy payments imported from ZenPlanner and real charges will appear here.</div>;
+  return (
+    <div className="space-y-1">
+      {rows.map(p => (
+        <div key={p.id} className="flex items-center gap-2 text-xs text-gray-600 border-b border-gray-50 pb-1">
+          <span className="tabular-nums text-gray-400 shrink-0">{String(p.paidAt).slice(0, 10)}</span>
+          <span className="font-medium text-gray-800 tabular-nums">{fmt(p.amountCents)}</span>
+          <span className="text-[10px] uppercase tracking-wide text-gray-400">{p.method}</span>
+          {p.note ? <span className="ml-auto text-gray-400 truncate max-w-[150px]">{p.note}</span> : null}
+        </div>
+      ))}
     </div>
   );
 }
@@ -581,6 +605,14 @@ function AttachWaiverModal({ membershipId, waiverData, onClose, onDone }: {
     const note = window.prompt("Optional note (e.g. 'paper waiver in file cabinet'):") ?? undefined;
     attest.mutate({ id: membershipId, kind, note: note || undefined });
   };
+  const [legacyOpen, setLegacyOpen] = useState(false);
+  const [legacyDate, setLegacyDate] = useState("");
+  const [legacyUrl, setLegacyUrl] = useState("");
+  const [legacySigner, setLegacySigner] = useState("");
+  const importLegacy = trpc.members.importLegacyWaiver.useMutation({
+    onSuccess: () => { toast.success("Legacy waiver recorded."); onDone(); },
+    onError: (e) => toast.error(e.message ?? "Failed."),
+  });
   // Both forms are always selectable from the dropdown, even one the system marks
   // "na" for this member (e.g. a martial-arts waiver on an after-school-only kid who
   // also trains) — staff decide what a family needs, not the auto-match.
@@ -622,6 +654,30 @@ function AttachWaiverModal({ membershipId, waiverData, onClose, onDone }: {
             <button onClick={() => doAttest(active.key)} disabled={attest.isPending} className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-600 border border-gray-200 hover:border-gray-300 rounded px-2.5 py-1.5 disabled:opacity-50">
               <ShieldCheck className="w-3.5 h-3.5" /> Attest on file (paper)
             </button>
+          </div>
+
+          {/* Import an EXISTING signed waiver with its original date (migration). */}
+          <div className="mt-3 pt-3 border-t border-gray-100">
+            <button onClick={() => setLegacyOpen(o => !o)} className="text-xs font-semibold text-[#1a2d5a] hover:underline">
+              {legacyOpen ? "− Hide" : "+ Import an existing signed waiver (with its original date)"}
+            </button>
+            {legacyOpen && (
+              <div className="mt-2 space-y-2">
+                <div className="flex flex-wrap gap-2 items-center text-xs">
+                  <label className="flex items-center gap-1 text-gray-600">Signed on
+                    <input type="date" value={legacyDate} onChange={e => setLegacyDate(e.target.value)} className="border border-gray-300 rounded px-2 py-1" /></label>
+                  <input value={legacySigner} onChange={e => setLegacySigner(e.target.value)} placeholder="Signer (optional)" className="border border-gray-300 rounded px-2 py-1 flex-1 min-w-[120px]" />
+                </div>
+                <input value={legacyUrl} onChange={e => setLegacyUrl(e.target.value)} placeholder="Document link (optional, e.g. scanned PDF URL)" className="w-full border border-gray-300 rounded px-2 py-1 text-xs" />
+                <button
+                  onClick={() => { if (!legacyDate) { toast.error("Enter the original signed date."); return; } importLegacy.mutate({ id: membershipId, kind: active.key, originalSignedDate: legacyDate, documentUrl: legacyUrl.trim() || undefined, signedName: legacySigner.trim() || undefined }); }}
+                  disabled={importLegacy.isPending}
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-[#1a2d5a] hover:bg-[#142347] rounded px-2.5 py-1.5 disabled:opacity-50">
+                  {importLegacy.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileSignature className="w-3.5 h-3.5" />} Record {active.label.split(" ")[0]} waiver
+                </button>
+                <p className="text-[11px] text-gray-400">Records the {active.label} waiver as signed on the date you enter (not today), tagged as a legacy import.</p>
+              </div>
+            )}
           </div>
         </div>
       </div>

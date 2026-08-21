@@ -8,7 +8,8 @@ import {
 import { CreateForm } from "@/components/admin/MembershipsView";
 import { useMemberDock } from "@/components/admin/MemberDock";
 import BulkAddMembers from "@/components/admin/BulkAddMembers";
-import { UsersRound } from "lucide-react";
+import LegacyPaymentImport from "@/components/admin/LegacyPaymentImport";
+import { UsersRound, Receipt } from "lucide-react";
 
 /**
  * Members — the unified People→Members screen. One row per person, unioned from
@@ -51,6 +52,7 @@ export default function MembersView() {
   const [q, setQ] = useState("");
   const [creating, setCreating] = useState(false);
   const [bulkAdding, setBulkAdding] = useState(false);
+  const [importingPayments, setImportingPayments] = useState(false);
   const dock = useMemberDock();
 
   // Deep-link ?open=<membershipId> (assistant / other views) opens the docked panel.
@@ -100,6 +102,9 @@ export default function MembersView() {
         <div className="flex items-center gap-2">
           <button onClick={() => setBulkAdding(true)} className="inline-flex items-center gap-1.5 text-sm font-medium text-[#1a2d5a] border border-[#1a2d5a]/30 hover:bg-[#1a2d5a]/5 rounded-lg px-3 py-2">
             <UsersRound className="w-4 h-4" /> Bulk add
+          </button>
+          <button onClick={() => setImportingPayments(true)} className="inline-flex items-center gap-1.5 text-sm font-medium text-[#1a2d5a] border border-[#1a2d5a]/30 hover:bg-[#1a2d5a]/5 rounded-lg px-3 py-2">
+            <Receipt className="w-4 h-4" /> Import payments
           </button>
           <button onClick={() => setCreating(true)} className="inline-flex items-center gap-1.5 text-sm font-semibold text-white bg-[#1a2d5a] hover:bg-[#142347] rounded-lg px-3 py-2">
             <UserPlus className="w-4 h-4" /> Add member
@@ -160,6 +165,7 @@ export default function MembersView() {
       </div>
 
       {creating && <CreateForm onClose={() => setCreating(false)} onCreated={refresh} />}
+      {importingPayments && <LegacyPaymentImport onClose={() => setImportingPayments(false)} onDone={() => { refresh(); setImportingPayments(false); }} />}
       {bulkAdding && <BulkAddMembers onClose={() => setBulkAdding(false)} onDone={() => { refresh(); utils.members.rosterCandidates.invalidate(); setBulkAdding(false); }} />}
     </div>
   );

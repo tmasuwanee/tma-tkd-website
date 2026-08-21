@@ -68,10 +68,11 @@ import { dayCampTotalCents } from "@shared/dayCamp";
 import { sendTelegramMessage } from "./telegram";
 import { tuitionConfiguredFor, ensureStripeCustomer, createAfterschoolSubscription } from "./tuition";
 import { proposeAction, confirmAction, rejectAction } from "./action-flow";
-import { createMembership, changeMembership, setMembershipDiscount, pauseMembership, resumeMembership, cancelMembership, adjustCharge } from "./membership-ops";
+import { createMembership, changeMembership, setMembershipDiscount, pauseMembership, resumeMembership, cancelMembership, adjustCharge, firstChargeInfo } from "./membership-ops";
 import { memberList, memberOverview, memberWaivers, resolveStudentIdForMembership } from "./members";
 import { createWaiver } from "./db";
 import { listSpecials, insertSpecial, updateSpecial } from "./db";
+import { createImportBatch, completeImportBatch, insertMembershipPayment, bumpMembershipPaidThrough, listMembershipPayments } from "./db";
 import { createCardSetupSession, chargeDueMemberships, listPayerCards, setPayerPrimaryCard, detachPayerCard } from "./membership-billing";
 import { storagePut, storageGet } from "./storage";
 import { sendEmailNotification, sendProShopOrderNotification, sendCampRegistrationConfirmation, sendCampWaiverEmail, sendFieldTripConfirmation, sendTransportationForm, sendTrialReceipt, sendAfterschoolConfirmation, sendAfterschoolIntake, sendWaiverNotification, sendReviewedEmail } from "./integrations";
@@ -90,6 +91,27 @@ import { ENV } from "./_core/env";
 
 function getStripe() {
   return new Stripe(ENV.tmaStripeSecretKey);
+}
+
+// Identity disposition for the roster import: given existing memberships, classify
+// a student as a true "duplicate" (name + a matching email or phone), a name-only
+// collision that "review"s (same name, no contact match = maybe a different family),
+// or "none" (safe to create). Never drops a real person on name alone.
+function membershipDisposition(memberships: { studentName: string; email: string | null; phone: string | null }[]) {
+  const normName = (s: string | null | undefined) => (s ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+  const normEmail = (s: string | null | undefined) => (s ?? "").trim().toLowerCase();
+  const normPhone = (s: string | null | undefined) => (s ?? "").replace(/[^0-9]/g, "");
+  const byName = new Map<string, { email: string; phone: string }[]>();
+  for (const m of memberships) {
+    const n = normName(m.studentName); if (!n) continue;
+    if (!byName.has(n)) byName.set(n, []);
+    byName.get(n)!.push({ email: normEmail(m.email), phone: normPhone(m.phone) });
+  }
+  return (name: string | null | undefined, email?: string | null, phone?: string | null): "none" | "duplicate" | "review" => {
+    const existing = byName.get(normName(name)); if (!existing) return "none";
+    const e = normEmail(email), p = normPhone(phone);
+    return existing.some(x => (e && x.email === e) || (p && x.phone === p)) ? "duplicate" : "review";
+  };
 }
 
 // Build an admin dashboard link with the one-tap login key appended (when set), so
@@ -2152,15 +2174,17 @@ export const appRouter = router({
       }),
     // Migration helper: active students (ZenPlanner import) who don't yet have a
     // membership record. Used by the bulk-add tool to create tuition + Financials
-    // for the existing roster when cutting over from ZenPlanner.
+    // for the existing roster when cutting over from ZenPlanner. Matches on
+    // name + (email or phone) so a same-name-different-family student is NOT
+    // silently dropped: true duplicates are excluded, name collisions surface as
+    // "needs review" for staff to decide.
     rosterCandidates: publicProcedure.query(async () => {
-      const norm = (s: string | null | undefined) => (s ?? "").trim().toLowerCase().replace(/\s+/g, " ");
       const [students, memberships] = await Promise.all([getAllStudents(), listMemberships()]);
-      const haveName = new Set(memberships.map(m => norm(m.studentName)));
+      const disp = membershipDisposition(memberships);
       return students
         .filter(s => (s.status ?? "").toLowerCase() !== "inactive")
-        .filter(s => !haveName.has(norm(s.name)))
-        .map(s => ({ studentId: s.id, name: s.name, email: s.email, phone: s.phone, programs: s.programs, beltRank: s.beltRank }));
+        .map(s => ({ studentId: s.id, name: s.name, email: s.email, phone: s.phone, programs: s.programs, beltRank: s.beltRank, enrollmentDate: (s as { enrollmentDate?: string | null }).enrollmentDate ?? null, disposition: disp(s.name, s.email, s.phone) }))
+        .filter(s => s.disposition !== "duplicate"); // hide true duplicates; keep create + review
     }),
     // Waivers a member has (martial-arts + afterschool), matched by lead/name/email.
     waivers: publicProcedure.input(z.object({ id: z.number().int().positive() }))
@@ -2217,30 +2241,178 @@ export const appRouter = router({
         if (!w) return null;
         return { id: w.id, source: w.source, signedName: w.signedName ?? null, signedDate: w.signedDate, signatureData: w.signatureData ?? null, disclaimerText: w.disclaimerText ?? null, pdfUrl: w.pdfUrl ?? null };
       }),
+    // Bulk membership import with a DRY-RUN preview. dryRun:true returns the plan
+    // (what would be created, per-row disposition + first charge date + errors,
+    // and totals) WITHOUT writing anything. dryRun:false (default) executes only
+    // the rows that resolve to "create" and records an importBatches audit row.
+    // Safety: name+contact dedup (no silent drops), a tuition floor (no $0/junk
+    // memberships), and needs-review rows block the run until staff choose.
     bulkCreate: publicProcedure.input(z.object({
+      dryRun: z.boolean().optional(),
       members: z.array(z.object({
+        studentId: z.number().int().optional(),
         studentName: z.string().min(1).max(255),
         parentName: z.string().max(255).optional(),
         email: z.string().email().optional(),
         phone: z.string().max(40).optional(),
         program: z.string().min(1).max(40),
         planLabel: z.string().max(80).optional(),
-        monthlyAmountCents: z.number().int().min(0),
+        monthlyAmountCents: z.number().int(),
         discountCents: z.number().int().min(0).optional(),
         billingDay: z.number().int().min(1).max(28).optional(),
-        startDate: z.string().max(20).optional(),
+        startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+        paidThroughDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+        reviewAction: z.enum(["create", "skip"]).optional(),
       })).min(1).max(500),
-    })).mutation(async ({ input }) => {
-      const norm = (s: string | null | undefined) => (s ?? "").trim().toLowerCase().replace(/\s+/g, " ");
-      const have = new Set((await listMemberships()).map(m => norm(m.studentName)));
-      let created = 0; const skipped: string[] = [];
-      for (const mem of input.members) {
-        if (have.has(norm(mem.studentName))) { skipped.push(mem.studentName); continue; } // already has one
-        await createMembership({ ...mem, discountNote: mem.discountCents ? "Sibling discount" : undefined });
-        have.add(norm(mem.studentName));
+    })).mutation(async ({ input, ctx }) => {
+      const MIN_TUITION = 2500, MAX_TUITION = 250000; // $25 floor, $2,500 ceiling
+      const memberships = await listMemberships();
+      const disp = membershipDisposition(memberships);
+      // Track contacts created within THIS batch too, so two identical rows in one
+      // submission don't both create.
+      const batchSeen = new Map<string, Set<string>>();
+      const seenKey = (name: string) => (name ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+      const contactKeys = (email?: string, phone?: string) => [email ? `e:${email.trim().toLowerCase()}` : "", phone ? `p:${phone.replace(/[^0-9]/g, "")}` : ""].filter(Boolean);
+
+      const plan = input.members.map(mem => {
+        const net = Math.max(0, mem.monthlyAmountCents - (mem.discountCents || 0));
+        const errors: string[] = [];
+        if (mem.monthlyAmountCents < MIN_TUITION) errors.push(`tuition below $${(MIN_TUITION / 100).toFixed(0)} floor`);
+        if (mem.monthlyAmountCents > MAX_TUITION) errors.push("tuition above sane maximum");
+        if (!mem.email && !mem.phone) errors.push("no email or phone (would be unbillable)");
+        let disposition = disp(mem.studentName, mem.email, mem.phone);
+        // within-batch duplicate check
+        const nk = seenKey(mem.studentName);
+        const cks = contactKeys(mem.email, mem.phone);
+        const prior = batchSeen.get(nk);
+        if (disposition !== "duplicate" && prior && cks.some(k => prior.has(k))) disposition = "duplicate";
+        let action: "create" | "skip" | "needs_review" | "blocked";
+        if (errors.length) action = "blocked";
+        else if (disposition === "duplicate") action = "skip";
+        else if (disposition === "review") action = mem.reviewAction === "create" ? "create" : mem.reviewAction === "skip" ? "skip" : "needs_review";
+        else action = "create";
+        if (action === "create") { if (!batchSeen.has(nk)) batchSeen.set(nk, new Set()); cks.forEach(k => batchSeen.get(nk)!.add(k)); }
+        const firstCharge = firstChargeInfo(mem.startDate ?? null, mem.paidThroughDate ?? null, mem.billingDay ?? null);
+        return { studentName: mem.studentName, disposition, action, netMonthlyCents: net, firstCharge, errors, mem };
+      });
+
+      const summary = {
+        submitted: plan.length,
+        create: plan.filter(p => p.action === "create").length,
+        duplicates: plan.filter(p => p.disposition === "duplicate").length,
+        needsReview: plan.filter(p => p.action === "needs_review").length,
+        blocked: plan.filter(p => p.action === "blocked").length,
+        netMonthlyCents: plan.filter(p => p.action === "create").reduce((a, p) => a + p.netMonthlyCents, 0),
+      };
+      const rows = plan.map(p => ({ studentName: p.studentName, disposition: p.disposition, action: p.action, netMonthlyCents: p.netMonthlyCents, firstCharge: p.firstCharge, errors: p.errors }));
+
+      if (input.dryRun) return { dryRun: true as const, summary, rows };
+
+      // Execute: refuse if any row still needs a human decision.
+      if (plan.some(p => p.action === "needs_review")) throw new Error("Some rows need review (same name, different contact). Resolve them (create or skip) before importing.");
+      const batchId = await createImportBatch({ kind: "zenplanner_memberships", actor: ctx.adminEmail ?? "admin" });
+      let created = 0, skipped = 0;
+      for (const p of plan) {
+        if (p.action !== "create") { skipped++; continue; }
+        const m = p.mem;
+        await createMembership({
+          studentName: m.studentName, parentName: m.parentName ?? null, email: m.email ?? null, phone: m.phone ?? null,
+          program: m.program, planLabel: m.planLabel, monthlyAmountCents: m.monthlyAmountCents,
+          discountCents: m.discountCents, discountNote: m.discountCents ? "Sibling discount" : undefined,
+          billingDay: m.billingDay, startDate: m.startDate ?? null, paidThroughDate: m.paidThroughDate ?? null,
+        });
         created++;
       }
-      return { created, skipped };
+      await completeImportBatch(batchId, { createdCount: created, skippedCount: skipped, needsReviewCount: 0 });
+      return { dryRun: false as const, batchId, created, skipped };
+    }),
+
+    // Immutable payment history for a member (legacy imports + future real payments).
+    paymentHistory: publicProcedure.input(z.object({ id: z.number().int().positive() }))
+      .query(async ({ input }) => listMembershipPayments(input.id)),
+
+    // Import legacy payment history from ZenPlanner into the immutable ledger, and
+    // advance each membership's paidThroughDate so the charge job never re-bills a
+    // month already paid. dryRun:true previews (matched / unmatched / ambiguous /
+    // duplicate) without writing. Idempotent on sourcePaymentId (re-run is a no-op).
+    importLegacyPayments: publicProcedure.input(z.object({
+      dryRun: z.boolean().optional(),
+      rows: z.array(z.object({
+        sourcePaymentId: z.string().min(1).max(120),
+        membershipId: z.number().int().positive().optional(),
+        studentName: z.string().max(255).optional(),
+        email: z.string().max(255).optional(),
+        phone: z.string().max(40).optional(),
+        amountCents: z.number().int().min(1).max(250000),
+        paidAt: z.string().min(8).max(30),
+        paidThroughDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        note: z.string().max(500).optional(),
+      })).min(1).max(2000),
+    })).mutation(async ({ input, ctx }) => {
+      const memberships = await listMemberships();
+      const nName = (s: string | null | undefined) => (s ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+      const nEmail = (s: string | null | undefined) => (s ?? "").trim().toLowerCase();
+      const nPhone = (s: string | null | undefined) => (s ?? "").replace(/[^0-9]/g, "");
+      const resolve = (row: { membershipId?: number; studentName?: string; email?: string; phone?: string }): { id?: number; reason?: "unmatched" | "ambiguous" } => {
+        if (row.membershipId) return memberships.some(m => m.id === row.membershipId) ? { id: row.membershipId } : { reason: "unmatched" };
+        const byName = memberships.filter(m => nName(m.studentName) === nName(row.studentName));
+        if (byName.length === 0) return { reason: "unmatched" };
+        if (byName.length === 1) return { id: byName[0].id };
+        const e = nEmail(row.email), p = nPhone(row.phone);
+        const narrowed = byName.filter(m => (e && nEmail(m.email) === e) || (p && nPhone(m.phone) === p));
+        return narrowed.length === 1 ? { id: narrowed[0].id } : { reason: "ambiguous" };
+      };
+      const plan = input.rows.map(row => ({ row, ...resolve(row), dedupKey: `zp-pay:${row.sourcePaymentId}`.slice(0, 128) }));
+      const ready = plan.filter(p => p.id);
+      const unmatched = plan.filter(p => p.reason === "unmatched");
+      const ambiguous = plan.filter(p => p.reason === "ambiguous");
+      const totals = { rows: plan.length, ready: ready.length, unmatched: unmatched.length, ambiguous: ambiguous.length, amountCents: ready.reduce((a, p) => a + p.row.amountCents, 0) };
+      if (input.dryRun) return {
+        dryRun: true as const, totals,
+        unmatched: unmatched.map(p => ({ sourcePaymentId: p.row.sourcePaymentId, studentName: p.row.studentName ?? null })),
+        ambiguous: ambiguous.map(p => ({ sourcePaymentId: p.row.sourcePaymentId, studentName: p.row.studentName ?? null })),
+      };
+      if (unmatched.length || ambiguous.length) throw new Error("Some payment rows are unmatched or ambiguous. Resolve them before importing.");
+      const batchId = await createImportBatch({ kind: "zenplanner_payments", actor: ctx.adminEmail ?? "admin" });
+      let inserted = 0, duplicate = 0;
+      for (const p of ready) {
+        const paidAt = p.row.paidAt.length === 10 ? `${p.row.paidAt} 00:00:00` : p.row.paidAt;
+        const ok = await insertMembershipPayment({ membershipId: p.id!, studentName: p.row.studentName ?? null, amountCents: p.row.amountCents, paidAt, method: "legacy", source: "zenplanner", paidThroughDate: p.row.paidThroughDate, importDedupKey: p.dedupKey, importBatchId: batchId, note: p.row.note ?? null });
+        if (ok) { inserted++; await bumpMembershipPaidThrough(p.id!, p.row.paidThroughDate); } else duplicate++;
+      }
+      await completeImportBatch(batchId, { createdCount: inserted, skippedCount: duplicate, needsReviewCount: 0 });
+      return { dryRun: false as const, batchId, inserted, duplicate };
+    }),
+
+    // Record an EXISTING signed waiver (paper / ZenPlanner) with its ORIGINAL signed
+    // date + optional document link. Distinct from attestWaiver (which stamps today)
+    // and from a live signature; tagged legacy-* so the UI shows the real date.
+    importLegacyWaiver: publicProcedure.input(z.object({
+      id: z.number().int().positive(),
+      kind: z.enum(["martial_arts", "afterschool"]),
+      originalSignedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      documentUrl: z.string().max(1024).optional(),
+      signedName: z.string().max(255).optional(),
+      note: z.string().max(500).optional(),
+    })).mutation(async ({ input, ctx }) => {
+      const m = await getMembership(input.id);
+      if (!m) throw new Error("Membership not found.");
+      const by = ctx.adminEmail ?? "admin";
+      const today = new Date().toISOString().slice(0, 10);
+      const label = input.kind === "afterschool" ? "After-School" : "Martial Arts";
+      await createWaiver({
+        leadId: m.leadId ?? null,
+        parentName: m.parentName || m.studentName,
+        email: m.email || "",
+        phone: m.phone || "",
+        students: JSON.stringify([{ name: m.studentName }]),
+        signedName: input.signedName?.trim() || by,
+        signedDate: input.originalSignedDate,
+        pdfUrl: input.documentUrl?.trim() || null,
+        disclaimerText: `LEGACY IMPORT: ${label} waiver originally signed on ${input.originalSignedDate}. Imported by ${by} on ${today}.${input.note ? ` Note: ${input.note}` : ""}`,
+        source: input.kind === "afterschool" ? "legacy-afterschool" : "legacy-mma",
+      });
+      return { ok: true };
     }),
   }),
 

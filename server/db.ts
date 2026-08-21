@@ -677,6 +677,21 @@ export async function upsertStudents(rows: InsertStudent[]): Promise<{ added: nu
     await db.insert(students).values(toInsert.slice(i, i + 100));
   }
 
+  // Belt baseline: give every imported student one baseline promotion row + a
+  // lastPromotedAt anchor, so months-at-rank / testing eligibility does not reset
+  // to null on import. Idempotent — ensureImportedBeltBaseline skips a student that
+  // already has any belt history, so a re-import never double-seeds.
+  const refreshed = await db.select().from(students);
+  const byNameAfter = new Map(refreshed.map(s => [s.name.trim().toLowerCase(), s]));
+  for (const row of rows) {
+    const s = byNameAfter.get((row.name ?? "").trim().toLowerCase());
+    if (!s) continue;
+    const rank = row.beltRank ?? s.beltRank ?? "White";
+    const nowStr = new Date().toISOString().slice(0, 19).replace("T", " ");
+    const wrote = await ensureImportedBeltBaseline(s.id, rank, nowStr);
+    if (wrote && !s.lastPromotedAt) await db.update(students).set({ lastPromotedAt: new Date() }).where(eq(students.id, s.id));
+  }
+
   return { added: toInsert.length, updated: rows.length - toInsert.length };
 }
 
