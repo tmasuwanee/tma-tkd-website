@@ -96,6 +96,22 @@ function toUnix(dateStr?: string, endOfDay = false): number | undefined {
   return Number.isFinite(ms) ? Math.floor(ms / 1000) : undefined;
 }
 
+// Resolve a membership from a free-text name/email query, preferring an EXACT
+// student-name match and flagging AMBIGUITY when more than one distinct person
+// matches — so a tool (or a downstream write like a belt promotion) never silently
+// acts on the wrong person. Returns { match } or { ambiguous: [...] } or {}.
+type MiniMembership = { id: number; studentName: string; parentName: string | null; email: string | null; payerId?: number | null };
+function resolveMembershipMatch<T extends MiniMembership>(all: T[], query: string): { match?: T; ambiguous?: { student: string; membershipId: number }[] } {
+  const q = (query ?? "").trim().toLowerCase();
+  if (!q) return {};
+  const exact = all.filter(x => (x.studentName ?? "").trim().toLowerCase() === q);
+  const pool = exact.length ? exact : all.filter(x => `${x.studentName ?? ""} ${x.parentName ?? ""} ${x.email ?? ""}`.toLowerCase().includes(q));
+  if (pool.length === 0) return {};
+  const distinctNames = new Set(pool.map(x => (x.studentName ?? "").trim().toLowerCase()));
+  if (distinctNames.size > 1) return { ambiguous: pool.slice(0, 8).map(x => ({ student: x.studentName, membershipId: x.id })) };
+  return { match: pool[0] };
+}
+
 // ─── Read tools (no mutations) ───────────────────────────────────────────────
 function buildTools(opts: { origin: string }) {
   return {
@@ -256,11 +272,11 @@ function buildTools(opts: { origin: string }) {
       execute: async ({ membershipId, query }) => {
         let id = membershipId;
         if (!id) {
-          const q = (query ?? "").toLowerCase();
-          if (!q) return { found: false, note: "Give a student name/email or membership id." };
-          const m = (await listMemberships()).find(x => `${x.studentName} ${x.parentName ?? ""} ${x.email ?? ""}`.toLowerCase().includes(q));
-          if (!m) return { found: false, note: `No membership found matching "${query}". They may be an afterschool-only signup without a membership yet.` };
-          id = m.id;
+          if (!query) return { found: false, note: "Give a student name/email or membership id." };
+          const r = resolveMembershipMatch(await listMemberships(), query);
+          if (r.ambiguous) return { found: false, ambiguous: true, candidates: r.ambiguous, note: `More than one person matches "${query}". Ask which one, then pass their membership id.` };
+          if (!r.match) return { found: false, note: `No membership found matching "${query}". They may be an afterschool-only signup without a membership yet.` };
+          id = r.match.id;
         }
         const w = await memberWaivers(id);
         const summarize = (s: { status: string; waivers: Array<{ attested: boolean; signedDate: string; signedName: string | null; needsReview: boolean }> }) => ({
@@ -278,7 +294,17 @@ function buildTools(opts: { origin: string }) {
       execute: async ({ studentId, query }) => {
         const { getBeltStatus, searchStudents } = await import("./db");
         let id = studentId;
-        if (!id && query) { const found = await searchStudents(query) as Array<{ id: number }>; id = Array.isArray(found) && found[0] ? found[0].id : undefined; }
+        if (!id && query) {
+          const found = await searchStudents(query) as Array<{ id: number; name: string }>;
+          const q = query.trim().toLowerCase();
+          const exact = found.filter(s => (s.name ?? "").trim().toLowerCase() === q);
+          const pool = exact.length ? exact : found;
+          // Ambiguity guard: don't silently pick the first of several people — a wrong
+          // pick here would feed a belt-promotion (a write) on the wrong student.
+          const distinct = new Set(pool.map(s => (s.name ?? "").trim().toLowerCase()));
+          if (distinct.size > 1) return { found: false, ambiguous: true, candidates: pool.slice(0, 8).map(s => ({ student: s.name, studentId: s.id })), note: `More than one student matches "${query}". Ask which one, then pass their student id.` };
+          id = pool[0]?.id;
+        }
         if (!id) return { found: false, note: "Give a student name/email or id." };
         const st = await getBeltStatus(id);
         if (!st) return { found: false, note: "No belt record for that student." };
@@ -297,8 +323,12 @@ function buildTools(opts: { origin: string }) {
       inputSchema: z.object({ membershipId: z.number().int().positive().optional(), query: z.string().optional() }),
       execute: async ({ membershipId, query }) => {
         const all = await listMemberships();
-        const q = (query ?? "").toLowerCase();
-        const m = membershipId ? all.find(x => x.id === membershipId) : (q ? all.find(x => `${x.studentName} ${x.parentName ?? ""} ${x.email ?? ""}`.toLowerCase().includes(q)) : undefined);
+        let m = membershipId ? all.find(x => x.id === membershipId) : undefined;
+        if (!m && query) {
+          const r = resolveMembershipMatch(all, query);
+          if (r.ambiguous) return { found: false, ambiguous: true, candidates: r.ambiguous, note: `More than one person matches "${query}". Ask which one, then pass their membership id.` };
+          m = r.match;
+        }
         if (!m) return { found: false, note: "No membership found. Use findMembership first." };
         if (!m.payerId) return { found: true, membershipId: m.id, student: m.studentName, cards: [], note: "No family payer/card set up yet. Use openCardSetupLink to add the first card." };
         const cards = await listPayerCards(m.payerId);
@@ -352,8 +382,8 @@ function buildTools(opts: { origin: string }) {
       execute: async (input) => { const { id } = await proposeAction("membership_cancel", input, "assistant"); return { proposed: true, pendingActionId: id, note: `Proposed (#${id}). Confirm in Approvals.` }; },
     }),
     proposeAdjustCharge: tool({
-      description: "Propose adjusting ONE month's charge on a membership: set a new amount (amountCents), waive it (status='waived', amount 0), or cancel it (status='canceled'). Requires the chargeId (from getMembershipCharges). Confirmed in Approvals.",
-      inputSchema: z.object({ chargeId: z.number().int().positive(), amountCents: z.number().int().min(0).optional(), status: z.enum(["scheduled", "waived", "canceled", "paid"]).optional(), note: z.string().optional() }),
+      description: "Propose adjusting ONE month's charge on a membership: LOWER the amount (amountCents, must be <= the current charge), waive it (status='waived', amount 0), or cancel it (status='canceled'). You cannot raise a charge or mark it paid — staff do that in the dashboard. Requires the chargeId (from getMembershipCharges). Confirmed in Approvals.",
+      inputSchema: z.object({ chargeId: z.number().int().positive(), amountCents: z.number().int().min(0).optional(), status: z.enum(["waived", "canceled"]).optional(), note: z.string().optional() }),
       execute: async (input) => { const { id } = await proposeAction("charge_adjust", input, "assistant"); return { proposed: true, pendingActionId: id, note: `Proposed (#${id}). Confirm in Approvals.` }; },
     }),
 

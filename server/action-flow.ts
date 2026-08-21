@@ -67,7 +67,10 @@ const membershipChangeSchema = z.object({ id: z.number().int().positive(), progr
 const membershipDiscountSchema = z.object({ id: z.number().int().positive(), discountCents: z.number().int().min(0), note: z.string().max(255).optional() });
 const membershipIdSchema = z.object({ id: z.number().int().positive() });
 const membershipCancelSchema = z.object({ id: z.number().int().positive(), immediate: z.boolean() });
-const chargeAdjustSchema = z.object({ chargeId: z.number().int().positive(), amountCents: z.number().int().min(0).optional(), status: z.enum(["scheduled", "waived", "canceled", "paid"]).optional(), note: z.string().max(255).optional() });
+// The ASSISTANT may only reduce/waive/cancel a single month's charge — never set it
+// higher (that's an invented charge) and never mark it "paid" (that would falsify the
+// ledger with no money moving). Staff keep the full set on the direct dashboard path.
+const chargeAdjustSchema = z.object({ chargeId: z.number().int().positive(), amountCents: z.number().int().min(0).optional(), status: z.enum(["waived", "canceled"]).optional(), note: z.string().max(255).optional() });
 const cardOpSchema = z.object({ membershipId: z.number().int().positive(), paymentMethodId: z.string().min(1).max(255), cardLabel: z.string().max(120).optional() });
 const studentUpdateSchema = z.object({
   studentId: z.number().int().positive(),
@@ -93,8 +96,10 @@ const CATALOG_PRICES_CENTS: Record<string, number[]> = {
 };
 function assertCatalogPrice(program: string | undefined, cents: number | undefined): void {
   if (cents === undefined) return;
-  const allowed = CATALOG_PRICES_CENTS[(program || "").toLowerCase()];
-  if (!allowed) return; // unknown program → don't block
+  const allowed = CATALOG_PRICES_CENTS[(program || "").trim().toLowerCase()];
+  // Unknown program with a price = the model may have invented both the program AND
+  // the price. Refuse and route to staff, rather than letting any label through.
+  if (!allowed) throw new Error(`"${program || "(unknown)"}" isn't a standard TMA program, so I can't set a price for it automatically. A staff member can set a custom price directly in the dashboard.`);
   if (!allowed.includes(cents)) {
     const opts = allowed.map(c => `$${(c / 100).toFixed(0)}`).join(" or ");
     throw new Error(`$${(cents / 100).toFixed(0)}/mo is not a TMA ${program} plan price (valid: ${opts}). Use one of those, apply a discount for a reduced rate, or have a staff member set a custom price directly in the dashboard.`);
@@ -151,6 +156,8 @@ const HANDLERS: Record<string, ActionHandler> = {
       const p = membershipDiscountSchema.parse(payload);
       const m = await getMembership(p.id);
       if (!m) throw new Error("Membership not found");
+      // A discount can't exceed the base tuition (that would zero out or invert it).
+      if (p.discountCents > m.monthlyAmountCents) throw new Error(`A $${(p.discountCents / 100).toFixed(0)} discount is more than the $${(m.monthlyAmountCents / 100).toFixed(0)}/mo tuition. Use a smaller discount, or have staff set a custom rate in the dashboard.`);
       return { title: `Set discount: ${m.studentName}`, preview: describeMembershipOp("membership_discount", rec(p), m) };
     },
     execute: async (payload) => {
@@ -193,6 +200,9 @@ const HANDLERS: Record<string, ActionHandler> = {
       const p = chargeAdjustSchema.parse(payload);
       const c = await getMembershipCharge(p.chargeId);
       if (!c) throw new Error("Charge not found");
+      // The assistant may only lower a month's charge, never raise it above what's
+      // already scheduled (an invented, higher charge).
+      if (p.amountCents !== undefined && p.amountCents > c.amountCents) throw new Error(`$${(p.amountCents / 100).toFixed(0)} is higher than this month's $${(c.amountCents / 100).toFixed(0)} charge. The assistant can only lower or waive a charge; staff can raise it in the dashboard.`);
       const m = await getMembership(c.membershipId);
       return { title: `Adjust ${m?.studentName ?? "member"}'s ${c.periodMonth} charge`, preview: describeMembershipOp("charge_adjust", rec(p), m) };
     },
