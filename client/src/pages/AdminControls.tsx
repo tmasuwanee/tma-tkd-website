@@ -8,7 +8,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Loader2, ShieldAlert, Eye, EyeOff, LogOut, Power } from "lucide-react";
+import { Loader2, ShieldAlert, Eye, EyeOff, LogOut, Power, Clock, CheckCircle2 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 
@@ -60,6 +60,40 @@ function LoginGate({ onLogin }: { onLogin: (email: string) => void }) {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+/** Register / show the daily membership-charge cron. Safe to register before go-live:
+ *  the sweep no-ops until MEMBERSHIP_AUTOCHARGE_ENFORCE is on. */
+function BillingCronCard() {
+  const utils = trpc.useUtils();
+  const status = trpc.billingCron.status.useQuery(undefined, { refetchOnWindowFocus: false });
+  const register = trpc.billingCron.register.useMutation({
+    onSuccess: (r: any) => { toast.success(r.created ? "Daily charge cron registered." : "Charge cron was already registered."); utils.billingCron.status.invalidate(); },
+    onError: (e) => toast.error(e.message ?? "Could not register the cron."),
+  });
+  const d: any = status.data;
+  return (
+    <Card>
+      <CardHeader className="pb-2"><CardTitle className="text-base text-[#1a2d5a] flex items-center gap-2"><Clock className="w-4 h-4" /> Daily tuition charge</CardTitle></CardHeader>
+      <CardContent className="space-y-2">
+        <p className="text-xs text-gray-500">The daily job that charges due tuition. Registering it is safe now: it does nothing until billing is switched on (MEMBERSHIP_AUTOCHARGE_ENFORCE).</p>
+        {status.isLoading ? (
+          <div className="py-3 text-center text-gray-400"><Loader2 className="w-4 h-4 animate-spin mx-auto" /></div>
+        ) : d && d.available === false ? (
+          <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1.5">Scheduler unavailable here (this control works on the live deployment).</div>
+        ) : d && d.registered ? (
+          <div className="flex items-center gap-2 text-sm text-emerald-700"><CheckCircle2 className="w-4 h-4" /> Registered{d.enabled === false ? " (paused)" : ""} · runs {d.cron}{d.nextExecutionAt ? ` · next ${String(d.nextExecutionAt).slice(0, 16).replace("T", " ")}` : ""}</div>
+        ) : (
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-sm text-gray-600">Not registered yet.</span>
+            <Button onClick={() => register.mutate()} disabled={register.isPending} className="bg-[#1a2d5a] hover:bg-[#142347] whitespace-nowrap">
+              {register.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Register daily cron"}
+            </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -124,6 +158,9 @@ export function ControlsApp({ email, onLogout, embedded }: { email: string; onLo
             </Button>
           </CardContent>
         </Card>
+
+        {/* Billing charge cron */}
+        <BillingCronCard />
 
         {/* Individual toggles */}
         <Card>

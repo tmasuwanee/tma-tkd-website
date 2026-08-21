@@ -3430,6 +3430,21 @@ export async function listMembershipPayments(membershipId: number): Promise<Arra
   return Array.isArray(rows) ? rows : [];
 }
 
+/** Save a student's profile photo URL. */
+export async function setStudentPhoto(studentId: number, url: string): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(students).set({ photoUrl: url }).where(eq(students.id, studentId));
+}
+
+/** A student's profile photo URL (null if none). */
+export async function getStudentPhoto(studentId: number): Promise<string | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const [rows] = await db.execute(sql`SELECT photoUrl FROM students WHERE id = ${studentId} LIMIT 1`) as unknown as [{ photoUrl: string | null }[]];
+  return Array.isArray(rows) && rows[0] ? rows[0].photoUrl ?? null : null;
+}
+
 /** Advance a membership's paidThroughDate forward only (never backward). */
 export async function bumpMembershipPaidThrough(membershipId: number, paidThroughDate: string): Promise<void> {
   const db = await getDb();

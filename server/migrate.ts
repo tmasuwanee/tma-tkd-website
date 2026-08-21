@@ -264,6 +264,7 @@ const MIGRATIONS: { name: string; sql: string }[] = [
   // Billing anchor: what a family has already paid through. The charge sweeper
   // and generator skip any month whose dueDate <= paidThroughDate, so importing
   // a mid-cycle roster never bills already-paid months.
+  { name: "students.photoUrl", sql: "ALTER TABLE students ADD COLUMN IF NOT EXISTS photoUrl VARCHAR(1024) NULL" },
   { name: "memberships.paidThroughDate", sql: "ALTER TABLE memberships ADD COLUMN IF NOT EXISTS paidThroughDate DATE NULL" },
   // Charge-level payment metadata + retry tracking. status is already VARCHAR(24)
   // so it physically holds 'past_due'/'processing' with no DDL change.

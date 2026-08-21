@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Loader2, Users, Plus, X, Pause, Play, Ban, Tag, PencilLine, CreditCard, ChevronDown, ChevronRight, Maximize2, FileSignature, ExternalLink, Copy, Check, ShieldCheck, AlertTriangle, Award, ArrowUp, ArrowDown, MessageSquare, SlidersHorizontal } from "lucide-react";
+import { Loader2, Users, Plus, X, Pause, Play, Ban, Tag, PencilLine, CreditCard, ChevronDown, ChevronRight, Maximize2, FileSignature, ExternalLink, Copy, Check, ShieldCheck, AlertTriangle, Award, ArrowUp, ArrowDown, MessageSquare, SlidersHorizontal, Camera } from "lucide-react";
 import { BELT_SEQUENCE } from "@shared/beltRanks";
 
 /**
@@ -229,6 +229,7 @@ export function MemberPanelBody({ id, onChanged, onName }: { id: number; onChang
     <div className="space-y-3">
       <PanelSection title="Overview">
         <div className="space-y-3">
+          <MemberPhoto membershipId={id} />
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
             <span className="capitalize font-medium text-gray-900">{m.program}{m.planLabel ? ` · ${m.planLabel}` : ""}</span>
             <span className="tabular-nums">{fmt(m.monthlyAmountCents - (m.discountCents || 0))}/mo{m.discountCents ? <span className="text-green-700"> (-{fmt(m.discountCents)} {m.discountNote || "discount"})</span> : null}</span>
@@ -405,6 +406,66 @@ export function MemberPanelBody({ id, onChanged, onName }: { id: number; onChang
       {viewWaiverId !== null && (
         <WaiverViewModal waiverId={viewWaiverId} onClose={() => setViewWaiverId(null)} />
       )}
+    </div>
+  );
+}
+
+/** Downscale a picked/captured image to a max dimension and return a JPEG data URL,
+ *  so the uploaded payload stays small regardless of the phone's camera resolution. */
+function downscaleImage(file: File, max: number, quality: number): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const scale = Math.min(1, max / Math.max(img.width, img.height));
+      const w = Math.max(1, Math.round(img.width * scale)), h = Math.max(1, Math.round(img.height * scale));
+      const canvas = document.createElement("canvas");
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) { reject(new Error("no canvas")); return; }
+      ctx.drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL("image/jpeg", quality));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("load failed")); };
+    img.src = url;
+  });
+}
+
+/** Student profile photo in the member popup: shows the photo (or a placeholder)
+ *  and an Add/Replace control. On a phone or iPad the file input opens the camera. */
+function MemberPhoto({ membershipId }: { membershipId: number }) {
+  const utils = trpc.useUtils();
+  const q = trpc.members.photo.useQuery({ id: membershipId });
+  const save = trpc.members.setPhoto.useMutation({
+    onSuccess: () => { toast.success("Photo saved."); utils.members.photo.invalidate({ id: membershipId }); },
+    onError: (e) => toast.error(e.message ?? "Failed to save photo."),
+  });
+  const inputRef = useRef<HTMLInputElement>(null);
+  const onFile = async (file: File | undefined) => {
+    if (!file) return;
+    try { save.mutate({ id: membershipId, dataUrl: await downscaleImage(file, 640, 0.82) }); }
+    catch { toast.error("Couldn't read that image."); }
+  };
+  const photoUrl = q.data?.photoUrl ?? null;
+  const linked = q.data?.linked ?? false;
+  return (
+    <div className="flex items-center gap-3">
+      <div className="w-16 h-16 rounded-full overflow-hidden bg-gray-100 border border-gray-200 flex items-center justify-center shrink-0">
+        {photoUrl ? <img src={photoUrl} alt="student" className="w-full h-full object-cover" /> : <Camera className="w-5 h-5 text-gray-300" />}
+      </div>
+      <div className="min-w-0">
+        {linked ? (
+          <>
+            <input ref={inputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={e => onFile(e.target.files?.[0])} />
+            <button onClick={() => inputRef.current?.click()} disabled={save.isPending}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#1a2d5a] border border-[#1a2d5a]/30 hover:bg-[#1a2d5a]/5 rounded-lg px-2.5 py-1.5 disabled:opacity-50">
+              {save.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Camera className="w-3.5 h-3.5" />} {photoUrl ? "Replace photo" : "Add photo"}
+            </button>
+            <p className="text-[11px] text-gray-400 mt-1">On a phone or iPad this opens the camera.</p>
+          </>
+        ) : <p className="text-[11px] text-gray-400">Link a roster student to add a photo.</p>}
+      </div>
     </div>
   );
 }

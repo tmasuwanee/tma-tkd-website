@@ -72,7 +72,8 @@ import { createMembership, changeMembership, setMembershipDiscount, pauseMembers
 import { memberList, memberOverview, memberWaivers, resolveStudentIdForMembership } from "./members";
 import { createWaiver } from "./db";
 import { listSpecials, insertSpecial, updateSpecial } from "./db";
-import { createImportBatch, completeImportBatch, insertMembershipPayment, bumpMembershipPaidThrough, listMembershipPayments } from "./db";
+import { createImportBatch, completeImportBatch, insertMembershipPayment, bumpMembershipPaidThrough, listMembershipPayments, setStudentPhoto, getStudentPhoto } from "./db";
+import { listHeartbeatJobs, createHeartbeatJob } from "./_core/heartbeat";
 import { createCardSetupSession, chargeDueMemberships, listPayerCards, setPayerPrimaryCard, detachPayerCard } from "./membership-billing";
 import { storagePut, storageGet } from "./storage";
 import { sendEmailNotification, sendProShopOrderNotification, sendCampRegistrationConfirmation, sendCampWaiverEmail, sendFieldTripConfirmation, sendTransportationForm, sendTrialReceipt, sendAfterschoolConfirmation, sendAfterschoolIntake, sendWaiverNotification, sendReviewedEmail } from "./integrations";
@@ -2333,6 +2334,14 @@ export const appRouter = router({
     paymentHistory: publicProcedure.input(z.object({ id: z.number().int().positive() }))
       .query(async ({ input }) => listMembershipPayments(input.id)),
 
+    // Profile photo for a member (resolves to the roster student).
+    photo: publicProcedure.input(z.object({ id: z.number().int().positive() }))
+      .query(async ({ input }) => {
+        const studentId = await resolveStudentIdForMembership(input.id);
+        if (!studentId) return { linked: false as const, photoUrl: null };
+        return { linked: true as const, photoUrl: await getStudentPhoto(studentId) };
+      }),
+
     // Import legacy payment history from ZenPlanner into the immutable ledger, and
     // advance each membership's paidThroughDate so the charge job never re-bills a
     // month already paid. dryRun:true previews (matched / unmatched / ambiguous /
@@ -2421,6 +2430,58 @@ export const appRouter = router({
         source: input.kind === "afterschool" ? "legacy-afterschool" : "legacy-mma",
       });
       return { ok: true };
+    }),
+
+    // Save a student profile photo. Client sends a base64 data URL (camera capture
+    // or file pick); we store it in Forge and save the URL on the student. Resolves
+    // the membership to its roster student.
+    setPhoto: publicProcedure.input(z.object({ id: z.number().int().positive(), dataUrl: z.string().min(16).max(12_000_000) }))
+      .mutation(async ({ input }) => {
+        const studentId = await resolveStudentIdForMembership(input.id);
+        if (!studentId) throw new Error("No roster student is linked to this member, so a photo can't be attached yet.");
+        const match = input.dataUrl.match(/^data:(image\/(png|jpe?g|webp));base64,(.+)$/i);
+        if (!match) throw new Error("Unsupported image. Use a PNG, JPG, or WebP photo.");
+        const contentType = match[1].toLowerCase();
+        const ext = contentType.includes("png") ? "png" : contentType.includes("webp") ? "webp" : "jpg";
+        const buf = Buffer.from(match[3], "base64");
+        if (buf.length > 8_000_000) throw new Error("Photo is too large (max ~8MB). Try again.");
+        const stamp = String(input.id);
+        const { url } = await storagePut(`students/${studentId}/photo-${stamp}.${ext}`, buf, contentType);
+        await setStudentPhoto(studentId, url);
+        return { url };
+      }),
+  }),
+
+  // Billing charge cron — register / inspect the daily Heartbeat job that sweeps due
+  // tuition charges. Safe to register while charging is OFF (the endpoint no-ops
+  // until MEMBERSHIP_AUTOCHARGE_ENFORCE is on), so this can be wired ahead of go-live.
+  billingCron: router({
+    status: publicProcedure.query(async () => {
+      try {
+        const { jobs } = await listHeartbeatJobs("");
+        const job = jobs.find(j => j.callbackPath === "/api/scheduled/membership-charges");
+        return job
+          ? { available: true, registered: true, cron: job.cronExpression, enabled: job.isEnable, nextExecutionAt: job.nextExecutionAt ?? null, taskUid: job.taskUid }
+          : { available: true, registered: false };
+      } catch (e) {
+        // Heartbeat service unreachable (e.g. local dev without Forge keys).
+        return { available: false, registered: false, error: (e as Error).message.slice(0, 200) };
+      }
+    }),
+    register: publicProcedure.mutation(async () => {
+      const { jobs } = await listHeartbeatJobs("");
+      const existing = jobs.find(j => j.callbackPath === "/api/scheduled/membership-charges");
+      if (existing) return { created: false, taskUid: existing.taskUid, cron: existing.cronExpression };
+      // Daily at 14:00 UTC (~9-10am ET). The job itself is idempotent per charge and
+      // no-ops while autocharge is off, so time-of-day is not critical.
+      const { taskUid } = await createHeartbeatJob({
+        name: "membership-charges",
+        cron: "0 0 14 * * *",
+        path: "/api/scheduled/membership-charges",
+        method: "POST",
+        description: "Daily sweep of due membership tuition charges (no-op unless MEMBERSHIP_AUTOCHARGE_ENFORCE=true).",
+      }, "");
+      return { created: true, taskUid, cron: "0 0 14 * * *" };
     }),
   }),
 

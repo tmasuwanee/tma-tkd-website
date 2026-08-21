@@ -135,6 +135,7 @@ export const students = mysqlTable("students", {
   dob: varchar("dob", { length: 20 }),
   beltRank: varchar("beltRank", { length: 100 }),
   lastPromotedAt: timestamp("lastPromotedAt"),
+  photoUrl: varchar("photoUrl", { length: 1024 }),
   status: varchar("status", { length: 50 }),
   emergencyContact: varchar("emergencyContact", { length: 255 }),
   isEligibleOverride: tinyint("isEligibleOverride").default(0).notNull(),
