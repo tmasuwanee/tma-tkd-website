@@ -17,7 +17,7 @@ import Stripe from "stripe";
 import { ENV } from "./_core/env";
 import {
   listMemberships, listMembershipCharges, updateMembershipCharge, getMembership, updateMembership,
-  getPayer, insertPayer, updatePayerStripeCustomer, type MembershipRow,
+  getPayer, insertPayer, updatePayerStripeCustomer, insertMembershipPayment, type MembershipRow,
 } from "./db";
 import { sendTelegramMessage } from "./telegram";
 
@@ -78,26 +78,47 @@ export async function chargeDueMemberships(): Promise<{ charged: number; failed:
       if (paidThrough && due <= paidThrough) { await updateMembershipCharge(c.id, { status: "waived", note: "auto: already paid through import" }); continue; }
       summary.total++;
       if (c.amountCents <= 0) { await updateMembershipCharge(c.id, { status: "waived", note: "auto: $0" }); continue; }
+
+      const paidAtNow = () => new Date().toISOString().slice(0, 19).replace("T", " ");
+      const recordPaid = async (piId: string) => {
+        const paidAt = paidAtNow();
+        await updateMembershipCharge(c.id, { status: "paid", stripeInvoiceId: piId, stripePaymentIntentId: piId, paidAt });
+        // Mirror into the immutable ledger. Idempotent on the PaymentIntent id
+        // (uniq_mempay_pi), so a replay/reconcile never double-records.
+        await insertMembershipPayment({ membershipId: m.id, studentName: m.studentName, amountCents: c.amountCents, paidAt, method: "stripe", source: "autocharge", stripePaymentIntentId: piId, note: `Tuition ${c.periodMonth}` }).catch(() => {});
+      };
+
+      // RECONCILE FIRST: if a PaymentIntent was already started for this charge,
+      // resolve it before ever creating another one. Covers the async 'processing'
+      // case and any row where the id was stored but the status not yet finalized —
+      // so money that already moved is never charged twice.
+      if (c.stripePaymentIntentId) {
+        try {
+          const prev = await s.paymentIntents.retrieve(c.stripePaymentIntentId);
+          if (prev.status === "succeeded") { await recordPaid(prev.id); summary.charged++; continue; }
+          if (prev.status === "processing" || prev.status === "requires_action") continue; // still settling; a later run finalizes it
+          // requires_payment_method / canceled = the prior attempt is dead; fall through to a fresh attempt.
+        } catch { /* couldn't retrieve; the attempt-scoped idempotency key still guards the retry below */ }
+      }
+
+      // STEP 1 — the Stripe call. A throw here is a genuine charge failure (an
+      // off-session decline raises StripeCardError, or a network error). The card
+      // was NOT charged, so it is safe to mark past_due and advance the attempt.
+      let pi: Stripe.PaymentIntent;
       try {
-        const pi = await s.paymentIntents.create({
+        pi = await s.paymentIntents.create({
           amount: c.amountCents, currency: "usd", customer: customerId, payment_method: pm,
           off_session: true, confirm: true, payment_method_types: ["card"],
           statement_descriptor_suffix: "TMA TKD",
           ...(m.email ? { receipt_email: m.email } : {}),
           metadata: { product: "membership_tuition", membershipId: String(m.id), chargeId: String(c.id), period: c.periodMonth },
         }, {
-          // Real-money safety: keyed on charge id + the ET business date, so a retry
-          // or overlapping cron run on the SAME day returns the original PaymentIntent
-          // (never double-charges), while a genuine next-day retry gets a fresh attempt.
-          idempotencyKey: `tuition-charge-${c.id}-${cutoff}`,
+          // Keyed on charge id + ATTEMPT number (NOT the date). attemptCount only
+          // advances on a real decline, so while the row is unresolved the key is
+          // stable and Stripe replays the same PaymentIntent — the guard against a
+          // crash-after-success-before-DB-write becoming a second charge.
+          idempotencyKey: `tuition-charge-${c.id}-a${attempts}`,
         });
-        if (pi.status === "succeeded") {
-          await updateMembershipCharge(c.id, { status: "paid", stripeInvoiceId: pi.id, stripePaymentIntentId: pi.id, paidAt: new Date().toISOString().slice(0, 19).replace("T", " ") });
-          summary.charged++;
-        } else {
-          await updateMembershipCharge(c.id, { status: "past_due", note: `pending: ${pi.status}`, attemptCount: attempts + 1, stripePaymentIntentId: pi.id });
-          summary.failed++;
-        }
       } catch (e) {
         summary.failed++;
         const nextAttempt = attempts + 1;
@@ -107,6 +128,26 @@ export async function chargeDueMemberships(): Promise<{ charged: number; failed:
             ? `⚠️ <b>Tuition charge failed — retries exhausted</b>\n${m.studentName} · ${c.periodMonth} · $${(c.amountCents / 100).toFixed(2)}\nAttempt ${nextAttempt}/${MAX_CHARGE_ATTEMPTS}. Manual follow-up needed.\n${(e as Error).message}`
             : `⚠️ <b>Tuition charge failed</b>\n${m.studentName} · ${c.periodMonth} · $${(c.amountCents / 100).toFixed(2)}\nAttempt ${nextAttempt}/${MAX_CHARGE_ATTEMPTS}, will retry.\n${(e as Error).message}`
         ).catch(() => {});
+        continue;
+      }
+
+      // STEP 2 — persist the outcome. If THIS throws (a DB blip after Stripe already
+      // responded), do NOT bump attemptCount: leaving the row unchanged keeps the
+      // same idempotency key so the next run replays the SAME PaymentIntent rather
+      // than creating a second charge.
+      try {
+        if (pi.status === "succeeded") { await recordPaid(pi.id); summary.charged++; }
+        else if (pi.status === "processing" || pi.status === "requires_action") {
+          // Async settle: store the id so a later run reconciles it. Not past_due
+          // (money may still land) and no attempt bump.
+          await updateMembershipCharge(c.id, { note: `pending: ${pi.status}`, stripePaymentIntentId: pi.id });
+        } else {
+          summary.failed++;
+          const nextAttempt = attempts + 1;
+          await updateMembershipCharge(c.id, { status: "past_due", note: `declined: ${pi.status} (attempt ${nextAttempt})`, attemptCount: nextAttempt, stripePaymentIntentId: pi.id });
+        }
+      } catch (dbErr) {
+        console.error(`[membership-charges] post-charge DB write failed for charge ${c.id} (money may have moved; NOT advancing attempt):`, dbErr);
       }
     }
   }

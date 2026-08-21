@@ -56,8 +56,18 @@ function chargeAnchor(startDate: string | null | undefined, paidThroughDate: str
   if (anchor < new Date(start.getFullYear(), start.getMonth(), start.getDate())) {
     anchor = new Date(start.getFullYear(), start.getMonth() + 1, day);
   }
-  // Skip forward past any month already covered by paidThroughDate.
-  while (paidThrough && dueStr(anchor) <= paidThrough) {
+  // Never generate charges for a month before the CURRENT month. Importing an old
+  // enrollment date sets tenure/belt context, it must not manufacture a backlog of
+  // past tuition that all fires at go-live. (Whatever they already paid is captured
+  // by paidThroughDate; the current month is the earliest we auto-bill.)
+  const now = new Date();
+  const curMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  if (new Date(anchor.getFullYear(), anchor.getMonth(), 1) < curMonth) {
+    anchor = new Date(now.getFullYear(), now.getMonth(), day);
+  }
+  // Skip forward past any month already covered by paidThroughDate. Hard-capped so a
+  // malformed/absurd paid-through can never spin forever.
+  for (let i = 0; paidThrough && dueStr(anchor) <= paidThrough && i < 600; i++) {
     anchor = new Date(anchor.getFullYear(), anchor.getMonth() + 1, day);
   }
   return anchor;

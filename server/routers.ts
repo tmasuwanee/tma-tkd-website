@@ -2281,11 +2281,13 @@ export const appRouter = router({
         if (mem.monthlyAmountCents > MAX_TUITION) errors.push("tuition above sane maximum");
         if (!mem.email && !mem.phone) errors.push("no email or phone (would be unbillable)");
         let disposition = disp(mem.studentName, mem.email, mem.phone);
-        // within-batch duplicate check
+        // within-batch check: a second row with the same name as one already slated
+        // to create is either a duplicate (contact overlaps) or a name collision that
+        // must be reviewed — never a silent second create.
         const nk = seenKey(mem.studentName);
         const cks = contactKeys(mem.email, mem.phone);
         const prior = batchSeen.get(nk);
-        if (disposition !== "duplicate" && prior && cks.some(k => prior.has(k))) disposition = "duplicate";
+        if (disposition !== "duplicate" && prior) disposition = cks.some(k => prior.has(k)) ? "duplicate" : "review";
         let action: "create" | "skip" | "needs_review" | "blocked";
         if (errors.length) action = "blocked";
         else if (disposition === "duplicate") action = "skip";
@@ -2357,8 +2359,14 @@ export const appRouter = router({
         if (row.membershipId) return memberships.some(m => m.id === row.membershipId) ? { id: row.membershipId } : { reason: "unmatched" };
         const byName = memberships.filter(m => nName(m.studentName) === nName(row.studentName));
         if (byName.length === 0) return { reason: "unmatched" };
-        if (byName.length === 1) return { id: byName[0].id };
         const e = nEmail(row.email), p = nPhone(row.phone);
+        if (byName.length === 1) {
+          const only = byName[0];
+          // If the row carries a contact, it must agree with the single name match —
+          // otherwise it may be a different family's namesake; don't credit the wrong one.
+          if ((e || p) && !((e && nEmail(only.email) === e) || (p && nPhone(only.phone) === p))) return { reason: "ambiguous" };
+          return { id: only.id };
+        }
         const narrowed = byName.filter(m => (e && nEmail(m.email) === e) || (p && nPhone(m.phone) === p));
         return narrowed.length === 1 ? { id: narrowed[0].id } : { reason: "ambiguous" };
       };
