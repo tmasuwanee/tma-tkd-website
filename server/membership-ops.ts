@@ -13,7 +13,7 @@
  */
 import {
   insertMembership, getMembership, updateMembership, upsertMembershipCharge,
-  listMembershipCharges, getMembershipCharge, updateMembershipCharge,
+  listMembershipCharges, getMembershipCharge, updateMembershipCharge, listMemberships,
   type MembershipRow,
 } from "./db";
 import { sendTelegramMessage } from "./telegram";
@@ -96,6 +96,75 @@ export async function generateCharges(membershipId: number, months = 12): Promis
     const period = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
     await upsertMembershipCharge({ membershipId, periodMonth: period, dueDate: dueStr(d), baseAmountCents: net, amountCents: net });
   }
+}
+
+/** Today's date (YYYY-MM-DD) in America/New_York — same business date the charge
+ *  sweeper uses, so runway/due comparisons agree. */
+function etToday(): string {
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
+  const g = (t: string) => parts.find(p => p.type === t)!.value;
+  return `${g("year")}-${g("month")}-${g("day")}`;
+}
+
+/** Keep a membership's FORWARD charge schedule topped up. Charges are generated once
+ *  at creation (termMonths ahead); without this, billing silently STOPS once those
+ *  run out (month 13). If fewer than `minAhead` future scheduled charges remain, this
+ *  appends months after the last existing one until there are `target` future charges.
+ *  Never creates a past-dated (backlog) charge, skips subscription-billed and canceled
+ *  memberships, and stops at a scheduled cancellation date. Idempotent (upsert per
+ *  month). Returns how many charges it added. */
+export async function ensureChargeRunway(membershipId: number, minAhead = 3, target = 12): Promise<number> {
+  const m = await getMembership(membershipId);
+  if (!m) return 0;
+  if (m.status === "canceled") return 0;
+  if (m.stripeSubscriptionId) return 0; // billed by Stripe subscription, not the ledger
+  const net = Math.max(0, m.monthlyAmountCents - (m.discountCents || 0));
+  const day = m.billingDay && m.billingDay >= 1 && m.billingDay <= 28 ? m.billingDay : 1;
+  const todayStr = etToday();
+  const cancelDate = m.cancelEffectiveDate ? String(m.cancelEffectiveDate).slice(0, 10) : null;
+  const charges = await listMembershipCharges(membershipId);
+  const futureScheduled = charges.filter(c => c.status === "scheduled" && c.dueDate && String(c.dueDate).slice(0, 10) >= todayStr);
+  if (futureScheduled.length >= minAhead) return 0; // still has runway; nothing to do
+
+  // Start appending the month AFTER the last existing charge, but never before the
+  // current month (a lapsed membership must not get a backlog of past charges).
+  const lastPeriod = charges.reduce((mx, c) => (c.periodMonth > mx ? c.periodMonth : mx), "");
+  let anchor: Date;
+  if (lastPeriod) {
+    const [y, mo] = lastPeriod.split("-").map(Number);
+    anchor = new Date(y, mo, day); // JS month is 0-based, so `mo` = the month after
+  } else {
+    anchor = chargeAnchor(m.startDate ? String(m.startDate) : null, m.paidThroughDate ? String(m.paidThroughDate) : null, m.billingDay);
+  }
+  const now = new Date();
+  if (new Date(anchor.getFullYear(), anchor.getMonth(), 1) < new Date(now.getFullYear(), now.getMonth(), 1)) {
+    anchor = new Date(now.getFullYear(), now.getMonth(), day);
+  }
+
+  let created = 0, futureCount = futureScheduled.length, guard = 0;
+  while (futureCount < target && guard < 60) {
+    const due = dueStr(anchor);
+    if (cancelDate && due > cancelDate) break; // don't schedule past a pending cancellation
+    const period = `${anchor.getFullYear()}-${String(anchor.getMonth() + 1).padStart(2, "0")}`;
+    await upsertMembershipCharge({ membershipId, periodMonth: period, dueDate: due, baseAmountCents: net, amountCents: net });
+    created++;
+    if (due >= todayStr) futureCount++;
+    anchor = new Date(anchor.getFullYear(), anchor.getMonth() + 1, day);
+    guard++;
+  }
+  return created;
+}
+
+/** Daily maintenance: top up the forward schedule for every active membership so
+ *  nobody's tuition silently lapses. Runs regardless of whether charging is enabled
+ *  (keeps the Financials schedule populated pre-go-live too). */
+export async function topUpAllChargeRunways(): Promise<{ membershipsToppedUp: number; chargesAdded: number }> {
+  let membershipsToppedUp = 0, chargesAdded = 0;
+  for (const m of await listMemberships("active")) {
+    const added = await ensureChargeRunway(m.id);
+    if (added > 0) { membershipsToppedUp++; chargesAdded += added; }
+  }
+  return { membershipsToppedUp, chargesAdded };
 }
 
 // ─── Operations ──────────────────────────────────────────────────────────────

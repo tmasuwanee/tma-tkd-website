@@ -15,6 +15,7 @@ import { handleResendWebhook } from "../resend-webhook";
 import { handleStripeWebhook } from "../stripe-webhook";
 import { handleAssistant } from "../assistant";
 import { chargeDueMemberships } from "../membership-billing";
+import { topUpAllChargeRunways } from "../membership-ops";
 import { handleMorningReport } from "../morning-report";
 import { registerVoiceRoutes } from "../voice-routes";
 import { handleTrialRemindersAM, handleTrialCheckinPM, handleDailyCallQueue } from "../staff-reminders";
@@ -108,11 +109,16 @@ async function startServer() {
   // (registered above), so it must be after it. See docs/AI_ASSISTANT_SPEC.md.
   app.post("/api/admin/assistant", handleAssistant);
 
-  // Membership tuition auto-charge job. Attach a daily cron to this. No-op unless
-  // MEMBERSHIP_AUTOCHARGE_ENFORCE=true, so it is safe to leave registered.
+  // Membership tuition daily job. Two steps: (1) top up every membership's forward
+  // charge schedule so tuition never silently lapses when the generated months run
+  // out (runs regardless of the billing switch), then (2) charge what's due — a
+  // no-op unless MEMBERSHIP_AUTOCHARGE_ENFORCE=true, so it is safe to leave registered.
   app.post("/api/scheduled/membership-charges", async (_req: Request, res: Response) => {
-    try { res.json(await chargeDueMemberships()); }
-    catch (e) { console.error("[membership-charges] error:", e); res.status(500).json({ error: "failed" }); }
+    try {
+      const runway = await topUpAllChargeRunways();
+      const charged = await chargeDueMemberships();
+      res.json({ runway, ...charged });
+    } catch (e) { console.error("[membership-charges] error:", e); res.status(500).json({ error: "failed" }); }
   });
 
   // ─── Scheduled: morning blast health report ────────────────────────────────
