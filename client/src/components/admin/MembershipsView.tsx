@@ -3,6 +3,17 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Loader2, Users, Plus, X, Pause, Play, Ban, Tag, PencilLine, CreditCard, ChevronDown, ChevronRight, Maximize2, FileSignature, ExternalLink, Copy, Check, ShieldCheck, AlertTriangle, Award, ArrowUp, ArrowDown, MessageSquare, SlidersHorizontal, Camera } from "lucide-react";
 import { BELT_SEQUENCE } from "@shared/beltRanks";
+import { martialArtsAgreementPlainText } from "@shared/martialArtsAgreement";
+import { afterschoolWaiverPlainText } from "@shared/afterschoolWaiver";
+import { FileText, Trash2 } from "lucide-react";
+
+// The camp waiver is a hosted page (emailed as a link), not in-repo text.
+const CAMP_WAIVER_URL = "https://tma-camp-waiver.pages.dev/";
+const WAIVER_TEMPLATES = [
+  { key: "martial_arts", label: "Martial arts agreement", text: () => martialArtsAgreementPlainText() },
+  { key: "afterschool", label: "After-school waiver", text: () => afterschoolWaiverPlainText() },
+  { key: "camp", label: "Camp waiver", url: CAMP_WAIVER_URL },
+] as const;
 
 /**
  * Memberships + Financials. A person does everything here directly (with an inline
@@ -194,6 +205,13 @@ export function MemberPanelBody({ id, onChanged, onName }: { id: number; onChang
   const [attachWaiverOpen, setAttachWaiverOpen] = useState(false);
   const [manageOpen, setManageOpen] = useState(false);
   const [viewWaiverId, setViewWaiverId] = useState<number | null>(null);
+  const [templateView, setTemplateView] = useState<{ label: string; text: string } | null>(null);
+  const removeWaiver = trpc.members.removeWaiver.useMutation({
+    onSuccess: () => { toast.success("Waiver removed."); utils.members.waivers.invalidate({ id }); },
+    onError: (e) => toast.error(e.message ?? "Couldn't remove it."),
+  });
+  const onRemoveWaiver = (waiverId: number) => { if (window.confirm("Remove this waiver record? (Only unsigned / attested records can be removed.)")) removeWaiver.mutate({ waiverId }); };
+  const openTemplate = (t: typeof WAIVER_TEMPLATES[number]) => { if ("url" in t) window.open(t.url, "_blank", "noopener"); else setTemplateView({ label: t.label, text: t.text() }); };
   const wv = waiverQ.data;
   const anyWaiverMissing = !!wv && (wv.martialArts.status === "missing" || wv.afterschool.status === "missing");
   const anyWaiverReview = !!wv && (wv.martialArts.status === "needs_review" || wv.afterschool.status === "needs_review");
@@ -304,12 +322,22 @@ export function MemberPanelBody({ id, onChanged, onName }: { id: number; onChang
           <div className="py-3 text-center text-gray-400"><Loader2 className="w-4 h-4 animate-spin mx-auto" /></div>
         ) : (
           <div className="space-y-2">
-            <WaiverKindRow label="Martial arts (TKD / Kickboxing / BJJ)" data={wv.martialArts} onView={setViewWaiverId} onAttach={() => setAttachWaiverOpen(true)} />
-            <WaiverKindRow label="After-School" data={wv.afterschool} onView={setViewWaiverId} onAttach={() => setAttachWaiverOpen(true)} />
+            {/* Blank templates — read what each waiver says before sending it. */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-[11px] text-gray-400">Templates:</span>
+              {WAIVER_TEMPLATES.map(t => (
+                <button key={t.key} onClick={() => openTemplate(t)}
+                  className="inline-flex items-center gap-1 text-[11px] font-medium text-[#1a2d5a] border border-gray-200 hover:border-[#1a2d5a]/40 rounded px-1.5 py-0.5">
+                  <FileText className="w-3 h-3" /> {t.label}{"url" in t ? <ExternalLink className="w-2.5 h-2.5" /> : null}
+                </button>
+              ))}
+            </div>
+            <WaiverKindRow label="Martial arts (TKD / Kickboxing / BJJ)" data={wv.martialArts} onView={setViewWaiverId} onAttach={() => setAttachWaiverOpen(true)} onRemove={onRemoveWaiver} />
+            <WaiverKindRow label="After-School" data={wv.afterschool} onView={setViewWaiverId} onAttach={() => setAttachWaiverOpen(true)} onRemove={onRemoveWaiver} />
             {wv.martialArts.status === "na" && wv.afterschool.status === "na" ? (
               <div className="text-xs text-gray-400">No waiver required for this member's programs.</div>
             ) : null}
-            <button onClick={() => setAttachWaiverOpen(true)} className="text-xs font-medium text-[#1a2d5a] hover:underline inline-flex items-center gap-1"><Plus className="w-3 h-3" /> Add / attach a waiver</button>
+            <button onClick={() => setAttachWaiverOpen(true)} className="text-xs font-medium text-[#1a2d5a] hover:underline inline-flex items-center gap-1"><Plus className="w-3 h-3" /> Add another waiver</button>
           </div>
         )}
       </PanelSection>
@@ -405,6 +433,11 @@ export function MemberPanelBody({ id, onChanged, onName }: { id: number; onChang
       )}
       {viewWaiverId !== null && (
         <WaiverViewModal waiverId={viewWaiverId} onClose={() => setViewWaiverId(null)} />
+      )}
+      {templateView && (
+        <Overlay onClose={() => setTemplateView(null)} title={`${templateView.label} (blank template)`} xwide>
+          <div className="border border-gray-200 rounded-lg p-3 bg-gray-50 max-h-[60vh] overflow-y-auto whitespace-pre-wrap text-xs text-gray-700">{templateView.text}</div>
+        </Overlay>
       )}
     </div>
   );
@@ -595,10 +628,10 @@ function BeltEditModal({ membershipId, status: s, onClose }: {
   );
 }
 
-function WaiverKindRow({ label, data, onView, onAttach }: {
+function WaiverKindRow({ label, data, onView, onAttach, onRemove }: {
   label: string;
-  data: { status: "on_file" | "missing" | "needs_review" | "na"; waivers: Array<{ id: number; attested: boolean; signedName: string | null; signedDate: string; needsReview: boolean }> };
-  onView: (id: number) => void; onAttach: () => void;
+  data: { status: "on_file" | "missing" | "needs_review" | "na"; waivers: Array<{ id: number; attested: boolean; signedName: string | null; signedDate: string; needsReview: boolean; hasSignature?: boolean }> };
+  onView: (id: number) => void; onAttach: () => void; onRemove: (id: number) => void;
 }) {
   if (data.status === "na") return null;
   const badge = data.status === "on_file" ? { t: "On file", c: "bg-green-100 text-green-800 border-green-200" }
@@ -613,12 +646,19 @@ function WaiverKindRow({ label, data, onView, onAttach }: {
       {data.waivers.length > 0 && (
         <div className="mt-1.5 space-y-1">
           {data.waivers.map(w => (
-            <button key={w.id} onClick={() => onView(w.id)} className="w-full flex items-center gap-2 text-xs text-left text-gray-600 hover:text-[#1a2d5a] hover:bg-gray-50 rounded px-1.5 py-1">
-              {w.attested ? <ShieldCheck className="w-3.5 h-3.5 text-gray-400 shrink-0" /> : <FileSignature className="w-3.5 h-3.5 text-gray-400 shrink-0" />}
-              <span className="truncate">{w.attested ? "Attested on file" : "Signed"} · {w.signedDate}{w.signedName ? ` · ${w.signedName}` : ""}</span>
-              {w.needsReview ? <span className="text-amber-600 text-[10px] shrink-0">review match</span> : null}
-              <span className="ml-auto text-[#1a2d5a] font-medium shrink-0">View</span>
-            </button>
+            <div key={w.id} className="group flex items-center gap-2 text-xs text-gray-600 hover:bg-gray-50 rounded px-1.5 py-1">
+              <button onClick={() => onView(w.id)} className="flex items-center gap-2 flex-1 min-w-0 text-left hover:text-[#1a2d5a]">
+                {w.attested ? <ShieldCheck className="w-3.5 h-3.5 text-gray-400 shrink-0" /> : <FileSignature className="w-3.5 h-3.5 text-gray-400 shrink-0" />}
+                <span className="truncate">{w.attested ? "Attested on file" : w.hasSignature ? "Signed" : "On file"} · {w.signedDate}{w.signedName ? ` · ${w.signedName}` : ""}</span>
+                {w.needsReview ? <span className="text-amber-600 text-[10px] shrink-0">review match</span> : null}
+                <span className="ml-auto text-[#1a2d5a] font-medium shrink-0">View</span>
+              </button>
+              {/* Removable only when there's no real drawn signature (attestation / mistake). */}
+              {!w.hasSignature && (
+                <button onClick={() => onRemove(w.id)} title="Remove this unsigned waiver"
+                  className="shrink-0 text-gray-300 hover:text-red-600 opacity-60 group-hover:opacity-100"><Trash2 className="w-3.5 h-3.5" /></button>
+              )}
+            </div>
           ))}
         </div>
       )}

@@ -2221,6 +2221,17 @@ export const appRouter = router({
         });
         return { ok: true };
       }),
+    // Remove a waiver from a member — ONLY one without a real drawn signature
+    // (an attestation, a legacy record, or a mistaken attach). A genuinely signed
+    // waiver is a kept record and is refused here.
+    removeWaiver: publicProcedure.input(z.object({ waiverId: z.number().int().positive() }))
+      .mutation(async ({ input }) => {
+        const w = (await getAllWaivers()).find(x => x.id === input.waiverId);
+        if (!w) throw new Error("Waiver not found.");
+        if (w.signatureData) throw new Error("This waiver has a real signature on file and is kept as a record. It can't be removed here.");
+        await deleteWaiver(input.waiverId);
+        return { ok: true };
+      }),
     // A prefilled signing link for the parent (email/iPad). Afterschool routes to the
     // existing waiver page; martial-arts to the new agreement page.
     generateWaiverLink: publicProcedure.input(z.object({ id: z.number().int().positive(), kind: z.enum(["martial_arts", "afterschool"]) }))
