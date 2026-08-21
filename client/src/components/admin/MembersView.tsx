@@ -3,7 +3,7 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import {
   Loader2, Users, UserPlus, Search, CheckCircle2, AlertTriangle, FileText,
-  CalendarCheck, CreditCard,
+  CalendarCheck,
 } from "lucide-react";
 import { CreateForm } from "@/components/admin/MembershipsView";
 import { useMemberDock } from "@/components/admin/MemberDock";
@@ -67,7 +67,7 @@ export default function MembersView() {
   }, []);
 
   const setupBilling = trpc.members.setupAfterschoolBilling.useMutation({
-    onSuccess: (r) => { toast.success("Membership created. Set the amount and card here."); refresh(); dock.open(r.membershipId); },
+    onSuccess: (r) => { if (!r.existed) refresh(); dock.open(r.membershipId); },
     onError: (e) => toast.error(e.message),
   });
 
@@ -144,8 +144,10 @@ export default function MembersView() {
               <tbody>
                 {filtered.map(m => (
                   <MemberRow key={m.key} m={m}
-                    onOpen={() => { if (m.primaryMembershipId) dock.open(m.primaryMembershipId, m.name); }}
-                    onSetupBilling={() => { if (m.afterschoolRegId) setupBilling.mutate({ afterschoolRegId: m.afterschoolRegId }); }}
+                    onOpen={() => {
+                      if (m.primaryMembershipId) dock.open(m.primaryMembershipId, m.name);
+                      else if (m.afterschoolRegId) setupBilling.mutate({ afterschoolRegId: m.afterschoolRegId });
+                    }}
                     setupPending={setupBilling.isPending} />
                 ))}
               </tbody>
@@ -188,8 +190,12 @@ function BillingCell({ m }: { m: Member }) {
   return <span className="text-gray-400">—</span>;
 }
 
-function MemberRow({ m, onOpen, onSetupBilling, setupPending }: { m: Member; onOpen: () => void; onSetupBilling: () => void; setupPending: boolean }) {
-  const clickable = !!m.primaryMembershipId;
+function MemberRow({ m, onOpen, setupPending }: { m: Member; onOpen: () => void; setupPending: boolean }) {
+  // Afterschool-only members have no membership row yet; opening them promotes the
+  // registration to a membership shell (idempotent, no charge while payments are off)
+  // so their profile, waivers, and belt are reachable like any other member.
+  const afterschoolOnly = !m.primaryMembershipId && !!m.afterschoolRegId;
+  const clickable = !!m.primaryMembershipId || afterschoolOnly;
   return (
     <tr onClick={clickable ? onOpen : undefined} className={`border-b border-gray-100 ${clickable ? "hover:bg-gray-50 cursor-pointer" : ""}`}>
       <td className="px-4 py-3">
@@ -218,12 +224,12 @@ function MemberRow({ m, onOpen, onSetupBilling, setupPending }: { m: Member; onO
       </td>
       <td className="px-4 py-3"><span className={`text-[11px] rounded-full border px-2 py-0.5 font-medium capitalize ${STATUS_STYLE[m.status] ?? "bg-gray-100 text-gray-600 border-gray-200"}`}>{m.status}</span></td>
       <td className="px-4 py-3 text-right">
-        {clickable ? null : (
-          <button onClick={(e) => { e.stopPropagation(); onSetupBilling(); }} disabled={setupPending}
+        {afterschoolOnly ? (
+          <button onClick={(e) => { e.stopPropagation(); onOpen(); }} disabled={setupPending}
             className="inline-flex items-center gap-1 text-xs font-semibold text-[#1a2d5a] border border-[#1a2d5a]/30 hover:bg-[#1a2d5a] hover:text-white rounded px-2 py-1 transition-colors disabled:opacity-50">
-            {setupPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CreditCard className="w-3.5 h-3.5" />} Set up billing
+            {setupPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />} Open profile
           </button>
-        )}
+        ) : null}
       </td>
     </tr>
   );

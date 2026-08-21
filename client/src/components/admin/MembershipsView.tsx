@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Loader2, Users, Plus, X, Pause, Play, Ban, Tag, PencilLine, CreditCard, ChevronDown, ChevronRight, Maximize2, FileSignature, ExternalLink, Copy, Check, ShieldCheck, AlertTriangle, Award, ArrowUp, ArrowDown, MessageSquare } from "lucide-react";
+import { Loader2, Users, Plus, X, Pause, Play, Ban, Tag, PencilLine, CreditCard, ChevronDown, ChevronRight, Maximize2, FileSignature, ExternalLink, Copy, Check, ShieldCheck, AlertTriangle, Award, ArrowUp, ArrowDown, MessageSquare, SlidersHorizontal } from "lucide-react";
 import { BELT_SEQUENCE } from "@shared/beltRanks";
 
 /**
@@ -192,6 +192,7 @@ export function MemberPanelBody({ id, onChanged, onName }: { id: number; onChang
   const paymentsEnabled = billing.data?.paymentsEnabled ?? false;
   const [financialsOpen, setFinancialsOpen] = useState(false);
   const [attachWaiverOpen, setAttachWaiverOpen] = useState(false);
+  const [manageOpen, setManageOpen] = useState(false);
   const [viewWaiverId, setViewWaiverId] = useState<number | null>(null);
   const wv = waiverQ.data;
   const anyWaiverMissing = !!wv && (wv.martialArts.status === "missing" || wv.afterschool.status === "missing");
@@ -238,11 +239,7 @@ export function MemberPanelBody({ id, onChanged, onName }: { id: number; onChang
           <div className="flex flex-wrap gap-2">
             <ActionBtn onClick={changeAmount} icon={<PencilLine className="w-3.5 h-3.5" />} label="Change tuition" />
             <ActionBtn onClick={applyDiscount} icon={<Tag className="w-3.5 h-3.5" />} label="Discount" />
-            {m.status === "paused"
-              ? <ActionBtn onClick={() => resume.mutate({ id })} icon={<Play className="w-3.5 h-3.5" />} label="Resume" />
-              : <ActionBtn onClick={() => { if (window.confirm("Pause this membership now?")) pause.mutate({ id }); }} icon={<Pause className="w-3.5 h-3.5" />} label="Pause" />}
-            <ActionBtn onClick={() => { if (window.confirm("Schedule cancellation with a 60-day notice? They can attend until then.")) cancel.mutate({ id, immediate: false }); }} icon={<Ban className="w-3.5 h-3.5" />} label="Cancel (60-day)" />
-            <ActionBtn danger onClick={() => { if (window.confirm("Cancel this membership IMMEDIATELY? This ends it now.")) cancel.mutate({ id, immediate: true }); }} icon={<Ban className="w-3.5 h-3.5" />} label="Cancel now" />
+            <ActionBtn onClick={() => setManageOpen(true)} icon={<SlidersHorizontal className="w-3.5 h-3.5" />} label="Manage plan" />
             <ActionBtn onClick={() => setupCard.mutate({ id })} disabled={!paymentsEnabled}
               title={!paymentsEnabled ? "Payments are off. Turn on billing to collect cards." : undefined}
               icon={<CreditCard className="w-3.5 h-3.5" />} label={m.stripeCustomerId ? "Update card" : "Set up autopay"} />
@@ -363,6 +360,39 @@ export function MemberPanelBody({ id, onChanged, onName }: { id: number; onChang
         </Overlay>
       )}
 
+      {manageOpen && (
+        <Overlay onClose={() => setManageOpen(false)} title="Manage plan">
+          <div className="space-y-3">
+            <div className="text-sm text-gray-600">
+              <span className="capitalize font-medium text-gray-900">{m.program}{m.planLabel ? ` · ${m.planLabel}` : ""}</span>
+              {" · "}<span className={`text-[11px] rounded-full border px-2 py-0.5 font-medium ${STATUS_STYLE[m.status] ?? "bg-gray-100 text-gray-600 border-gray-200"}`}>{m.status}</span>
+              {m.cancelEffectiveDate ? <span className="text-xs text-red-600"> · cancels {String(m.cancelEffectiveDate).slice(0, 10)}</span> : null}
+            </div>
+
+            {m.status === "paused" ? (
+              <ManageRow icon={<Play className="w-4 h-4 text-green-700" />} title="Resume membership"
+                desc="Restart monthly billing and remove the pause."
+                btn="Resume" tone="primary" pending={resume.isPending}
+                onClick={() => resume.mutate({ id }, { onSuccess: () => setManageOpen(false) })} />
+            ) : (
+              <ManageRow icon={<Pause className="w-4 h-4 text-amber-600" />} title="Pause membership"
+                desc="Stop billing temporarily. They keep their spot; no charges while paused."
+                btn="Pause" tone="amber" pending={pause.isPending}
+                onClick={() => { if (window.confirm("Pause this membership now?")) pause.mutate({ id }, { onSuccess: () => setManageOpen(false) }); }} />
+            )}
+
+            <ManageRow icon={<Ban className="w-4 h-4 text-gray-500" />} title="Cancel with 60-day notice"
+              desc="Per the agreement. They can attend until the notice period ends, then it stops."
+              btn="Schedule cancellation" tone="default" pending={cancel.isPending}
+              onClick={() => { if (window.confirm("Schedule cancellation with a 60-day notice? They can attend until then.")) cancel.mutate({ id, immediate: false }, { onSuccess: () => setManageOpen(false) }); }} />
+
+            <ManageRow icon={<Ban className="w-4 h-4 text-red-600" />} title="Cancel immediately"
+              desc="Ends the membership right now. Use only for refunds or special cases."
+              btn="Cancel now" tone="danger" pending={cancel.isPending}
+              onClick={() => { if (window.confirm("Cancel this membership IMMEDIATELY? This ends it now.")) cancel.mutate({ id, immediate: true }, { onSuccess: () => setManageOpen(false) }); }} />
+          </div>
+        </Overlay>
+      )}
       {attachWaiverOpen && wv && (
         <AttachWaiverModal membershipId={id} waiverData={wv} onClose={() => setAttachWaiverOpen(false)}
           onDone={() => { utils.members.waivers.invalidate({ id }); setAttachWaiverOpen(false); }} />
@@ -375,14 +405,8 @@ export function MemberPanelBody({ id, onChanged, onName }: { id: number; onChang
 }
 
 function BeltSection({ membershipId }: { membershipId: number }) {
-  const utils = trpc.useUtils();
   const q = trpc.members.beltForMember.useQuery({ id: membershipId });
-  const refresh = () => utils.members.beltForMember.invalidate({ id: membershipId });
-  const opts = { onSuccess: () => refresh(), onError: (e: { message?: string }) => toast.error(e.message ?? "Failed.") };
-  const promote = trpc.students.promoteBelt.useMutation({ ...opts, onSuccess: () => { toast.success("Promoted."); refresh(); } });
-  const demote = trpc.students.demoteBelt.useMutation({ ...opts, onSuccess: () => { toast.success("Rank adjusted."); refresh(); } });
-  const setBelt = trpc.students.setBelt.useMutation({ ...opts, onSuccess: () => { toast.success("Rank set."); refresh(); } });
-  const setReadiness = trpc.students.setReadiness.useMutation(opts);
+  const [editOpen, setEditOpen] = useState(false);
 
   if (q.isLoading) return <div className="py-3 text-center text-gray-400"><Loader2 className="w-4 h-4 animate-spin mx-auto" /></div>;
   const data = q.data;
@@ -391,8 +415,6 @@ function BeltSection({ membershipId }: { membershipId: number }) {
     return <div className="text-xs text-gray-500">No martial-arts roster record is linked to this member, so belt tracking is not available. Add them to the students roster to track belts.</div>;
   }
   const s = data.status;
-  const readinessVal = s.manualReadiness ?? "auto";
-  const sel = "border border-gray-300 rounded px-2 py-1 text-sm";
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
@@ -403,48 +425,88 @@ function BeltSection({ membershipId }: { membershipId: number }) {
         <span className={`text-[11px] rounded-full border px-2 py-0.5 font-medium ${s.ready ? "bg-green-100 text-green-800 border-green-200" : "bg-gray-100 text-gray-600 border-gray-200"}`}>{s.ready ? "Ready to test" : "Not ready"}</span>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <button onClick={() => demote.mutate({ studentId: s.studentId })} disabled={!s.prevRank || demote.isPending} title="Down one rank" className="inline-flex items-center gap-1 text-xs font-medium text-gray-600 border border-gray-200 rounded px-2 py-1.5 disabled:opacity-40"><ArrowDown className="w-3.5 h-3.5" /> Down</button>
-        <select value={s.currentRank} onChange={e => setBelt.mutate({ studentId: s.studentId, toRank: e.target.value })} className={sel}>
-          {BELT_SEQUENCE.map(b => <option key={b} value={b}>{b}</option>)}
-        </select>
-        <button onClick={() => promote.mutate({ studentId: s.studentId })} disabled={!s.nextRank || promote.isPending} title="Up one rank" className="inline-flex items-center gap-1 text-xs font-semibold text-[#1a2d5a] border border-[#1a2d5a]/30 hover:bg-[#1a2d5a]/5 rounded px-2 py-1.5 disabled:opacity-40"><ArrowUp className="w-3.5 h-3.5" /> Up</button>
-      </div>
-
-      <label className="flex items-center gap-2 text-xs text-gray-600">Testing readiness
-        <select value={readinessVal} onChange={e => setReadiness.mutate({ studentId: s.studentId, value: e.target.value as "ready" | "not_ready" | "auto" })} className={sel}>
-          <option value="auto">Auto (from attendance)</option>
-          <option value="ready">Ready to test</option>
-          <option value="not_ready">Not ready</option>
-        </select>
-      </label>
-
-      <div className="text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-lg p-2.5">
+      <div className="text-xs text-gray-600">
         {s.threshold ? (
-          <div className="flex flex-wrap gap-x-4 gap-y-0.5">
-            <span>Classes since last promotion: <b className="tabular-nums">{s.classesSince}</b> / {s.threshold.classes}</span>
-            <span>Months at rank: <b className="tabular-nums">{s.monthsSince ?? "?"}</b> / {s.threshold.months}</span>
-          </div>
+          <span>Classes since last promotion: <b className="tabular-nums">{s.classesSince}</b> / {s.threshold.classes} · months at rank <b className="tabular-nums">{s.monthsSince ?? "?"}</b> / {s.threshold.months}</span>
         ) : <span>Pre-Black and Dan ranks are by invitation (no auto threshold).</span>}
-        <div className="text-[11px] text-gray-400 mt-1">Attendance is from kiosk check-ins and may be approximate. Use the readiness override to decide.</div>
       </div>
 
-      {s.history.length > 0 && (
+      <button onClick={() => setEditOpen(true)} className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#1a2d5a] border border-[#1a2d5a]/30 hover:bg-[#1a2d5a]/5 rounded-lg px-2.5 py-1.5">
+        <SlidersHorizontal className="w-3.5 h-3.5" /> Edit belt &amp; testing
+      </button>
+
+      {editOpen && <BeltEditModal membershipId={membershipId} status={s} onClose={() => setEditOpen(false)} />}
+    </div>
+  );
+}
+
+/** Belt & testing editor popup: set rank (dropdown or up/down), set testing readiness
+ *  (dropdown override vs auto), and read the promotion history. Opened from the Belt &
+ *  testing section so the panel stays a summary and the controls live in one place. */
+function BeltEditModal({ membershipId, status: s, onClose }: {
+  membershipId: number;
+  status: { studentId: number; currentRank: string; prevRank: string | null; nextRank: string | null; ready: boolean; manualReadiness: string | null; threshold: { classes: number; months: number } | null; classesSince: number; monthsSince: number | null; history: Array<{ id: number; direction: string; fromRank: string | null; toRank: string; promotedBy: string | null; createdAt: string | Date }> };
+  onClose: () => void;
+}) {
+  const utils = trpc.useUtils();
+  const refresh = () => utils.members.beltForMember.invalidate({ id: membershipId });
+  const opts = { onSuccess: () => refresh(), onError: (e: { message?: string }) => toast.error(e.message ?? "Failed.") };
+  const promote = trpc.students.promoteBelt.useMutation({ ...opts, onSuccess: () => { toast.success("Promoted."); refresh(); } });
+  const demote = trpc.students.demoteBelt.useMutation({ ...opts, onSuccess: () => { toast.success("Rank adjusted."); refresh(); } });
+  const setBelt = trpc.students.setBelt.useMutation({ ...opts, onSuccess: () => { toast.success("Rank set."); refresh(); } });
+  const setReadiness = trpc.students.setReadiness.useMutation({ ...opts, onSuccess: () => { toast.success("Readiness updated."); refresh(); } });
+  const readinessVal = s.manualReadiness ?? "auto";
+  const sel = "border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a2d5a]/20 focus:border-[#1a2d5a]/40";
+  return (
+    <Overlay onClose={onClose} title="Belt & testing" wide>
+      <div className="space-y-4">
         <div>
-          <div className="text-[11px] uppercase tracking-wide text-gray-400 mb-1">Promotion history</div>
-          <div className="space-y-1 max-h-40 overflow-y-auto">
-            {s.history.map(h => (
-              <div key={h.id} className="text-xs text-gray-600 flex items-center gap-2">
-                <span className="tabular-nums text-gray-400 shrink-0">{String(h.createdAt).slice(0, 10)}</span>
-                <span className="capitalize text-gray-400">{h.direction}</span>
-                <span>{h.fromRank ? `${h.fromRank} → ` : ""}{h.toRank}</span>
-                {h.promotedBy ? <span className="ml-auto text-[10px] text-gray-400 truncate">{h.promotedBy}</span> : null}
-              </div>
-            ))}
+          <div className="text-xs font-semibold text-gray-600 mb-1.5">Belt rank</div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button onClick={() => demote.mutate({ studentId: s.studentId })} disabled={!s.prevRank || demote.isPending} title="Down one rank" className="inline-flex items-center gap-1 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg px-2 py-1.5 disabled:opacity-40"><ArrowDown className="w-3.5 h-3.5" /> Down</button>
+            <select value={s.currentRank} onChange={e => setBelt.mutate({ studentId: s.studentId, toRank: e.target.value })} className={sel}>
+              {BELT_SEQUENCE.map(b => <option key={b} value={b}>{b}</option>)}
+            </select>
+            <button onClick={() => promote.mutate({ studentId: s.studentId })} disabled={!s.nextRank || promote.isPending} title="Up one rank" className="inline-flex items-center gap-1 text-xs font-semibold text-[#1a2d5a] border border-[#1a2d5a]/30 hover:bg-[#1a2d5a]/5 rounded-lg px-2 py-1.5 disabled:opacity-40"><ArrowUp className="w-3.5 h-3.5" /> Up</button>
           </div>
         </div>
-      )}
-    </div>
+
+        <div>
+          <div className="text-xs font-semibold text-gray-600 mb-1.5">Testing readiness</div>
+          <select value={readinessVal} onChange={e => setReadiness.mutate({ studentId: s.studentId, value: e.target.value as "ready" | "not_ready" | "auto" })} className={sel}>
+            <option value="auto">Auto (from attendance)</option>
+            <option value="ready">Ready to test</option>
+            <option value="not_ready">Not ready</option>
+          </select>
+        </div>
+
+        <div className="text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-lg p-2.5">
+          {s.threshold ? (
+            <div className="flex flex-wrap gap-x-4 gap-y-0.5">
+              <span>Classes since last promotion: <b className="tabular-nums">{s.classesSince}</b> / {s.threshold.classes}</span>
+              <span>Months at rank: <b className="tabular-nums">{s.monthsSince ?? "?"}</b> / {s.threshold.months}</span>
+            </div>
+          ) : <span>Pre-Black and Dan ranks are by invitation (no auto threshold).</span>}
+          <div className="text-[11px] text-gray-400 mt-1">Attendance is from kiosk check-ins and may be approximate. Use the readiness override to decide.</div>
+        </div>
+
+        {s.history.length > 0 && (
+          <div>
+            <div className="text-[11px] uppercase tracking-wide text-gray-400 mb-1">Promotion history</div>
+            <div className="space-y-1 max-h-40 overflow-y-auto">
+              {s.history.map(h => (
+                <div key={h.id} className="text-xs text-gray-600 flex items-center gap-2">
+                  <span className="tabular-nums text-gray-400 shrink-0">{String(h.createdAt).slice(0, 10)}</span>
+                  <span className="capitalize text-gray-400">{h.direction}</span>
+                  <span>{h.fromRank ? `${h.fromRank} → ` : ""}{h.toRank}</span>
+                  {h.promotedBy ? <span className="ml-auto text-[10px] text-gray-400 truncate">{h.promotedBy}</span> : null}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </Overlay>
   );
 }
 
@@ -519,33 +581,49 @@ function AttachWaiverModal({ membershipId, waiverData, onClose, onDone }: {
     const note = window.prompt("Optional note (e.g. 'paper waiver in file cabinet'):") ?? undefined;
     attest.mutate({ id: membershipId, kind, note: note || undefined });
   };
-  const kinds = ([
+  // Both forms are always selectable from the dropdown, even one the system marks
+  // "na" for this member (e.g. a martial-arts waiver on an after-school-only kid who
+  // also trains) — staff decide what a family needs, not the auto-match.
+  const ALL_KINDS = [
     { key: "martial_arts" as const, label: "Martial Arts agreement (TKD / Kickboxing / BJJ)", status: waiverData.martialArts.status },
     { key: "afterschool" as const, label: "After-School waiver", status: waiverData.afterschool.status },
-  ]).filter(k => k.status !== "na");
+  ];
+  const firstNeeded = ALL_KINDS.find(k => k.status !== "na") ?? ALL_KINDS[0];
+  const [selectedKind, setSelectedKind] = useState<"martial_arts" | "afterschool">(firstNeeded.key);
+  const active = ALL_KINDS.find(k => k.key === selectedKind)!;
+  const statusLabel = (s: string) => s === "na" ? "not usually required" : s.replace("_", " ");
   return (
     <Overlay onClose={onClose} title="Add / attach a waiver" wide>
       <div className="space-y-3">
-        <p className="text-xs text-gray-500">Send the signing link to the parent, open it on the front-desk iPad to sign now, or attest that a signed paper waiver is already on file. A student may need more than one.</p>
-        {kinds.map(k => (
-          <div key={k.key} className="border border-gray-200 rounded-lg p-3">
-            <div className="text-sm font-semibold text-gray-800 mb-2">{k.label} <span className="text-xs font-normal text-gray-400">({k.status.replace("_", " ")})</span></div>
-            <div className="flex flex-wrap gap-2">
-              <button onClick={() => textParent(k.key)} className="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-[#1a2d5a] hover:bg-[#142347] rounded px-2.5 py-1.5">
-                <MessageSquare className="w-3.5 h-3.5" /> Text to parent
-              </button>
-              <button onClick={() => copyLink(k.key)} disabled={busy === `${k.key}-copy`} className="inline-flex items-center gap-1.5 text-xs font-medium text-[#1a2d5a] border border-[#1a2d5a]/30 hover:bg-[#1a2d5a]/5 rounded px-2.5 py-1.5 disabled:opacity-50">
-                {busy === `${k.key}-copy` ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Copy className="w-3.5 h-3.5" />} Copy signing link
-              </button>
-              <button onClick={() => openLink(k.key)} className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-700 border border-gray-200 hover:border-[#1a2d5a]/40 rounded px-2.5 py-1.5">
-                <ExternalLink className="w-3.5 h-3.5" /> Open on this device
-              </button>
-              <button onClick={() => doAttest(k.key)} disabled={attest.isPending} className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-600 border border-gray-200 hover:border-gray-300 rounded px-2.5 py-1.5 disabled:opacity-50">
-                <ShieldCheck className="w-3.5 h-3.5" /> Attest on file (paper)
-              </button>
-            </div>
+        <p className="text-xs text-gray-500">Pick which form to append, then send the signing link to the parent, open it on the front-desk iPad to sign now, or attest that a signed paper waiver is already on file. A student may need more than one, so attach one, then reopen this to add another.</p>
+
+        <label className="block">
+          <span className="text-xs font-semibold text-gray-600">Which form?</span>
+          <select value={selectedKind} onChange={e => setSelectedKind(e.target.value as "martial_arts" | "afterschool")}
+            className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a2d5a]/20 focus:border-[#1a2d5a]/40">
+            {ALL_KINDS.map(k => (
+              <option key={k.key} value={k.key}>{k.label} — {statusLabel(k.status)}</option>
+            ))}
+          </select>
+        </label>
+
+        <div className="border border-gray-200 rounded-lg p-3">
+          <div className="text-sm font-semibold text-gray-800 mb-2">{active.label} <span className="text-xs font-normal text-gray-400">({statusLabel(active.status)})</span></div>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={() => textParent(active.key)} className="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-[#1a2d5a] hover:bg-[#142347] rounded px-2.5 py-1.5">
+              <MessageSquare className="w-3.5 h-3.5" /> Text to parent
+            </button>
+            <button onClick={() => copyLink(active.key)} disabled={busy === `${active.key}-copy`} className="inline-flex items-center gap-1.5 text-xs font-medium text-[#1a2d5a] border border-[#1a2d5a]/30 hover:bg-[#1a2d5a]/5 rounded px-2.5 py-1.5 disabled:opacity-50">
+              {busy === `${active.key}-copy` ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Copy className="w-3.5 h-3.5" />} Copy signing link
+            </button>
+            <button onClick={() => openLink(active.key)} className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-700 border border-gray-200 hover:border-[#1a2d5a]/40 rounded px-2.5 py-1.5">
+              <ExternalLink className="w-3.5 h-3.5" /> Open on this device
+            </button>
+            <button onClick={() => doAttest(active.key)} disabled={attest.isPending} className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-600 border border-gray-200 hover:border-gray-300 rounded px-2.5 py-1.5 disabled:opacity-50">
+              <ShieldCheck className="w-3.5 h-3.5" /> Attest on file (paper)
+            </button>
           </div>
-        ))}
+        </div>
       </div>
     </Overlay>
   );
@@ -591,6 +669,32 @@ function PanelSection({ title, defaultOpen = true, children }: { title: string; 
         <span className="truncate">{title}</span>{open ? <ChevronDown className="w-4 h-4 shrink-0" /> : <ChevronRight className="w-4 h-4 shrink-0" />}
       </button>
       {open && <div className="p-3">{children}</div>}
+    </div>
+  );
+}
+
+/** One action row inside the "Manage plan" popup: an icon + title + description on
+ *  the left and a single action button on the right. Keeps pause / cancel / cancel-now
+ *  behind one entry point instead of three loose buttons on the Overview. */
+function ManageRow({ icon, title, desc, btn, tone, pending, onClick }: {
+  icon: React.ReactNode; title: string; desc: string; btn: string;
+  tone: "primary" | "amber" | "danger" | "default"; pending?: boolean; onClick: () => void;
+}) {
+  const toneCls = tone === "primary" ? "text-white bg-[#1a2d5a] hover:bg-[#142347] border-[#1a2d5a]"
+    : tone === "amber" ? "text-amber-800 border-amber-300 hover:bg-amber-50"
+    : tone === "danger" ? "text-red-600 border-red-200 hover:bg-red-50"
+    : "text-gray-700 border-gray-200 hover:border-[#1a2d5a]/40";
+  return (
+    <div className="flex items-start gap-3 border border-gray-200 rounded-lg p-3">
+      <div className="mt-0.5 shrink-0">{icon}</div>
+      <div className="min-w-0 flex-1">
+        <div className="text-sm font-medium text-gray-900">{title}</div>
+        <div className="text-xs text-gray-500">{desc}</div>
+      </div>
+      <button onClick={onClick} disabled={pending}
+        className={`shrink-0 inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg border px-2.5 py-1.5 disabled:opacity-50 ${toneCls}`}>
+        {pending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}{btn}
+      </button>
     </div>
   );
 }
