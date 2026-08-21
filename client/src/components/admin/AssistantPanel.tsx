@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
 import { Loader2, Send, Sparkles, X, Search as SearchIcon, ShieldCheck, UserSquare, Check, Ban, ExternalLink, CreditCard } from "lucide-react";
 import { useMemberDock } from "@/components/admin/MemberDock";
+import { VoiceBar } from "@/components/admin/VoiceAssistant";
 
 /**
  * AI assistant panel. Right-side drawer in the admin. Talks to
@@ -33,6 +34,7 @@ export default function AssistantPanel({ open, onClose }: { open: boolean; onClo
   const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const dock = useMemberDock();
+  const utils = trpc.useUtils();
   const openedRef = useRef<Set<string>>(new Set());
   const { messages, sendMessage, status, error } = useChat({
     transport: new DefaultChatTransport({ api: "/api/admin/assistant" }),
@@ -78,6 +80,9 @@ export default function AssistantPanel({ open, onClose }: { open: boolean; onClo
         </div>
         <button onClick={onClose} className="text-gray-400 hover:text-gray-700"><X className="w-4 h-4" /></button>
       </div>
+
+      {/* Voice (English + Korean). Proposals still land as Approve cards below. */}
+      <VoiceBar onToolRun={() => utils.actions.listPending.invalidate()} />
 
       {/* Messages */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4">

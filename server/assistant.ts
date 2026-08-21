@@ -13,7 +13,7 @@
 import type { Request, Response } from "express";
 import Stripe from "stripe";
 import { z } from "zod";
-import { streamText, tool, stepCountIs, convertToModelMessages, type UIMessage } from "ai";
+import { streamText, generateText, tool, stepCountIs, convertToModelMessages, type UIMessage } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 import { ENV } from "./_core/env";
 import { adminEmailFromRequest } from "./admin-auth";
@@ -419,6 +419,21 @@ Rules:
 - Money: only report amounts the tools returned. Never mention card numbers (you never receive them).
 - Be concise and human. When money or a specific record is involved, still show the actual number/name you used so staff can double-check, but weave it into a normal sentence instead of dumping a table.
 - Today's date context comes from the tools; if you need "this year", use Jan 1 to Dec 31 of the current year and say which range you used.`;
+
+/** Run the assistant ONCE, non-streaming, and return its final text. Used by the
+ *  voice agent's single `run_assistant` tool: same model, same 26 tools, same safety
+ *  (a change still becomes an Approve card via the confirm-flow — voice never executes
+ *  a write directly). The voice layer just speaks whatever text this returns. */
+export async function runAssistantText(userText: string, origin: string): Promise<string> {
+  const result = await generateText({
+    model: assistantOpenAI(ENV.assistantModel),
+    system: SYSTEM_PROMPT,
+    messages: [{ role: "user", content: userText }],
+    tools: buildTools({ origin }),
+    stopWhen: stepCountIs(6),
+  });
+  return (result.text || "").trim() || "Done.";
+}
 
 // ─── Endpoint ────────────────────────────────────────────────────────────────
 export async function handleAssistant(req: Request, res: Response): Promise<void> {

@@ -74,4 +74,8 @@ export const ENV = {
   // Override with OPENAI_ASSISTANT_MODEL in Secrets to the exact model id your
   // OpenAI account exposes if "gpt-5" does not resolve.
   assistantModel: process.env.OPENAI_ASSISTANT_MODEL ?? "gpt-5",
+  // Voice (OpenAI Realtime, speech-to-speech, English + Korean). Override the model
+  // to the exact realtime id your account exposes if the default doesn't resolve.
+  realtimeModel: process.env.OPENAI_REALTIME_MODEL ?? "gpt-4o-realtime-preview",
+  realtimeVoice: process.env.OPENAI_REALTIME_VOICE ?? "alloy",
 };

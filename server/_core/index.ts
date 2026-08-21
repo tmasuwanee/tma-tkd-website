@@ -14,6 +14,7 @@ import { serveStatic, setupVite } from "./vite";
 import { handleResendWebhook } from "../resend-webhook";
 import { handleStripeWebhook } from "../stripe-webhook";
 import { handleAssistant } from "../assistant";
+import { handleVoiceSession, handleVoiceRun } from "../voice-assistant";
 import { chargeDueMemberships } from "../membership-billing";
 import { topUpAllChargeRunways } from "../membership-ops";
 import { handleMorningReport } from "../morning-report";
@@ -108,6 +109,10 @@ async function startServer() {
   // admin session inside the handler. Uses the global express.json body parser
   // (registered above), so it must be after it. See docs/AI_ASSISTANT_SPEC.md.
   app.post("/api/admin/assistant", handleAssistant);
+  // Voice assistant (OpenAI Realtime): mint an ephemeral session token, and run the
+  // text assistant for the voice agent's single tool. Both admin-gated.
+  app.post("/api/admin/voice/session", handleVoiceSession);
+  app.post("/api/admin/voice/run", handleVoiceRun);
 
   // Membership tuition daily job. Two steps: (1) top up every membership's forward
   // charge schedule so tuition never silently lapses when the generated months run
