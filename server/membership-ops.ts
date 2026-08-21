@@ -106,7 +106,7 @@ export async function createMembership(input: {
   discountCents?: number; discountNote?: string | null; startDate?: string | null;
   paidThroughDate?: string | null;
   termMonths?: number | null; billingDay?: number | null; contractNote?: string | null;
-  afterschoolRegId?: number | null;
+  afterschoolRegId?: number | null; stripeSubscriptionId?: string | null;
 }): Promise<{ id: number }> {
   const id = await insertMembership({ ...input, status: "active" });
   await generateCharges(id, input.termMonths ?? 12);

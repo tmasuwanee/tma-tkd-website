@@ -1064,7 +1064,10 @@ export const appRouter = router({
 
     // Admin: get all students
     getAll: publicProcedure.query(async () => {
-      return getAllStudents();
+      // This path is PUBLIC (the check-in kiosk reads it), so never expose the
+      // student profile photo here — child photos must not be enumerable by an
+      // unauthenticated caller. The admin photo UI reads members.photo instead.
+      return (await getAllStudents()).map(({ photoUrl, ...s }) => s);
     }),
 
     // Admin: search students
@@ -2163,6 +2166,11 @@ export const appRouter = router({
           const { id } = await createMembership({
             studentName: reg.childName, parentName: reg.parentName, email: reg.email, phone: reg.phone,
             program: "afterschool", planLabel, monthlyAmountCents: monthly, afterschoolRegId: reg.id,
+            // If this signup is already billed by a Stripe SUBSCRIPTION, link it so the
+            // ledger charge sweeper skips it — never bill the same family twice (their
+            // subscription keeps charging via Stripe; this membership is for the profile,
+            // waivers, and belts only).
+            stripeSubscriptionId: reg.stripeSubscriptionId || undefined,
           });
           return { membershipId: id, existed: false };
         } catch (e) {
@@ -2444,11 +2452,15 @@ export const appRouter = router({
         const contentType = match[1].toLowerCase();
         const ext = contentType.includes("png") ? "png" : contentType.includes("webp") ? "webp" : "jpg";
         const buf = Buffer.from(match[3], "base64");
+        if (buf.length < 64) throw new Error("That image looks empty. Try again.");
         if (buf.length > 8_000_000) throw new Error("Photo is too large (max ~8MB). Try again.");
-        const stamp = String(input.id);
-        const { url } = await storagePut(`students/${studentId}/photo-${stamp}.${ext}`, buf, contentType);
-        await setStudentPhoto(studentId, url);
-        return { url };
+        // Stable per-STUDENT key (not per membership) so a re-upload overwrites in
+        // place instead of leaving orphaned files, and two memberships for one student
+        // don't create two photos. Cache-bust the saved URL so the <img> refreshes.
+        const { url } = await storagePut(`students/${studentId}/profile.${ext}`, buf, contentType);
+        const bustedUrl = `${url}${url.includes("?") ? "&" : "?"}v=${Date.now()}`;
+        await setStudentPhoto(studentId, bustedUrl);
+        return { url: bustedUrl };
       }),
   }),
 

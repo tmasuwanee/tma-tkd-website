@@ -51,6 +51,9 @@ export async function chargeDueMemberships(): Promise<{ charged: number; failed:
   const cutoff = today();
 
   for (const m of await listMemberships("active")) {
+    // Billed by a Stripe Subscription (e.g. afterschool signups): Stripe charges them
+    // directly, so the ledger sweeper must NOT also charge — never double-bill a family.
+    if (m.stripeSubscriptionId) continue;
     // Honor a scheduled cancellation: once the 60-day-notice date has passed, this
     // membership's remaining charges must never fire (status stays "active" until
     // then, so the charge job is the only thing enforcing the effective date).
@@ -82,10 +85,18 @@ export async function chargeDueMemberships(): Promise<{ charged: number; failed:
       const paidAtNow = () => new Date().toISOString().slice(0, 19).replace("T", " ");
       const recordPaid = async (piId: string) => {
         const paidAt = paidAtNow();
+        // Ledger FIRST (idempotent on the PaymentIntent id via uniq_mempay_pi). If the
+        // subsequent "mark paid" write fails, the row stays unresolved and the next run
+        // reconciles the PI back to paid — self-healing, and the ledger never loses a
+        // real payment. A replay just no-ops on the unique index.
+        await insertMembershipPayment({ membershipId: m.id, studentName: m.studentName, amountCents: c.amountCents, paidAt, method: "stripe", source: "autocharge", stripePaymentIntentId: piId, note: `Tuition ${c.periodMonth}` });
         await updateMembershipCharge(c.id, { status: "paid", stripeInvoiceId: piId, stripePaymentIntentId: piId, paidAt });
-        // Mirror into the immutable ledger. Idempotent on the PaymentIntent id
-        // (uniq_mempay_pi), so a replay/reconcile never double-records.
-        await insertMembershipPayment({ membershipId: m.id, studentName: m.studentName, amountCents: c.amountCents, paidAt, method: "stripe", source: "autocharge", stripePaymentIntentId: piId, note: `Tuition ${c.periodMonth}` }).catch(() => {});
+      };
+      const markNeedsAction = async (piId: string) => {
+        // Off-session 3DS: the card needs the customer to authenticate, which cannot
+        // happen unattended. Flag it for manual follow-up instead of retrying forever.
+        await updateMembershipCharge(c.id, { status: "past_due", note: "requires customer authentication (3DS) — contact family", attemptCount: MAX_CHARGE_ATTEMPTS, stripePaymentIntentId: piId });
+        void sendTelegramMessage(`⚠️ <b>Tuition charge needs customer action (3DS)</b>\n${m.studentName} · ${c.periodMonth} · $${(c.amountCents / 100).toFixed(2)}\nTheir card requires authentication; reach out to update it.`).catch(() => {});
       };
 
       // RECONCILE FIRST: if a PaymentIntent was already started for this charge,
@@ -96,7 +107,8 @@ export async function chargeDueMemberships(): Promise<{ charged: number; failed:
         try {
           const prev = await s.paymentIntents.retrieve(c.stripePaymentIntentId);
           if (prev.status === "succeeded") { await recordPaid(prev.id); summary.charged++; continue; }
-          if (prev.status === "processing" || prev.status === "requires_action") continue; // still settling; a later run finalizes it
+          if (prev.status === "processing") continue; // genuinely settling; a later run finalizes it
+          if (prev.status === "requires_action") { await markNeedsAction(prev.id); continue; } // needs the customer; don't loop
           // requires_payment_method / canceled = the prior attempt is dead; fall through to a fresh attempt.
         } catch { /* couldn't retrieve; the attempt-scoped idempotency key still guards the retry below */ }
       }
@@ -121,12 +133,27 @@ export async function chargeDueMemberships(): Promise<{ charged: number; failed:
         });
       } catch (e) {
         summary.failed++;
+        const err = e as { type?: string; code?: string; raw?: { type?: string; payment_intent?: { id?: string } }; payment_intent?: { id?: string }; message?: string };
+        // A card DECLINE (StripeCardError) is a definite non-charge: safe to advance
+        // the attempt so the next run genuinely re-tries with a fresh key. ANY OTHER
+        // error (network drop, timeout, Stripe API error) is an UNKNOWN outcome — the
+        // card MAY have been charged — so we must NOT advance the attempt or change the
+        // key; leaving the row unchanged makes the next run replay the SAME idempotency
+        // key and Stripe returns the original result (charged or not). This is the
+        // guard against a lost-response becoming a second charge.
+        const isDecline = err?.type === "StripeCardError" || err?.raw?.type === "card_error";
+        const declinedPiId = err?.raw?.payment_intent?.id ?? err?.payment_intent?.id ?? null;
+        if (!isDecline) {
+          await updateMembershipCharge(c.id, { note: `charge unconfirmed, will re-resolve: ${err.message ?? "error"}`.slice(0, 240) });
+          void sendTelegramMessage(`⚠️ <b>Tuition charge could not be confirmed</b>\n${m.studentName} · ${c.periodMonth} · $${(c.amountCents / 100).toFixed(2)}\nA network/API error hid the result. The next run re-resolves it safely (no double charge).\n${err.message ?? ""}`).catch(() => {});
+          continue;
+        }
         const nextAttempt = attempts + 1;
-        await updateMembershipCharge(c.id, { status: "past_due", note: `charge failed (attempt ${nextAttempt}): ${(e as Error).message}`.slice(0, 240), attemptCount: nextAttempt });
+        await updateMembershipCharge(c.id, { status: "past_due", note: `declined (attempt ${nextAttempt}): ${err.message ?? "card_error"}`.slice(0, 240), attemptCount: nextAttempt, ...(declinedPiId ? { stripePaymentIntentId: declinedPiId } : {}) });
         void sendTelegramMessage(
           nextAttempt >= MAX_CHARGE_ATTEMPTS
-            ? `⚠️ <b>Tuition charge failed — retries exhausted</b>\n${m.studentName} · ${c.periodMonth} · $${(c.amountCents / 100).toFixed(2)}\nAttempt ${nextAttempt}/${MAX_CHARGE_ATTEMPTS}. Manual follow-up needed.\n${(e as Error).message}`
-            : `⚠️ <b>Tuition charge failed</b>\n${m.studentName} · ${c.periodMonth} · $${(c.amountCents / 100).toFixed(2)}\nAttempt ${nextAttempt}/${MAX_CHARGE_ATTEMPTS}, will retry.\n${(e as Error).message}`
+            ? `⚠️ <b>Tuition charge declined — retries exhausted</b>\n${m.studentName} · ${c.periodMonth} · $${(c.amountCents / 100).toFixed(2)}\nAttempt ${nextAttempt}/${MAX_CHARGE_ATTEMPTS}. Manual follow-up needed.\n${err.message ?? ""}`
+            : `⚠️ <b>Tuition charge declined</b>\n${m.studentName} · ${c.periodMonth} · $${(c.amountCents / 100).toFixed(2)}\nAttempt ${nextAttempt}/${MAX_CHARGE_ATTEMPTS}, will retry.\n${err.message ?? ""}`
         ).catch(() => {});
         continue;
       }
@@ -137,11 +164,12 @@ export async function chargeDueMemberships(): Promise<{ charged: number; failed:
       // than creating a second charge.
       try {
         if (pi.status === "succeeded") { await recordPaid(pi.id); summary.charged++; }
-        else if (pi.status === "processing" || pi.status === "requires_action") {
-          // Async settle: store the id so a later run reconciles it. Not past_due
-          // (money may still land) and no attempt bump.
-          await updateMembershipCharge(c.id, { note: `pending: ${pi.status}`, stripePaymentIntentId: pi.id });
-        } else {
+        else if (pi.status === "processing") {
+          // Genuinely async settle: store the id so a later run reconciles it. Not
+          // past_due (money may still land) and no attempt bump.
+          await updateMembershipCharge(c.id, { note: "pending: processing", stripePaymentIntentId: pi.id });
+        } else if (pi.status === "requires_action") { summary.failed++; await markNeedsAction(pi.id); }
+        else {
           summary.failed++;
           const nextAttempt = attempts + 1;
           await updateMembershipCharge(c.id, { status: "past_due", note: `declined: ${pi.status} (attempt ${nextAttempt})`, attemptCount: nextAttempt, stripePaymentIntentId: pi.id });
