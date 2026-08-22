@@ -9,9 +9,9 @@
  *   3. Editor + live preview (right, fills remaining space)
  *
  * Editor modes:
- *   - SIMPLE — structured form (header, greeting, paragraphs, callout, CTA, footer note).
+ *   - SIMPLE, structured form (header, greeting, paragraphs, callout, CTA, footer note).
  *              On save, regenerates branded HTML from those fields. Non-technical friendly.
- *   - ADVANCED — raw HTML textarea + subject input. Power-user mode.
+ *   - ADVANCED, raw HTML textarea + subject input. Power-user mode.
  *
  * Each touch can be edited in either mode. Switching to Simple Mode for the first
  * time presents empty fields with a warning that saving will replace the existing HTML.
@@ -40,7 +40,7 @@ import {
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 
-// ─── Sequence presets (UI labels only — actual data lives in DB) ────────────
+// ─── Sequence presets (UI labels only, actual data lives in DB) ────────────
 
 type SequencePreset = {
   key: string;
@@ -247,14 +247,14 @@ function parseHtmlToSimple(html: string): SimpleFields | null {
   const calloutBodyMatch = html.match(/<div style="font-size:18px;color:#1f2937;font-weight:600;margin-top:6px;line-height:1\.4">([\s\S]*?)<\/div>/);
   if (calloutBodyMatch) f.calloutBody = decodeHtml(calloutBodyMatch[1].replace(/<br\s*\/?>/g, ", ").trim());
 
-  // CTA — look for the red button anchor
+  // CTA, look for the red button anchor
   const ctaMatch = html.match(/<a href="([^"]+)"[^>]*background:#c41e3a[^>]*>([\s\S]*?)<\/a>/);
   if (ctaMatch) {
     f.ctaUrl = decodeAttr(ctaMatch[1]);
     f.ctaLabel = decodeHtml(ctaMatch[2].trim());
   }
 
-  // footer note — the gray paragraph after the CTA but before the navy footer
+  // footer note, the gray paragraph after the CTA but before the navy footer
   const footerNoteMatch = html.match(/<p style="margin:0;color:#64748b">([\s\S]*?)<\/p>/);
   if (footerNoteMatch) f.footerNote = decodeHtml(footerNoteMatch[1].replace(/<[^>]+>/g, "").trim());
 
@@ -648,7 +648,7 @@ export default function SequencesEditor() {
                   <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={() => setShowHistory(false)}>
                     <Card className="w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
                       <div className="bg-[#1a2d5a] text-white px-5 py-3 flex items-center justify-between flex-shrink-0">
-                        <p className="font-semibold flex items-center gap-2"><History className="w-4 h-4" /> Version History — {selectedTouch.displayName || selectedTouch.touchKey}</p>
+                        <p className="font-semibold flex items-center gap-2"><History className="w-4 h-4" /> Version History, {selectedTouch.displayName || selectedTouch.touchKey}</p>
                         <button onClick={() => setShowHistory(false)} className="text-white/70 hover:text-white">✕</button>
                       </div>
                       <div className="overflow-y-auto p-4 space-y-2">
@@ -708,7 +708,7 @@ export default function SequencesEditor() {
                     </div>
                   </div>
 
-                  {/* SIMPLE MODE — structured form */}
+                  {/* SIMPLE MODE, structured form */}
                   {mode === "simple" && (
                     <>
                       <div className="border-t border-gray-100 pt-4">
@@ -808,7 +808,7 @@ export default function SequencesEditor() {
                     </>
                   )}
 
-                  {/* ADVANCED MODE — raw HTML */}
+                  {/* ADVANCED MODE, raw HTML */}
                   {mode === "advanced" && (
                     <div className="border-t border-gray-100 pt-4">
                       <div className="flex items-center gap-2 mb-3">

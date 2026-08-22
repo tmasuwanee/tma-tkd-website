@@ -4,7 +4,7 @@ import { CampRegistrationsTab } from "@/pages/AdminRegistrations";
 import DayCampView from "@/components/admin/DayCampView";
 
 /**
- * Camps — one home for every camp program. Seasonal camp registrations (summer /
+ * Camps, one home for every camp program. Seasonal camp registrations (summer /
  * spring break) and day camps ($60/day, school-out mornings) used to be two
  * separate nav items; they live here under sub-tabs, with quick links to the
  * public signup page and the printable office sheet.

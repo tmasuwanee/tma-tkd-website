@@ -568,7 +568,7 @@ export function LeadDetailDialog({ lead, open, onClose, onRefresh }: {
             <button
               onClick={() => { updateStage.mutate({ id: lead.id, stage: "lost" as StageValue }); onClose(); }}
               className="w-full inline-flex items-center justify-center gap-1.5 text-sm font-medium text-red-600 border border-red-200 hover:bg-red-50 rounded-lg py-2">
-              <Ban className="w-4 h-4" /> Not interested — remove from calls + pipeline
+              <Ban className="w-4 h-4" /> Not interested. Remove from calls + pipeline
             </button>
           )}
 

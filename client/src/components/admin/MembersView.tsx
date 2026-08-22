@@ -12,7 +12,7 @@ import LegacyPaymentImport from "@/components/admin/LegacyPaymentImport";
 import { UsersRound, Receipt } from "lucide-react";
 
 /**
- * Members — the unified People→Members screen. One row per person, unioned from
+ * Members, the unified People→Members screen. One row per person, unioned from
  * memberships + afterschool registrations by server/members.ts. Click a row to open
  * the command-center popup (the membership detail). Afterschool-only members show a
  * "Set up billing" action that promotes them to a real membership first.
@@ -60,7 +60,7 @@ export default function MembersView() {
     const params = new URLSearchParams(window.location.search);
     const openId = params.get("open");
     if (openId && /^\d+$/.test(openId)) dock.open(Number(openId));
-    if (params.get("autopay") === "ok") toast.success("Autopay set up — card is on file.");
+    if (params.get("autopay") === "ok") toast.success("Autopay set up. Card is on file.");
     if (openId || params.get("autopay")) {
       params.delete("open"); params.delete("autopay");
       const qs = params.toString();
@@ -76,7 +76,7 @@ export default function MembersView() {
   const linkFamilies = async () => {
     try {
       const preview = await bulkPayers.mutateAsync({ dryRun: true });
-      if (preview.linked === 0) { toast.info("No unlinked members to group — everyone already has a family payer."); return; }
+      if (preview.linked === 0) { toast.info("No unlinked members to group. Everyone already has a family payer."); return; }
       const noContactNote = preview.noContact.length ? `\n${preview.noContact.length} member(s) have no email/phone and will be skipped.` : "";
       if (!window.confirm(`Link ${preview.linked} member(s) into ${preview.families} family payer(s) (${preview.payersCreated} new)?${noContactNote}\n\nSiblings sharing an email or phone get one shared payer/card.`)) return;
       const r = await bulkPayers.mutateAsync({ dryRun: false });
@@ -197,7 +197,7 @@ function StatTile({ icon, tone, label, value, sub, onClick }: { icon: React.Reac
       <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${toneMap[tone]}`}>{icon}</div>
       <div className="min-w-0">
         <div className="text-xs text-gray-500 truncate">{label}</div>
-        <div className="text-2xl font-bold text-gray-900 leading-tight tabular-nums">{value ?? "—"}</div>
+        <div className="text-2xl font-bold text-gray-900 leading-tight tabular-nums">{value ?? "-"}</div>
         {sub ? <div className="text-[11px] text-gray-400 truncate">{sub}</div> : null}
       </div>
     </button>
@@ -208,7 +208,7 @@ function BillingCell({ m }: { m: Member }) {
   if (m.billing === "up_to_date") return <span className="inline-flex items-center gap-1.5 text-green-700"><CheckCircle2 className="w-4 h-4" /> Up to date</span>;
   if (m.billing === "past_due") return <span className="inline-flex items-center gap-1.5 text-red-600 font-medium"><AlertTriangle className="w-4 h-4" /> Past due</span>;
   if (m.billing === "setup_needed") return <span className="inline-flex items-center gap-1.5 text-amber-600 font-medium"><AlertTriangle className="w-4 h-4" /> Setup needed</span>;
-  return <span className="text-gray-400">—</span>;
+  return <span className="text-gray-400">-</span>;
 }
 
 function MemberRow({ m, onOpen, setupPending }: { m: Member; onOpen: () => void; setupPending: boolean }) {
@@ -234,14 +234,14 @@ function MemberRow({ m, onOpen, setupPending }: { m: Member; onOpen: () => void;
         </div>
       </td>
       <td className="px-4 py-3">
-        {m.parentName ? <div className="text-gray-800 truncate max-w-[160px]">{m.parentName}</div> : <span className="text-gray-400">—</span>}
+        {m.parentName ? <div className="text-gray-800 truncate max-w-[160px]">{m.parentName}</div> : <span className="text-gray-400">-</span>}
         {m.phone ? <div className="text-xs text-gray-400">{m.phone}</div> : null}
       </td>
       <td className="px-4 py-3"><BillingCell m={m} /></td>
       <td className="px-4 py-3">
         {m.waiver === "on_file" ? <span className="text-green-700 inline-flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" /> On file</span>
           : m.waiver === "missing" ? <span className="text-amber-600 font-medium">Missing</span>
-          : <span className="text-gray-400">—</span>}
+          : <span className="text-gray-400">-</span>}
       </td>
       <td className="px-4 py-3"><span className={`text-[11px] rounded-full border px-2 py-0.5 font-medium capitalize ${STATUS_STYLE[m.status] ?? "bg-gray-100 text-gray-600 border-gray-200"}`}>{m.status}</span></td>
       <td className="px-4 py-3 text-right">

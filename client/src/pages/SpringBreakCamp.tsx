@@ -4,7 +4,7 @@ import { ChevronRight, Clock, MapPin, Star, Zap, Users, Shield, Camera, Backpack
 import { useLocation } from "wouter";
 
 /**
- * Spring Break Camp 2026 - April 6–10
+ * Spring Break Camp 2026 - April 6 to 10
  * Design: Navy primary with Crimson Red accents (matches site theme)
  */
 
@@ -59,7 +59,7 @@ export default function SpringBreakCamp() {
               Spring Break<br />Done Right
             </h1>
             <p className="text-xl text-white/85 mb-8 max-w-xl">
-              One action-packed week of martial arts, 2 field trips, games, and great memories. April 6–10, 2026. Ages 5 and up welcome.
+              One action-packed week of martial arts, 2 field trips, games, and great memories. April 6 to 10, 2026. Ages 5 and up welcome.
             </p>
             <div className="flex flex-wrap gap-4">
               <Button
@@ -71,7 +71,7 @@ export default function SpringBreakCamp() {
               </Button>
               <div className="flex items-center gap-2 text-white/80">
                 <Clock className="w-5 h-5" />
-                <span className="text-sm font-medium">9:00 AM – 4:00 PM</span>
+                <span className="text-sm font-medium">9:00 AM to 4:00 PM</span>
               </div>
             </div>
           </div>
@@ -82,7 +82,7 @@ export default function SpringBreakCamp() {
       <section className="bg-[#c41e3a] text-white py-4">
         <div className="container mx-auto px-4">
           <div className="flex flex-wrap justify-center gap-8 text-sm font-medium">
-            <div className="flex items-center gap-2"><Clock className="w-4 h-4" /> 9:00 AM – 4:00 PM</div>
+            <div className="flex items-center gap-2"><Clock className="w-4 h-4" /> 9:00 AM to 4:00 PM</div>
             <div className="flex items-center gap-2"><Users className="w-4 h-4" /> Ages 5 & Up</div>
             <div className="flex items-center gap-2"><MapPin className="w-4 h-4" /> 2005 Lawrenceville Suwanee Rd</div>
             <div className="flex items-center gap-2"><Camera className="w-4 h-4" /> 2 Field Trips Included</div>
@@ -96,18 +96,18 @@ export default function SpringBreakCamp() {
           <div className="text-center mb-12">
             <h2 className="text-4xl font-bold text-[#1a2d5a] mb-4">What's Included</h2>
             <p className="text-gray-600 max-w-2xl mx-auto text-lg">
-              Five days of non-stop fun, learning, and adventure — all in one week.
+              Five days of non-stop fun, learning, and adventure, all in one week.
             </p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-4xl mx-auto">
             {[
               { icon: Zap, title: "Martial Arts Training", desc: "Daily Taekwondo, BJJ, and kickboxing classes taught by our certified instructors", color: "bg-[#1a2d5a]" },
-              { icon: Camera, title: "2 Field Trips", desc: "Two exciting field trips to local destinations — included in your registration", color: "bg-[#c41e3a]" },
+              { icon: Camera, title: "2 Field Trips", desc: "Two exciting field trips to local destinations, included in your registration", color: "bg-[#c41e3a]" },
               { icon: Star, title: "Games & Activities", desc: "Team games, obstacle courses, and fun challenges that build confidence and teamwork", color: "bg-[#1a2d5a]" },
               { icon: Shield, title: "Safe Environment", desc: "Small group sizes, certified instructors, and a structured daily schedule parents can trust", color: "bg-[#c41e3a]" },
               { icon: Users, title: "New Friends", desc: "A great opportunity to meet other kids and build lasting friendships over a fun week", color: "bg-[#1a2d5a]" },
-              { icon: Backpack, title: "Full Day Care", desc: "9:00 AM to 4:00 PM supervised care — drop off and pick up at your convenience", color: "bg-[#c41e3a]" },
+              { icon: Backpack, title: "Full Day Care", desc: "9:00 AM to 4:00 PM supervised care, drop off and pick up at your convenience", color: "bg-[#c41e3a]" },
             ].map((item, i) => (
               <Card key={i} className="border-0 shadow-md hover:shadow-lg transition-shadow">
                 <CardContent className="pt-6 text-center">
@@ -129,7 +129,7 @@ export default function SpringBreakCamp() {
         <div className="container mx-auto px-4">
           <div className="text-center mb-12">
             <h2 className="text-4xl font-bold text-[#1a2d5a] mb-4">Spring Break Pricing</h2>
-            <p className="text-gray-600 max-w-xl mx-auto">One week, all-inclusive. No early bird — just one straightforward price.</p>
+            <p className="text-gray-600 max-w-xl mx-auto">One week, all-inclusive. No early bird, just one straightforward price.</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto mb-10">
@@ -138,7 +138,7 @@ export default function SpringBreakCamp() {
                 title: "Full Week",
                 price: "$239",
                 per: "per camper",
-                days: "Monday – Friday (5 days)",
+                days: "Monday to Friday (5 days)",
                 highlight: true,
                 badge: "Best Value",
                 includes: "2 field trips included",
@@ -203,7 +203,7 @@ export default function SpringBreakCamp() {
       {/* CTA Section */}
       <section className="py-20 bg-[#1a2d5a]">
         <div className="container mx-auto px-4 text-center">
-          <h2 className="text-4xl font-bold text-white mb-4">Spots Are Limited — Register Today!</h2>
+          <h2 className="text-4xl font-bold text-white mb-4">Spots Are Limited, Register Today!</h2>
           <p className="text-white/80 text-xl mb-8 max-w-xl mx-auto">
             Spring break only comes once. Give your child a week they'll never forget.
           </p>

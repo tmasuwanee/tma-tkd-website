@@ -89,7 +89,7 @@ const NAV: NavGroup[] = [
     { key: "playbook", label: "Front Desk Playbook", icon: BookOpen },
     { key: "links", label: "Links", icon: Link2 },
   ]},
-  // Owner / config tools — collapsed by default so the front desk isn't buried
+  // Owner / config tools, collapsed by default so the front desk isn't buried
   // in settings. (Shared login, so this is decluttering, not access control.)
   { group: "Owner tools", collapsible: true, items: [
     { key: "tasks", label: "My Tasks", icon: CheckSquare },

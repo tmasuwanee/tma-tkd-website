@@ -18,7 +18,7 @@ const WAIVER_TEMPLATES = [
 /**
  * Memberships + Financials. A person does everything here directly (with an inline
  * confirm); the assistant can also propose the same actions via the confirm-flow.
- * The Financials section is the per-month charges ledger — edit/waive/cancel any
+ * The Financials section is the per-month charges ledger, edit/waive/cancel any
  * month. See docs/OPERATIONS_SOPS.md.
  */
 
@@ -56,7 +56,7 @@ export default function MembershipsView() {
     const params = new URLSearchParams(window.location.search);
     const openId = params.get("open");
     if (openId && /^\d+$/.test(openId)) setSelected(Number(openId));
-    if (params.get("autopay") === "ok") toast.success("Autopay set up — card is on file.");
+    if (params.get("autopay") === "ok") toast.success("Autopay set up. Card is on file.");
     if (openId || params.get("autopay")) {
       params.delete("open"); params.delete("autopay");
       const qs = params.toString();
@@ -266,7 +266,7 @@ export function MemberPanelBody({ id, onChanged, onName }: { id: number; onChang
           {waiverNeedsAttention && (
             <button onClick={() => setAttachWaiverOpen(true)}
               className="w-full inline-flex items-center justify-center gap-2 text-sm font-semibold text-amber-900 bg-amber-50 border-2 border-amber-400 rounded-lg px-3 py-2 animate-pulse hover:animate-none hover:bg-amber-100">
-              <AlertTriangle className="w-4 h-4" /> {anyWaiverMissing ? "Waiver missing — add now" : "Waiver match needs review"}
+              <AlertTriangle className="w-4 h-4" /> {anyWaiverMissing ? "Waiver missing, add now" : "Waiver match needs review"}
             </button>
           )}
         </div>
@@ -283,7 +283,7 @@ export function MemberPanelBody({ id, onChanged, onName }: { id: number; onChang
           <span className="text-gray-500">Family payer:</span>
           <select value={m.payerId ?? ""} onChange={e => onPickPayer(e.target.value)} disabled={assignPayer.isPending}
             className="border border-gray-300 rounded-lg px-2 py-1 text-sm">
-            <option value="">— not assigned —</option>
+            <option value="">Not assigned</option>
             {(payers.data ?? []).map(p => <option key={p.id} value={p.id}>{p.name}{p.hasCard ? " (card on file)" : ""}</option>)}
             <option value="__new__">+ New payer...</option>
           </select>
@@ -322,7 +322,7 @@ export function MemberPanelBody({ id, onChanged, onName }: { id: number; onChang
           <div className="py-3 text-center text-gray-400"><Loader2 className="w-4 h-4 animate-spin mx-auto" /></div>
         ) : (
           <div className="space-y-2">
-            {/* Blank templates — read what each waiver says before sending it. */}
+            {/* Blank templates, read what each waiver says before sending it. */}
             <div className="flex flex-wrap items-center gap-1.5">
               <span className="text-[11px] text-gray-400">Templates:</span>
               {WAIVER_TEMPLATES.map(t => (
@@ -352,7 +352,7 @@ export function MemberPanelBody({ id, onChanged, onName }: { id: number; onChang
         <PaymentHistorySection membershipId={id} defaultEmail={m.email} />
       </PanelSection>
 
-      {/* Financials opens a full centered popup — the ledger needs more width than
+      {/* Financials opens a full centered popup, the ledger needs more width than
           the docked panel gives. */}
       <button onClick={() => setFinancialsOpen(true)}
         className="w-full flex items-center justify-between px-3 py-2.5 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg text-sm font-semibold text-[#1a2d5a]">
@@ -380,7 +380,7 @@ export function MemberPanelBody({ id, onChanged, onName }: { id: number; onChang
                     <td className="px-4 py-3 tabular-nums whitespace-nowrap">{ch.periodMonth}</td>
                     <td className={`px-4 py-3 tabular-nums text-right font-semibold whitespace-nowrap ${CHARGE_STYLE[ch.status] ?? ""}`}>{fmt(ch.amountCents)}{ch.amountCents !== ch.baseAmountCents ? <span className="text-[11px] text-gray-400 line-through ml-2 font-normal">{fmt(ch.baseAmountCents)}</span> : null}</td>
                     <td className="px-4 py-3"><span className="text-xs text-gray-600 capitalize">{ch.status}</span></td>
-                    <td className="px-4 py-3 text-xs text-gray-500 max-w-[240px] truncate">{ch.note || "—"}</td>
+                    <td className="px-4 py-3 text-xs text-gray-500 max-w-[240px] truncate">{ch.note || "-"}</td>
                     <td className="px-4 py-3 text-right whitespace-nowrap">
                       <button onClick={() => editCharge(ch.id, ch.amountCents)} className="text-xs font-medium text-[#1a2d5a] hover:underline mr-3">Edit</button>
                       <button onClick={() => adjust.mutate({ chargeId: ch.id, amountCents: 0, status: "waived", note: "Waived" })} className="text-xs font-medium text-amber-700 hover:underline mr-3">Waive</button>
@@ -551,7 +551,7 @@ function ReceiptSendModal({ membershipId, payment, defaultEmail, onClose }: {
           <span className="text-xs font-semibold text-gray-600">Send the receipt to</span>
           <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="parent@email.com"
             className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a2d5a]/20 focus:border-[#1a2d5a]/40" />
-          {!defaultEmail && <span className="text-[11px] text-amber-600">No email on file for this family — enter one to send it.</span>}
+          {!defaultEmail && <span className="text-[11px] text-amber-600">No email on file for this family. Enter one to send it.</span>}
         </label>
         <button onClick={() => { if (!/^\S+@\S+\.\S+$/.test(email)) { toast.error("Enter a valid email."); return; } send.mutate({ paymentId: payment.id, email: email.trim() }); }}
           disabled={send.isPending}
@@ -757,7 +757,7 @@ function AttachWaiverModal({ membershipId, waiverData, onClose, onDone }: {
   });
   // Both forms are always selectable from the dropdown, even one the system marks
   // "na" for this member (e.g. a martial-arts waiver on an after-school-only kid who
-  // also trains) — staff decide what a family needs, not the auto-match.
+  // also trains), staff decide what a family needs, not the auto-match.
   const ALL_KINDS = [
     { key: "martial_arts" as const, label: "Martial Arts agreement (TKD / Kickboxing / BJJ)", status: waiverData.martialArts.status },
     { key: "afterschool" as const, label: "After-School waiver", status: waiverData.afterschool.status },
@@ -776,7 +776,7 @@ function AttachWaiverModal({ membershipId, waiverData, onClose, onDone }: {
           <select value={selectedKind} onChange={e => setSelectedKind(e.target.value as "martial_arts" | "afterschool")}
             className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a2d5a]/20 focus:border-[#1a2d5a]/40">
             {ALL_KINDS.map(k => (
-              <option key={k.key} value={k.key}>{k.label} — {statusLabel(k.status)}</option>
+              <option key={k.key} value={k.key}>{k.label} ({statusLabel(k.status)})</option>
             ))}
           </select>
         </label>

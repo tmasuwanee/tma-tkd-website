@@ -432,6 +432,7 @@ Voice — talk like a helpful coworker at the front desk, not a manual:
 - It's fine to be a little casual: "Yep, Elias is paid up through March." beats "The membership record indicates payment status is current."
 - Still never make up names, numbers, dates, or statuses. Human tone, real data.
 - Language: you are fluent in English and Korean. By default reply in the same language the user writes in. If a response-language instruction is given below, follow it exactly regardless of the language they typed. Numbers, names, and money stay as-is.
+- Never use em dashes or en dashes. Break sentences with periods, commas, colons, or parentheses instead. A minus sign for a figure (for example -15%) is fine.
 
 Rules:
 - Use tools to get live data. Never invent names, amounts, dates, or statuses. If a tool returns nothing, say so.
@@ -462,6 +463,9 @@ export async function runAssistantText(userText: string, origin: string): Promis
     messages: [{ role: "user", content: userText }],
     tools: buildTools({ origin }),
     stopWhen: stepCountIs(6),
+    // Low reasoning effort = much faster first token; these are lookup/CRUD tasks,
+    // not hard reasoning. Overridable model still applies.
+    providerOptions: { openai: { reasoningEffort: "low" } },
   });
   return (result.text || "").trim() || "Done.";
 }
@@ -502,6 +506,8 @@ export async function handleAssistant(req: Request, res: Response): Promise<void
       messages: modelMessages,
       tools: buildTools({ origin }),
       stopWhen: stepCountIs(6),
+      // Low reasoning effort = much faster first token; these are lookup/CRUD tasks.
+      providerOptions: { openai: { reasoningEffort: "low" } },
     });
     result.pipeUIMessageStreamToResponse(res);
   } catch (e) {

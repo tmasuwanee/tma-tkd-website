@@ -158,7 +158,7 @@ export function StudioApp({ email, onLogout, embedded }: { email: string; onLogo
         if (file.size > 100 * 1024 * 1024) {
           throw new Error(`Too big (${formatBytes(file.size)}, max 100MB). Trim or compress on phone first.`);
         }
-        // Some iOS HEIC files report contentType="" — fall back to inferring from extension.
+        // Some iOS HEIC files report contentType="", fall back to inferring from extension.
         const inferredType = (() => {
           if (file.type) return file.type;
           const lower = file.name.toLowerCase();

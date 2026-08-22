@@ -1136,7 +1136,7 @@ export default function ComponentsShowcase() {
                       <div className="space-y-2">
                         <h4 className="text-sm font-semibold">@nextjs</h4>
                         <p className="text-sm">
-                          The React Framework – created and maintained by
+                          The React Framework to created and maintained by
                           @vercel.
                         </p>
                       </div>

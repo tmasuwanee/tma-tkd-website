@@ -199,7 +199,7 @@ export default function AfterschoolRosterView() {
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => setWeekOffset(w => w - 1)}>← Prev</Button>
           <span className="text-sm font-medium text-gray-700 min-w-[160px] text-center">
-            {fmtFull(weekDays[0])} – {fmtFull(weekDays[4])}
+            {fmtFull(weekDays[0])} to {fmtFull(weekDays[4])}
           </span>
           <Button variant="outline" size="sm" onClick={() => setWeekOffset(w => w + 1)}>Next →</Button>
           {weekOffset !== 0 && (

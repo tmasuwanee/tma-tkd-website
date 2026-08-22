@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { Loader2, Tag, Plus, X, Link2, Printer, Pencil, Eye, EyeOff, Copy } from "lucide-react";
 
 /**
- * Pro Shop specials — staff-managed promotions (Back to School, gear bundle,
+ * Pro Shop specials, staff-managed promotions (Back to School, gear bundle,
  * bring-a-friend, seasonal camp). Each is informational: it carries a shareable
  * signup link (an existing pay page or external URL) and a printable flyer. The
  * actual charge still runs on the linked page, so no card/PII lives here.

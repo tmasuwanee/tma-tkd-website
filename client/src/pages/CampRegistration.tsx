@@ -1,4 +1,4 @@
-// v2 — coupon code support added
+// v2, coupon code support added
 import { useState, useEffect } from "react";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
@@ -45,17 +45,17 @@ function getProgramPrice(programType: "3day" | "5day" | "daily", couponApplied =
 }
 
 const CAMP_WEEKS_2026 = [
-  "Week 1: May 26 – May 29 (Tue–Fri)",
-  "Week 2: June 1 – June 5",
-  "Week 3: June 8 – June 12",
-  "Week 4: June 15 – June 19",
-  "Week 5: June 22 – June 26",
-  "Week 6: June 29 – July 3",
-  "Week 7: July 6 – July 10",
-  "Week 8: July 13 – July 17",
-  "Week 9: July 20 – July 24",
-  "Week 10: July 27 – July 31",
-  "Week 11: August 3 – August 7",
+  "Week 1: May 26 to May 29 (Tue to Fri)",
+  "Week 2: June 1 to June 5",
+  "Week 3: June 8 to June 12",
+  "Week 4: June 15 to June 19",
+  "Week 5: June 22 to June 26",
+  "Week 6: June 29 to July 3",
+  "Week 7: July 6 to July 10",
+  "Week 8: July 13 to July 17",
+  "Week 9: July 20 to July 24",
+  "Week 10: July 27 to July 31",
+  "Week 11: August 3 to August 7",
 ];
 
 interface CamperInfo {
@@ -392,7 +392,7 @@ function Step3({ data, onChange, onNext, onBack }: { data: FormData; onChange: (
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold text-[#1a2d5a] mb-1">Program Selection</h2>
-        <p className="text-gray-500 text-sm">Choose your program and add-ons. Camp hours: 9:00 AM – 4:00 PM.</p>
+        <p className="text-gray-500 text-sm">Choose your program and add-ons. Camp hours: 9:00 AM to 4:00 PM.</p>
       </div>
 
       {/* Program Type */}
@@ -402,7 +402,7 @@ function Step3({ data, onChange, onNext, onBack }: { data: FormData; onChange: (
         </CardHeader>
         <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {([
-            { value: "5day", label: "Full Week (5 Days)", price: "$239/camper/week", desc: "Mon–Fri" },
+            { value: "5day", label: "Full Week (5 Days)", price: "$239/camper/week", desc: "Mon to Fri" },
             { value: "3day", label: "3-Day Week", price: "$199/camper/week", desc: "Mon, Wed, Fri" },
             { value: "daily", label: "Daily Drop-In", price: "$70/camper/day", desc: "Any single day" },
           ] as const).map(opt => (
@@ -431,7 +431,7 @@ function Step3({ data, onChange, onNext, onBack }: { data: FormData; onChange: (
         <CardContent className="space-y-3">
           {[
             { key: "addFieldTrip" as const, label: "Field Trip Fee", price: "$25/week per camper", desc: "Includes all field trip activities" },
-            { key: "addExtendedCare" as const, label: "Early Drop-Off & Late Pick-Up", price: "$25/week", desc: "7:30 AM drop-off + 2:00–6:00 PM pickup — bundled together" },
+            { key: "addExtendedCare" as const, label: "Early Drop-Off & Late Pick-Up", price: "$25/week", desc: "7:30 AM drop-off + 2:00 to 6:00 PM pickup, bundled together" },
           ].map(addon => (
             <div key={addon.key} className="flex items-start gap-3 p-3 rounded-lg border border-gray-100 hover:bg-gray-50">
               <Checkbox
@@ -495,7 +495,7 @@ function Step3({ data, onChange, onNext, onBack }: { data: FormData; onChange: (
           <CardHeader className="pb-3">
             <CardTitle className="text-base text-amber-800">Additional Weeks (Pay Later)</CardTitle>
             <p className="text-xs text-amber-700 mt-1">
-              Select any additional weeks you plan to register for in the future. These are <strong>not charged today</strong> — you will pay separately for each.
+              Select any additional weeks you plan to register for in the future. These are <strong>not charged today</strong>, you will pay separately for each.
             </p>
           </CardHeader>
           <CardContent>
@@ -544,7 +544,7 @@ function Step3({ data, onChange, onNext, onBack }: { data: FormData; onChange: (
               <div className="flex items-center gap-2 text-green-700">
                 <CheckCircle2 className="w-5 h-5" />
                 <span className="font-semibold">{data.couponCode}</span>
-                <span className="text-sm">— {COUPON_CODES[data.couponCode]?.label} applied!</span>
+                <span className="text-sm">{COUPON_CODES[data.couponCode]?.label} applied!</span>
               </div>
               <button onClick={removeCoupon} className="text-sm text-gray-500 hover:text-red-600 underline">Remove</button>
             </div>
@@ -1110,7 +1110,7 @@ export default function CampRegistration() {
             <a href="/summer-camps" className="text-white/70 hover:text-white text-sm">← Summer Camps</a>
           </div>
           <h1 className="text-3xl font-bold">Summer Camp Registration 2026</h1>
-          <p className="text-white/80 mt-1">Top Martial Arts Suwanee • 9:00 AM – 4:00 PM</p>
+          <p className="text-white/80 mt-1">Top Martial Arts Suwanee • 9:00 AM to 4:00 PM</p>
         </div>
       </div>
 

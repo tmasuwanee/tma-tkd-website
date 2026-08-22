@@ -20,7 +20,7 @@ import { SMS_CONSENT_TEXT } from "../../../shared/smsConsent";
 const EVENT = {
   title: "Back-to-School Open House",
   dateLine: "Saturday, August 29, 2026",
-  timeLine: "10:00 AM – 2:00 PM",
+  timeLine: "10:00 AM to 2:00 PM",
   address: "2005 Lawrenceville Suwanee Rd, Suwanee, GA 30024",
 };
 

@@ -31,12 +31,12 @@ function ToolTable({ name, output }: { name: string; output: Record<string, unkn
     <div className="overflow-x-auto border border-gray-200 rounded-lg">
       <table className="w-full text-xs">
         <thead><tr className="bg-gray-50 text-left text-gray-500">{headers.map(h => <th key={h} className="px-2 py-1 font-semibold">{h}</th>)}</tr></thead>
-        <tbody>{rows.map((r, i) => <tr key={i} className="border-t border-gray-100">{r.map((c, j) => <td key={j} className="px-2 py-1 whitespace-nowrap">{c ?? "—"}</td>)}</tr>)}</tbody>
+        <tbody>{rows.map((r, i) => <tr key={i} className="border-t border-gray-100">{r.map((c, j) => <td key={j} className="px-2 py-1 whitespace-nowrap">{c ?? "-"}</td>)}</tr>)}</tbody>
       </table>
     </div>
   );
   if (name === "listPastDueTuition" && Array.isArray(output.families)) {
-    return cols(["Parent", "Child", "Monthly", "Source"], (output.families as Record<string, unknown>[]).map(f => [String(f.parent ?? ""), String(f.child ?? ""), String(f.monthly ?? "—"), String(f.source ?? "")]));
+    return cols(["Parent", "Child", "Monthly", "Source"], (output.families as Record<string, unknown>[]).map(f => [String(f.parent ?? ""), String(f.child ?? ""), String(f.monthly ?? "-"), String(f.source ?? "")]));
   }
   if (name === "getMembershipCharges" && Array.isArray(output.charges)) {
     return cols(["Month", "Amount", "Status"], (output.charges as Record<string, unknown>[]).map(c => [String(c.month ?? ""), String(c.amount ?? ""), String(c.status ?? "")]));
@@ -247,7 +247,7 @@ export default function AssistantPanel({ open, onClose }: { open: boolean; onClo
 
 /** Manus-style inline form: the assistant asks for fields, staff fill them, and on
  *  submit the values go back as a message so the model continues (e.g. proposes the
- *  update). Non-secret fields only — card numbers never come through here. */
+ *  update). Non-secret fields only, card numbers never come through here. */
 function FormRequestCard({ title, fields, note, disabled, onSubmit }: { title: string; fields: FieldSpec[]; note?: string; disabled: boolean; onSubmit: (text: string) => void }) {
   const [vals, setVals] = useState<Record<string, string>>({});
   const [submitted, setSubmitted] = useState(false);
@@ -274,7 +274,7 @@ function FormRequestCard({ title, fields, note, disabled, onSubmit }: { title: s
               <textarea rows={2} value={vals[f.name] ?? ""} onChange={e => set(f.name, e.target.value)} placeholder={f.placeholder} className={inp} />
             ) : f.type === "select" ? (
               <select value={vals[f.name] ?? ""} onChange={e => set(f.name, e.target.value)} className={inp}>
-                <option value="">— choose —</option>
+                <option value="">Choose...</option>
                 {(f.options ?? []).map(o => <option key={o} value={o}>{o}</option>)}
               </select>
             ) : (

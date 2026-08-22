@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { Loader2, CheckCircle2, XCircle, ShieldCheck, Clock } from "lucide-react";
 
 /**
- * Pending Actions — the human confirm step of the write-action flow. Actions
+ * Pending Actions, the human confirm step of the write-action flow. Actions
  * (e.g. an email the assistant drafts) show up here as "proposed" and do NOTHING
  * until a staff member reviews the preview and clicks Confirm (which executes it
  * once) or Reject. See server/action-flow.ts.

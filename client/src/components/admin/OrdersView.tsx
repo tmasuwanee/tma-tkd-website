@@ -6,7 +6,7 @@ import { Loader2, ShoppingBag, Phone, Mail, Receipt, X } from "lucide-react";
 import ProShopSpecials from "@/components/admin/ProShopSpecials";
 
 /**
- * Orders view — pro-shop and seasonal sale purchases (recordType 'order').
+ * Orders view, pro-shop and seasonal sale purchases (recordType 'order').
  * These are customers who bought something, NOT prospects to chase, so they get
  * their own home here instead of polluting the leads pipeline / call board.
  * Data comes from the leads table, filtered to recordType 'order'.
@@ -124,9 +124,9 @@ export default function OrdersView() {
                           <span className={`inline-block text-xs px-2 py-0.5 rounded-full border font-medium ${kind.cls}`}>{kind.label}</span>
                         </td>
                         <td className="px-4 py-3 text-gray-600 max-w-[320px]">
-                          <div className="whitespace-pre-wrap text-xs leading-relaxed">{o.additionalNotes || "—"}</div>
+                          <div className="whitespace-pre-wrap text-xs leading-relaxed">{o.additionalNotes || "-"}</div>
                         </td>
-                        <td className="px-4 py-3 font-semibold text-gray-900 tabular-nums">{amt ?? "—"}</td>
+                        <td className="px-4 py-3 font-semibold text-gray-900 tabular-nums">{amt ?? "-"}</td>
                         <td className="px-4 py-3">
                           <div className="flex flex-col gap-1 text-xs">
                             {o.phone && <a href={`tel:${o.phone}`} className="inline-flex items-center gap-1 text-[#1a2d5a] hover:underline"><Phone className="w-3 h-3" />{o.phone}</a>}
@@ -189,15 +189,15 @@ export default function OrdersView() {
                           {ONE_OFF_LABEL[p.product] ?? p.product}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-gray-600 text-xs max-w-[280px]">{p.detail || "—"}</td>
+                      <td className="px-4 py-3 text-gray-600 text-xs max-w-[280px]">{p.detail || "-"}</td>
                       <td className="px-4 py-3 font-semibold text-gray-900 tabular-nums">${(p.amountCents / 100).toFixed(2)}</td>
                       <td className="px-4 py-3">
                         {p.email
                           ? <a href={`mailto:${p.email}`} onClick={e => e.stopPropagation()} className="inline-flex items-center gap-1 text-xs text-[#1a2d5a] hover:underline"><Mail className="w-3 h-3" />{p.email}</a>
-                          : <span className="text-xs text-amber-600">no email — click to send</span>}
+                          : <span className="text-xs text-amber-600">no email, click to send</span>}
                       </td>
                       <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
-                        {p.paidAt ? new Date(p.paidAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—"}
+                        {p.paidAt ? new Date(p.paidAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "-"}
                       </td>
                     </tr>
                   ))}
@@ -236,7 +236,7 @@ function OneOffReceiptModal({ payment, onClose }: { payment: { id: number; amoun
             <span className="text-xs font-semibold text-gray-600">Send the receipt to</span>
             <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="parent@email.com"
               className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a2d5a]/20 focus:border-[#1a2d5a]/40" />
-            {!payment.email && <span className="text-[11px] text-amber-600">No email on file — enter one to send it.</span>}
+            {!payment.email && <span className="text-[11px] text-amber-600">No email on file. Enter one to send it.</span>}
           </label>
           <button onClick={() => { if (!/^\S+@\S+\.\S+$/.test(email)) { toast.error("Enter a valid email."); return; } send.mutate({ paymentId: payment.id, email: email.trim() }); }}
             disabled={send.isPending}

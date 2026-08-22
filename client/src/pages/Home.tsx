@@ -224,9 +224,9 @@ export default function Home() {
             <div className="flex items-center gap-3">
               <span className="text-2xl">🎒</span>
               <div>
-                <span className="font-bold text-lg">After School Care 2026–27</span>
+                <span className="font-bold text-lg">After School Care 2026 to 27</span>
                 <span className="mx-3 text-white/70">|</span>
-                <span className="text-white/90">4–5 Days $500/mo &bull; 2–3 Days $400/mo &bull; School pickup included</span>
+                <span className="text-white/90">4 to 5 Days $500/mo &bull; 2 to 3 Days $400/mo &bull; School pickup included</span>
               </div>
             </div>
             <div className="flex gap-2 shrink-0">

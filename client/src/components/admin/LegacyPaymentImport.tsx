@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { Loader2, X, Receipt, AlertTriangle } from "lucide-react";
 
 /**
- * Legacy payment-history import — backfills past ZenPlanner payments into the
+ * Legacy payment-history import, backfills past ZenPlanner payments into the
  * immutable membershipPayments ledger and advances each family's paidThroughDate
  * (so the charge job never re-bills a month they already paid). CSV paste, then a
  * dry-run preview (matched / unmatched / ambiguous) before writing. Idempotent on

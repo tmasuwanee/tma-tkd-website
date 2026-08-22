@@ -1139,7 +1139,7 @@ function OrderSummary({
         {afterschoolAdditionalKidSelection && afterschoolAdditionalKids > 0 && (
           <SummaryRow
             title={`Afterschool, +${afterschoolAdditionalKids} additional ${afterschoolAdditionalKids === 1 ? "child" : "children"}`}
-            detail={`${additionalKidNames.filter(n => n.trim()).join(", ") || "names not provided"} — ${afterschoolAdditionalKidSelection.program.name} at ${formatMoney(afterschoolAdditionalKidSelection.monthlyPrice)}/mo each, ${afterschoolAdditionalKidSelection.duration.label}`}
+            detail={`${additionalKidNames.filter(n => n.trim()).join(", ") || "names not provided"}, ${afterschoolAdditionalKidSelection.program.name} at ${formatMoney(afterschoolAdditionalKidSelection.monthlyPrice)}/mo each, ${afterschoolAdditionalKidSelection.duration.label}`}
             amount={formatMoney(afterschoolAdditionalKidSelection.saleTotal * afterschoolAdditionalKids)}
           />
         )}

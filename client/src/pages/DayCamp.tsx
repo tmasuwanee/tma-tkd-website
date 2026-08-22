@@ -112,7 +112,7 @@ export default function DayCamp() {
               <div className="flex gap-3 rounded-lg bg-[#1a2d5a]/5 border border-[#1a2d5a]/15 p-4">
                 <Sun className="w-6 h-6 text-[#c41e3a] flex-shrink-0 mt-0.5" />
                 <div className="text-sm text-gray-700 leading-relaxed">
-                  <p className="font-semibold text-[#1a2d5a] mb-1">Day camp — {perDay}/day</p>
+                  <p className="font-semibold text-[#1a2d5a] mb-1">Day camp, {perDay}/day</p>
                   <p>Morning care on digital-learning days and school-out holidays. Pick the day(s) you need below.</p>
                 </div>
               </div>

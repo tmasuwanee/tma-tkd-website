@@ -15,13 +15,13 @@ import { SMS_CONSENT_TEXT } from "../../../shared/smsConsent";
 
 const stripePromise = loadStripe(import.meta.env.VITE_TMA_STRIPE_PUBLISHABLE_KEY);
 
-// Spring Break is a single fixed week — no week selection needed
-const SPRING_BREAK_WEEK = "Spring Break: April 6–10, 2026 (Mon–Fri)";
+// Spring Break is a single fixed week, no week selection needed
+const SPRING_BREAK_WEEK = "Spring Break: April 6 to 10, 2026 (Mon to Fri)";
 
-// Pricing constants — no early bird for spring break, straightforward pricing
+// Pricing constants, no early bird for spring break, straightforward pricing
 const PRICING = {
   "3day": 199_00,   // $199 per camper (Mon/Wed/Fri)
-  "5day": 239_00,   // $239 per camper (Mon–Fri)
+  "5day": 239_00,   // $239 per camper (Mon to Fri)
   "daily": 70_00,   // $70 per day per camper
   fieldTrip: 25_00,
   extendedCare: 25_00,
@@ -295,7 +295,7 @@ function Step2({ data, onChange, onNext, onBack }: { data: FormData; onChange: (
   );
 }
 
-// Step 3: Program Selection (no week selection — locked to April 6-10)
+// Step 3: Program Selection (no week selection, locked to April 6-10)
 function Step3({ data, onChange, onNext, onBack }: { data: FormData; onChange: (d: FormData) => void; onNext: () => void; onBack: () => void }) {
   const numCampers = data.campers.filter(c => c.name.trim()).length || 1;
   const total = calculateTotal(data);
@@ -304,14 +304,14 @@ function Step3({ data, onChange, onNext, onBack }: { data: FormData; onChange: (
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold text-[#1a2d5a] mb-1">Program Selection</h2>
-        <p className="text-gray-500 text-sm">Choose your program and add-ons. Camp hours: 9:00 AM – 4:00 PM.</p>
+        <p className="text-gray-500 text-sm">Choose your program and add-ons. Camp hours: 9:00 AM to 4:00 PM.</p>
       </div>
 
       {/* Fixed week banner */}
       <div className="flex items-center gap-3 p-4 bg-[#1a2d5a]/5 border-2 border-[#1a2d5a] rounded-lg">
         <Calendar className="w-5 h-5 text-[#1a2d5a] shrink-0" />
         <div>
-          <p className="font-semibold text-[#1a2d5a] text-sm">Spring Break Week — Fixed Date</p>
+          <p className="font-semibold text-[#1a2d5a] text-sm">Spring Break Week, Fixed Date</p>
           <p className="text-sm text-gray-600">{SPRING_BREAK_WEEK}</p>
         </div>
       </div>
@@ -323,7 +323,7 @@ function Step3({ data, onChange, onNext, onBack }: { data: FormData; onChange: (
         </CardHeader>
         <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {([
-            { value: "5day", label: "Full Week (5 Days)", price: "$239/camper", desc: "Mon–Fri" },
+            { value: "5day", label: "Full Week (5 Days)", price: "$239/camper", desc: "Mon to Fri" },
             { value: "3day", label: "3-Day Option", price: "$199/camper", desc: "Mon, Wed & Fri" },
             { value: "daily", label: "Daily Drop-In", price: "$70/camper/day", desc: "Any single day" },
           ] as const).map(opt => (
@@ -526,7 +526,7 @@ function Step4({ data, onBack }: { data: FormData; onBack: () => void }) {
         <h2 className="text-3xl font-bold text-[#1a2d5a] mb-3">Registration Complete!</h2>
         <p className="text-gray-600 mb-2">Thank you for registering for TMA Spring Break Camp 2026!</p>
         <p className="text-gray-500 text-sm mb-2">A confirmation email has been sent to <strong>{data.email}</strong>.</p>
-        <p className="text-gray-500 text-sm mb-6">We can't wait to see you April 6–10! 🥋</p>
+        <p className="text-gray-500 text-sm mb-6">We can't wait to see you April 6 to 10! 🥋</p>
         <p className="text-gray-500 text-sm">Questions? Call us at <a href="tel:+17702773009" className="text-[#1a2d5a] font-semibold">(770) 277-3009</a></p>
       </div>
     );
@@ -547,7 +547,7 @@ function Step4({ data, onBack }: { data: FormData; onBack: () => void }) {
         <CardContent className="space-y-1 text-sm">
           <div className="flex justify-between"><span>Camper(s):</span><span className="font-medium">{data.campers.filter(c => c.name).map(c => c.name).join(", ")}</span></div>
           <div className="flex justify-between"><span>Program:</span><span className="font-medium">{data.programType === "3day" ? "3-Day Option" : data.programType === "5day" ? "Full Week (5-Day)" : "Daily Drop-In"}</span></div>
-          <div className="flex justify-between"><span>Week:</span><span className="font-medium">April 6–10, 2026</span></div>
+          <div className="flex justify-between"><span>Week:</span><span className="font-medium">April 6 to 10, 2026</span></div>
           {data.addFieldTrip && <div className="flex justify-between"><span>Field Trip Fee</span><span>{formatCurrency(PRICING.fieldTrip * numCampers)}</span></div>}
           {data.addExtendedCare && <div className="flex justify-between"><span>Early Drop-Off &amp; Late Pick-Up</span><span>{formatCurrency(PRICING.extendedCare)}</span></div>}
           <div className="border-t mt-2 pt-2 flex justify-between font-bold text-base">
@@ -628,7 +628,7 @@ export default function SpringBreakRegistration() {
             <button onClick={() => navigate("/spring-break-camp")} className="text-white/70 hover:text-white text-sm">← Spring Break Camp</button>
           </div>
           <h1 className="text-3xl font-bold">Spring Break Camp Registration</h1>
-          <p className="text-white/80 mt-1">Top Martial Arts Suwanee • April 6–10, 2026 • 9:00 AM – 4:00 PM</p>
+          <p className="text-white/80 mt-1">Top Martial Arts Suwanee • April 6 to 10, 2026 • 9:00 AM to 4:00 PM</p>
         </div>
       </div>
 

@@ -91,7 +91,7 @@ export default function FieldTripPay() {
     setIsStarting(true);
     try {
       const detailText = camperNames.trim()
-        ? `${detail} — ${camperNames.trim()}`
+        ? `${detail}, ${camperNames.trim()}`
         : detail;
       const r = await createIntent.mutateAsync({
         payerName: payerName.trim(),

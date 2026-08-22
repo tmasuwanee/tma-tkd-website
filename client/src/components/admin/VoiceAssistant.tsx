@@ -53,7 +53,7 @@ function useRealtimeVoice(onToolRun?: () => void) {
         let text = "Sorry, I couldn't complete that.";
         try {
           const r = await fetch("/api/admin/voice/run", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ request }) });
-          const data = await r.json().catch(() => ({}));
+          const data = (r.headers.get("content-type") || "").includes("application/json") ? await r.json().catch(() => ({})) : {};
           if (data?.text) text = data.text;
         } catch { /* keep fallback */ }
         onToolRun?.(); // let the panel refresh pending approvals
@@ -72,8 +72,13 @@ function useRealtimeVoice(onToolRun?: () => void) {
   const start = useCallback(async () => {
     setErrorMsg(null); setLines([]); setStatus("connecting");
     try {
-      const sess = await fetch("/api/admin/voice/session", { method: "POST" }).then(r => r.json());
-      if (!sess?.clientSecret) throw new Error(sess?.error || "Voice is not configured on the server.");
+      const resp = await fetch("/api/admin/voice/session", { method: "POST" });
+      // An HTML page back = the voice endpoint isn't on this deployment yet (old build).
+      if (!(resp.headers.get("content-type") || "").includes("application/json")) {
+        throw new Error("Voice isn't live on this deployment yet. Redeploy the app, then try again.");
+      }
+      const sess = await resp.json();
+      if (!resp.ok || !sess?.clientSecret) throw new Error(sess?.error || "Voice is not configured (needs an OpenAI key with Realtime access).");
 
       const pc = new RTCPeerConnection();
       pcRef.current = pc;

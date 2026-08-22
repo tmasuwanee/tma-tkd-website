@@ -1,7 +1,7 @@
 import { ExternalLink } from "lucide-react";
 
 /**
- * Front Desk Playbook — the staff-facing "where do I look" guide for the new
+ * Front Desk Playbook, the staff-facing "where do I look" guide for the new
  * CRM structure. The content is a self-contained HTML page at
  * client/public/playbook.html (theme-aware, TMA-branded), embedded here so staff
  * reach it inside the dashboard. Update that file to change the guide.

@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Loader2, Users, Phone, Mail } from "lucide-react";
 
 /**
- * Enrolled Families view — people who enrolled through the website (after-school
+ * Enrolled Families view, people who enrolled through the website (after-school
  * registration) or converted from a lead (recordType 'enrolled'). This is the
  * "already a paying customer" pile, kept out of the prospect pipeline. The full
  * class roster (belts, attendance, imported students) still lives under Students;
@@ -119,7 +119,7 @@ export default function EnrolledFamiliesView() {
                             </span>
                             {r.monthlyAmountCents ? <span className="text-[11px] text-gray-500 tabular-nums">${(r.monthlyAmountCents / 100).toFixed(0)}/mo</span> : null}
                           </div>
-                        ) : <span className="text-xs text-gray-400">—</span>}
+                        ) : <span className="text-xs text-gray-400">-</span>}
                       </td>
                       <td className="px-3 py-2.5">
                         <div className="flex flex-col gap-1 text-xs">
@@ -128,7 +128,7 @@ export default function EnrolledFamiliesView() {
                         </div>
                       </td>
                       <td className="px-3 py-2.5 text-xs text-gray-500 whitespace-nowrap">
-                        {r.paidAt ? new Date(r.paidAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—"}
+                        {r.paidAt ? new Date(r.paidAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "-"}
                       </td>
                     </tr>
                   ))}

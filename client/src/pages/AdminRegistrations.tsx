@@ -169,7 +169,7 @@ export function CampRegistrationsTab() {
                         {w.noPhotoConsent ? <Badge className="bg-amber-100 text-amber-800 border-amber-200">No photos</Badge> : <span className="text-xs text-gray-400">OK</span>}
                       </TableCell>
                       <TableCell className="text-sm">{w.signedName}</TableCell>
-                      <TableCell className="text-xs text-gray-500 whitespace-nowrap">{w.submittedAt ? new Date(w.submittedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—"}</TableCell>
+                      <TableCell className="text-xs text-gray-500 whitespace-nowrap">{w.submittedAt ? new Date(w.submittedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "-"}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -297,7 +297,7 @@ export function CampRegistrationsTab() {
                                 </div>
                               )}
                             </div>
-                          ) : <span className="text-xs text-gray-400">—</span>}
+                          ) : <span className="text-xs text-gray-400">-</span>}
                         </TableCell>
                         <TableCell>
                           {addOns.length > 0 ? (

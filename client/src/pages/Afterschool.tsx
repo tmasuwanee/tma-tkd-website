@@ -172,7 +172,7 @@ export default function Afterschool() {
         <div className="container mx-auto px-4">
           <div className="text-center mb-12">
             <h2 className="text-4xl font-bold text-[#1a2d5a] mb-4">Tuition & Fees</h2>
-            <p className="text-lg text-gray-600">Transparent pricing — no hidden costs.</p>
+            <p className="text-lg text-gray-600">Transparent pricing, no hidden costs.</p>
           </div>
           <div className="max-w-4xl mx-auto grid md:grid-cols-2 gap-6 mb-10">
             {/* 4-5 Day Plan */}
@@ -180,7 +180,7 @@ export default function Afterschool() {
               <div className="inline-block mb-3 px-3 py-1 bg-[#c41e3a]/10 rounded-full">
                 <span className="text-[#c41e3a] font-semibold text-xs uppercase tracking-wide">Most Popular</span>
               </div>
-              <h3 className="text-xl font-bold text-[#1a2d5a] mb-1">4–5 Day/Week</h3>
+              <h3 className="text-xl font-bold text-[#1a2d5a] mb-1">4-5 Day/Week</h3>
               <p className="text-sm text-gray-500 mb-4">$100 After School Care + $25 TKD/Kickboxing</p>
               <div className="flex gap-6 mb-4">
                 <div>
@@ -196,7 +196,7 @@ export default function Afterschool() {
               <div className="inline-block mb-3 px-3 py-1 bg-gray-100 rounded-full">
                 <span className="text-gray-600 font-semibold text-xs uppercase tracking-wide">Flexible</span>
               </div>
-              <h3 className="text-xl font-bold text-[#1a2d5a] mb-1">2–3 Day/Week</h3>
+              <h3 className="text-xl font-bold text-[#1a2d5a] mb-1">2-3 Day/Week</h3>
               <p className="text-sm text-gray-500 mb-4">$75 After School Care + $25 TKD</p>
               <div className="flex gap-6 mb-4">
                 <div>
@@ -220,7 +220,7 @@ export default function Afterschool() {
           </div>
           {/* Early bird */}
           <div className="max-w-4xl mx-auto bg-yellow-50 border border-yellow-200 rounded-xl p-5 mb-10 text-center">
-            <p className="text-yellow-800 font-semibold">⭐ Early Bird Special — Register by July 31 and get <strong>50% off your first month's tuition!</strong></p>
+            <p className="text-yellow-800 font-semibold">⭐ Early Bird Special, Register by July 31 and get <strong>50% off your first month's tuition!</strong></p>
           </div>
         </div>
       </section>

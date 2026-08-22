@@ -2220,7 +2220,7 @@ export const appRouter = router({
           m.program === "afterschool" && norm(m.studentName) === norm(reg.childName) && norm(m.email) === norm(reg.email));
         if (legacy) return { membershipId: legacy.id, existed: true };
         const monthly = reg.monthlyAmountCents ?? (reg.planType === "4_5_day" ? 500_00 : 400_00);
-        const planLabel = reg.planType === "4_5_day" ? "4–5 Day/Week" : "2–3 Day/Week";
+        const planLabel = reg.planType === "4_5_day" ? "4-5 Day/Week" : "2-3 Day/Week";
         try {
           const { id } = await createMembership({
             studentName: reg.childName, parentName: reg.parentName, email: reg.email, phone: reg.phone,
@@ -3244,7 +3244,7 @@ export const appRouter = router({
           || (ctx?.req as any)?.headers?.["x-forwarded-for"]
           || null;
 
-        const planLabel = input.plan === "4_5_day" ? "4–5 Day/Week" : "2–3 Day/Week";
+        const planLabel = input.plan === "4_5_day" ? "4-5 Day/Week" : "2-3 Day/Week";
         const primaryStudent = input.children[0];
 
         // 1) Build the signed enrollment + waiver PDF.
@@ -3440,7 +3440,7 @@ export const appRouter = router({
         const pi = await stripe.paymentIntents.retrieve(input.paymentIntentId);
         if (pi.status === "succeeded") {
           const m = pi.metadata || {};
-          const planLabel = m.plan === "4_5_day" ? "4–5 Day/Week" : "2–3 Day/Week";
+          const planLabel = m.plan === "4_5_day" ? "4-5 Day/Week" : "2-3 Day/Week";
           const earlyBird = m.earlyBird === "true";
           const includeUniform = m.includeUniform === "true";
           const includeSupplyFee = m.includeSupplyFee === "true";

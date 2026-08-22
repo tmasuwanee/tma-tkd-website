@@ -5,7 +5,7 @@ import { Loader2, GraduationCap, CalendarClock, CheckCircle2, XCircle, Ban, Penc
 import { LeadDetailDialog } from "@/components/admin/LeadsPipeline";
 
 /**
- * Trials — the free-intro → paid 3-week → converted lifecycle in one screen.
+ * Trials, the free-intro → paid 3-week → converted lifecycle in one screen.
  *
  * Two populations, one view:
  *  - Free intro classes: CRM leads who booked a free class (trialClassDate set) and
@@ -22,7 +22,7 @@ const YMD = /^\d{4}-\d{2}-\d{2}$/;
 const parseYMD = (s: string | null | undefined): Date | null => (s && YMD.test(s) ? new Date(s + "T12:00:00") : null);
 const todayNoon = () => { const d = new Date(); d.setHours(12, 0, 0, 0); return d; };
 const daysBetween = (a: Date, b: Date) => Math.round((b.getTime() - a.getTime()) / 86400000);
-const fmtDate = (s: string | null | undefined) => { const d = parseYMD(s); return d ? d.toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—"; };
+const fmtDate = (s: string | null | undefined) => { const d = parseYMD(s); return d ? d.toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "-"; };
 
 const INTRO_STAGES = new Set(["trial_scheduled", "trial_attended", "no_show"]);
 
@@ -41,8 +41,8 @@ export default function TrialsView() {
   const past = rows.filter(t => ["converted", "expired", "canceled", "pending"].includes(t.status));
 
   // Free intro leads: booked a free class, not yet a paid 3-week. Exclude anyone
-  // who already has ANY trial on file (matched by email) — including a pending one,
-  // which already shows under Past as "Awaiting payment" — so they don't double-show.
+  // who already has ANY trial on file (matched by email), including a pending one,
+  // which already shows under Past as "Awaiting payment", so they don't double-show.
   const paidEmails = new Set(rows.filter(t => t.email).map(t => String(t.email).toLowerCase()));
   const introLeads = leads.filter((l: any) =>
     INTRO_STAGES.has(l.pipelineStage) && l.trialClassDate && !paidEmails.has(String(l.email ?? "").toLowerCase())
@@ -104,7 +104,7 @@ export default function TrialsView() {
                     {introLeads.map((l: any) => (
                       <tr key={l.id} onClick={() => setSelectedLead(l)} className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer">
                         <td className="px-4 py-3"><div className="font-medium text-gray-900">{l.kidName || l.parentName}</div>{l.parentName && l.kidName ? <div className="text-xs text-gray-500">{l.parentName}</div> : null}</td>
-                        <td className="px-4 py-3 text-gray-700">{l.programInterest || "—"}</td>
+                        <td className="px-4 py-3 text-gray-700">{l.programInterest || "-"}</td>
                         <td className="px-4 py-3 text-gray-700">{fmtDate(l.trialClassDate)}{l.trialClassTime ? ` · ${l.trialClassTime}` : ""}</td>
                         <td className="px-4 py-3"><StageBadge stage={l.pipelineStage} /></td>
                       </tr>
@@ -131,7 +131,7 @@ export default function TrialsView() {
                     {past.map(t => (
                       <tr key={t.id} onClick={() => openLead(t.leadId)} className={`border-b border-gray-100 ${t.leadId ? "hover:bg-gray-50 cursor-pointer" : ""}`}>
                         <td className="px-4 py-3"><div className="font-medium text-gray-900">{t.studentName}</div>{t.programInterest ? <div className="text-xs text-gray-500">{t.programInterest}</div> : null}</td>
-                        <td className="px-4 py-3 text-gray-600">{fmtDate(t.startDate)} – {fmtDate(t.endDate)}</td>
+                        <td className="px-4 py-3 text-gray-600">{fmtDate(t.startDate)} to {fmtDate(t.endDate)}</td>
                         <td className="px-4 py-3"><TrialStatusBadge status={t.status} /></td>
                       </tr>
                     ))}
@@ -182,7 +182,7 @@ function ActiveTrialCard({ t, onOpen, onConverted, onExpired, onCancel, busy, on
         <div className="flex items-center justify-between mt-1 text-[11px] text-gray-500">
           <span>Day {elapsed} of 21</span>
           {!editing ? (
-            <button onClick={() => setEditing(true)} className="inline-flex items-center gap-1 hover:text-[#1a2d5a]"><Pencil className="w-3 h-3" /> {fmtDate(t.startDate)} – {fmtDate(t.endDate)}</button>
+            <button onClick={() => setEditing(true)} className="inline-flex items-center gap-1 hover:text-[#1a2d5a]"><Pencil className="w-3 h-3" /> {fmtDate(t.startDate)} to {fmtDate(t.endDate)}</button>
           ) : null}
         </div>
       </div>

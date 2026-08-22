@@ -253,7 +253,7 @@ export default function IntakeRulesEditor() {
                 {testResult.matchedRuleId ? (
                   <p className="text-[11px] text-gray-500 mt-1">Matched rule #{testResult.matchedRuleId}</p>
                 ) : (
-                  <p className="text-[11px] text-amber-700 mt-1">No rule matched — staff would be alerted</p>
+                  <p className="text-[11px] text-amber-700 mt-1">No rule matched, staff would be alerted</p>
                 )}
               </div>
             )}

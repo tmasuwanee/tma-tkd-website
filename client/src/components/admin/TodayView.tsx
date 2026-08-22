@@ -5,7 +5,7 @@ import { useState } from "react";
 import { LeadDetailDialog } from "@/components/admin/LeadsPipeline";
 
 /**
- * "Today" — the front-desk daily driver. One screen for the core loop:
+ * "Today", the front-desk daily driver. One screen for the core loop:
  * who's coming for a trial today, who to call, and marking who showed.
  * Composes existing queries (calls.board + checkin.listForDate); the full
  * views (Today's Calls, Trial Check-in, Leads) remain for detail.
@@ -77,7 +77,7 @@ export default function TodayView() {
             <Tile label="Awaiting check-in" value={awaiting} tone="green" />
           </div>
 
-          {/* Trials today — mark who showed */}
+          {/* Trials today, mark who showed */}
           <section className="bg-white border border-gray-200 rounded-xl overflow-hidden">
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
               <h2 className="font-semibold text-[#1a2d5a] flex items-center gap-2"><CalendarDays className="w-4 h-4" /> Trials today</h2>
@@ -134,7 +134,7 @@ export default function TodayView() {
                       <div className="text-xs text-gray-500 truncate">{reason}</div>
                     </div>
                     <button onClick={(e) => { e.stopPropagation(); markNotInterested(lead); }} disabled={dismiss.isPending}
-                      title="Not interested / ignoring outreach — remove from calls + pipeline"
+                      title="Not interested / ignoring outreach, remove from calls + pipeline"
                       className="shrink-0 inline-flex items-center gap-1 text-xs font-medium text-gray-400 hover:text-red-600 border border-transparent hover:border-red-200 rounded px-2 py-1 transition-colors">
                       <Ban className="w-3.5 h-3.5" /> Not interested
                     </button>
@@ -144,7 +144,7 @@ export default function TodayView() {
             )}
             {today.length > 12 ? (
               <button onClick={() => navigate("/admin/calls")} className="w-full text-center text-xs text-gray-500 hover:text-[#1a2d5a] py-2 border-t border-gray-100">
-                + {today.length - 12} more — open Today's Calls
+                + {today.length - 12} more, open Today's Calls
               </button>
             ) : null}
           </section>

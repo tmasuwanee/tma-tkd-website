@@ -1,13 +1,13 @@
 /**
  * Printable blank day-camp sign-up sheet for the office (paper signups).
- * /day-camp-sheet — click Print, or Ctrl/Cmd-P.
+ * /day-camp-sheet, click Print, or Ctrl/Cmd-P.
  */
 export default function DayCampSheet() {
   const rows = Array.from({ length: 16 });
   return (
     <div className="min-h-screen bg-white p-8 max-w-3xl mx-auto text-[#1a2233] print:p-2">
       <div className="flex items-center justify-between mb-2">
-        <h1 className="text-2xl font-extrabold text-[#1a2d5a]">TMA Day Camp — Sign-Up Sheet</h1>
+        <h1 className="text-2xl font-extrabold text-[#1a2d5a]">TMA Day Camp, Sign-Up Sheet</h1>
         <button onClick={() => window.print()} className="print:hidden text-sm font-semibold text-white bg-[#1a2d5a] rounded-lg px-3 py-2">Print</button>
       </div>
       <p className="text-sm text-gray-600 mb-1">Morning care · <strong>$60 per day</strong>. Also sign up online at <strong>tmatkd.com/day-camp</strong>.</p>

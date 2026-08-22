@@ -35,7 +35,7 @@ export default function Terms() {
           <section>
             <h2 className="text-xl font-semibold mb-2">4. Summer Camp Terms</h2>
             <ul className="list-disc pl-5 space-y-1 mt-2">
-              <li>Camp hours are 9:00 AM – 4:00 PM. Early drop-off and late pick-up are available as an add-on.</li>
+              <li>Camp hours are 9:00 AM to 4:00 PM. Early drop-off and late pick-up are available as an add-on.</li>
               <li>Participants must be picked up by 4:00 PM (or 6:00 PM with Extended Care add-on). Late pick-up fees may apply.</li>
               <li>TMA reserves the right to dismiss a camper whose behavior is disruptive or unsafe, without refund.</li>
               <li>Field trip participation is included with the Field Trip add-on. TMA will provide advance notice of all field trip dates and destinations.</li>

@@ -138,7 +138,7 @@ function CallCard({ item, onClick, onDismiss }: { item: { lead: any; reason: str
             <span role="button" tabIndex={0}
               onClick={e => { e.stopPropagation(); onDismiss(); }}
               onKeyDown={e => { if (e.key === "Enter") { e.stopPropagation(); onDismiss(); } }}
-              title="Not interested / ignoring outreach — remove from calls + pipeline"
+              title="Not interested / ignoring outreach, remove from calls + pipeline"
               className="inline-flex items-center gap-1 text-gray-400 hover:text-red-600 cursor-pointer">
               <Ban className="w-3.5 h-3.5" /> Not interested
             </span>
@@ -195,7 +195,7 @@ function CallDetailModal({ row, email, onClose, onSaved }: {
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-[#1a2d5a]">
-            {lead?.parentName} — {lead?.kidName}
+            {lead?.parentName}, {lead?.kidName}
           </DialogTitle>
           <DialogDescription className="text-xs">
             {lead?.kidAge}y old, interested in {row.vertical || "n/a"}

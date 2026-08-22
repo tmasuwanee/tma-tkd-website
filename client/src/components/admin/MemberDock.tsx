@@ -4,7 +4,7 @@ import { X, Minus, ChevronUp, CreditCard } from "lucide-react";
 import { MemberPanelBody } from "@/components/admin/MembershipsView";
 
 /**
- * MemberDock — Gmail-compose-style docked member panels. Clicking a member (in the
+ * MemberDock, Gmail-compose-style docked member panels. Clicking a member (in the
  * Members list, or via the assistant) opens their command center as a panel pinned
  * bottom-right. Multiple stay open at once, stacked left as more open, each
  * minimizable to its title bar. This is the standing dashboard pattern

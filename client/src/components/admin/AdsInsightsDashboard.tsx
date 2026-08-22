@@ -25,14 +25,14 @@ type DaysOption = 7 | 14 | 30;
 type MetricKey = "spend" | "leads" | "clicks" | "impressions";
 
 function fmt(n: number | null | undefined): string {
-  if (n == null) return "—";
+  if (n == null) return "-";
   return n.toLocaleString();
 }
 
 function fmtCurrency(val: string | number | null | undefined): string {
-  if (val == null) return "—";
+  if (val == null) return "-";
   const n = typeof val === "string" ? parseFloat(val) : val;
-  if (isNaN(n)) return "—";
+  if (isNaN(n)) return "-";
   return `$${n.toFixed(2)}`;
 }
 
@@ -69,7 +69,7 @@ function MetricPopup({
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center justify-between">
-            <span>{label} — Daily Trend</span>
+            <span>{label}: Daily Trend</span>
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-4 mt-2">
@@ -408,8 +408,8 @@ export default function AdsInsightsDashboard() {
     { spend: 0, impressions: 0, clicks: 0, leads: 0 }
   );
 
-  const ctr = totals.impressions > 0 ? ((totals.clicks / totals.impressions) * 100).toFixed(2) : "—";
-  const cpl = totals.leads > 0 ? (totals.spend / totals.leads).toFixed(2) : "—";
+  const ctr = totals.impressions > 0 ? ((totals.clicks / totals.impressions) * 100).toFixed(2) : "-";
+  const cpl = totals.leads > 0 ? (totals.spend / totals.leads).toFixed(2) : "-";
 
   // Build daily aggregated chart data per metric
   const dailyData = useMemo(() => {
@@ -460,7 +460,7 @@ export default function AdsInsightsDashboard() {
       icon: Users,
       label: "Leads",
       value: fmt(totals.leads),
-      sub: cpl !== "—" ? `$${cpl} / lead` : undefined,
+      sub: cpl !== "-" ? `$${cpl} / lead` : undefined,
       color: "text-blue-600",
       hexColor: "#2563eb",
       chartType: "bar" as const,
@@ -545,7 +545,7 @@ export default function AdsInsightsDashboard() {
         </Card>
       )}
 
-      {/* Summary cards — clickable */}
+      {/* Summary cards, clickable */}
       {rows.length > 0 && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {metricConfig.map(m => (
@@ -569,7 +569,7 @@ export default function AdsInsightsDashboard() {
           <CardHeader className="pb-2 pt-4 px-4">
             <CardTitle className="text-sm font-semibold text-gray-700 flex items-center gap-2">
               <Info className="w-4 h-4 text-gray-400" />
-              Ad-level breakdown — last {days} days ({rows.length} rows)
+              Ad-level breakdown, last {days} days ({rows.length} rows)
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
@@ -596,18 +596,18 @@ export default function AdsInsightsDashboard() {
                       </TableCell>
                       <TableCell className="max-w-[160px]">
                         <span className="truncate block text-xs" title={row.campaignName ?? ""}>
-                          {row.campaignName ?? <span className="text-gray-400">—</span>}
+                          {row.campaignName ?? <span className="text-gray-400">-</span>}
                         </span>
                         <span className="text-gray-400 text-[10px]">{row.campaignId}</span>
                       </TableCell>
                       <TableCell className="max-w-[140px]">
                         <span className="truncate block text-xs" title={row.adsetName ?? ""}>
-                          {row.adsetName ?? <span className="text-gray-400">—</span>}
+                          {row.adsetName ?? <span className="text-gray-400">-</span>}
                         </span>
                       </TableCell>
                       <TableCell className="max-w-[140px]">
                         <span className="truncate block text-xs" title={row.adName ?? ""}>
-                          {row.adName ?? <span className="text-gray-400">—</span>}
+                          {row.adName ?? <span className="text-gray-400">-</span>}
                         </span>
                       </TableCell>
                       <TableCell className="text-right font-medium text-xs">

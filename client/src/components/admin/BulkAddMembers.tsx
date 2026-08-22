@@ -5,7 +5,7 @@ import { Loader2, X, Users, AlertTriangle, CheckCircle2, ArrowLeft } from "lucid
 import { CATALOG, SIBLING_DISCOUNT_CENTS } from "@/components/admin/MembershipsView";
 
 /**
- * Bulk-add memberships — the ZenPlanner cutover tool. Lists active students that
+ * Bulk-add memberships, the ZenPlanner cutover tool. Lists active students that
  * have no membership yet, then imports tuition + Financials in TWO steps:
  *   1) Preview (dry-run): the server classifies every row (create / needs review /
  *      blocked), computes each first charge date, and totals the monthly amount.
@@ -139,8 +139,8 @@ export default function BulkAddMembers({ onClose, onDone }: { onClose: () => voi
                     <tr key={i} className="border-b border-gray-100">
                       <td className="px-3 py-2 font-medium text-gray-900">{r.studentName}</td>
                       <td className="px-3 py-2"><span className={`text-[11px] rounded-full border px-2 py-0.5 font-medium ${b.c}`}>{b.t}</span>{r.errors.length > 0 && <div className="text-[11px] text-red-600 mt-0.5">{r.errors.join("; ")}</div>}</td>
-                      <td className="px-3 py-2 tabular-nums">{r.action === "create" ? fmt(r.netMonthlyCents) : "—"}</td>
-                      <td className="px-3 py-2 tabular-nums text-gray-600">{r.action === "create" ? r.firstCharge.dueDate : "—"}</td>
+                      <td className="px-3 py-2 tabular-nums">{r.action === "create" ? fmt(r.netMonthlyCents) : "-"}</td>
+                      <td className="px-3 py-2 tabular-nums text-gray-600">{r.action === "create" ? r.firstCharge.dueDate : "-"}</td>
                     </tr>
                   ); })}
                 </tbody>
@@ -187,7 +187,7 @@ export default function BulkAddMembers({ onClose, onDone }: { onClose: () => voi
                         <div className="font-medium text-gray-900 flex items-center gap-1.5">{r.name}
                           {r.disposition === "review" && <span className="text-[10px] rounded-full border border-amber-300 bg-amber-50 text-amber-800 px-1.5" title="Same name as an existing member, different contact. Confirm this is a new person.">review</span>}
                         </div>
-                        <div className="text-[11px] text-gray-400">{[r.beltRank, r.email].filter(Boolean).join(" · ") || "—"}</div>
+                        <div className="text-[11px] text-gray-400">{[r.beltRank, r.email].filter(Boolean).join(" · ") || "-"}</div>
                       </td>
                       <td className="px-2 py-2">
                         <select value={r.catalogIdx} onChange={e => setProgram(i, Number(e.target.value))} className="border border-gray-300 rounded px-1.5 py-1 text-xs">

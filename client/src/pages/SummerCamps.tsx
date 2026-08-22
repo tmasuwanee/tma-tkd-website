@@ -57,7 +57,7 @@ export default function SummerCamps() {
               The Best Summer<br />Your Kid Will Have
             </h1>
             <p className="text-xl text-white/85 mb-8 max-w-xl">
-              Martial arts training, field trips, games, and new friends — all in a safe, structured environment. Ages 5 and up welcome. Camp starts May 26th!
+              Martial arts training, field trips, games, and new friends, all in a safe, structured environment. Ages 5 and up welcome. Camp starts May 26th!
             </p>
             <div className="flex flex-wrap gap-4">
               <Button
@@ -69,7 +69,7 @@ export default function SummerCamps() {
               </Button>
               <div className="flex items-center gap-2 text-white/80">
                 <Clock className="w-5 h-5" />
-                <span className="text-sm font-medium">9:00 AM – 4:00 PM</span>
+                <span className="text-sm font-medium">9:00 AM to 4:00 PM</span>
               </div>
             </div>
           </div>
@@ -80,7 +80,7 @@ export default function SummerCamps() {
       <section className="bg-[#c41e3a] text-white py-4">
         <div className="container mx-auto px-4">
           <div className="flex flex-wrap justify-center gap-8 text-sm font-medium">
-            <div className="flex items-center gap-2"><Clock className="w-4 h-4" /> 9:00 AM – 4:00 PM</div>
+            <div className="flex items-center gap-2"><Clock className="w-4 h-4" /> 9:00 AM to 4:00 PM</div>
             <div className="flex items-center gap-2"><Users className="w-4 h-4" /> Ages 5 & Up</div>
             <div className="flex items-center gap-2"><MapPin className="w-4 h-4" /> 2005 Lawrenceville Suwanee Rd</div>
             <div className="flex items-center gap-2"><Sun className="w-4 h-4" /> Starts May 26, 2026</div>
@@ -101,7 +101,7 @@ export default function SummerCamps() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {[
               { icon: Zap, title: "Martial Arts Training", desc: "Daily Taekwondo, BJJ, and kickboxing classes taught by our certified instructors", color: "bg-[#1a2d5a]" },
-              { icon: Sun, title: "Field Trips", desc: "Fun weekly field trips to exciting local destinations — included with the field trip add-on", color: "bg-[#c41e3a]" },
+              { icon: Sun, title: "Field Trips", desc: "Fun weekly field trips to exciting local destinations, included with the field trip add-on", color: "bg-[#c41e3a]" },
               { icon: Star, title: "Games & Activities", desc: "Team games, obstacle courses, and fun challenges that build confidence and teamwork", color: "bg-[#1a2d5a]" },
               { icon: Shield, title: "Safe Environment", desc: "Small group sizes, certified instructors, and a structured daily schedule parents can trust", color: "bg-[#c41e3a]" },
             ].map((item, i) => (
@@ -134,7 +134,7 @@ export default function SummerCamps() {
                 title: "Full Week",
                 price: "$239",
                 per: "per camper / week",
-                days: "Monday – Friday",
+                days: "Monday to Friday",
                 highlight: true,
                 badge: "Most Popular",
               },
@@ -179,7 +179,7 @@ export default function SummerCamps() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {[
                 { label: "Field Trip Fee", price: "$25/week per camper", desc: "Includes all field trip activities" },
-                { label: "Early Drop-Off & Late Pick-Up", price: "$25/week", desc: "7:30 AM drop-off + 2:00–6:00 PM pickup — bundled together" },
+                { label: "Early Drop-Off & Late Pick-Up", price: "$25/week", desc: "7:30 AM drop-off + 2:00 to 6:00 PM pickup, bundled together" },
               ].map((addon, i) => (
                 <div key={i} className="bg-white rounded-xl border border-gray-200 p-4 text-center">
                   <div className="font-semibold text-[#1a2d5a] text-sm mb-1">{addon.label}</div>
@@ -204,7 +204,7 @@ export default function SummerCamps() {
             onClick={() => navigate("/camp-registration")}
             className="bg-[#c41e3a] hover:bg-[#c41e3a]/90 text-white text-lg px-10 py-4"
           >
-            Register Now — Secure Your Spot <ChevronRight className="ml-2 w-5 h-5" />
+            Register Now, Secure Your Spot <ChevronRight className="ml-2 w-5 h-5" />
           </Button>
           <p className="text-white/50 text-sm mt-6">
             Questions? Call <a href="tel:+17702773009" className="text-white/80 hover:text-white">((770) 277-3009</a> or email <a href="mailto:tmasuwanee@gmail.com" className="text-white/80 hover:text-white">tmasuwanee@gmail.com</a>

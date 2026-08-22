@@ -11,7 +11,7 @@ import SignaturePad from "@/components/SignaturePad";
 import { AFTERSCHOOL_WAIVER_SECTIONS } from "@shared/afterschoolWaiver";
 
 /**
- * After School Care Registration — full intake wizard.
+ * After School Care Registration, full intake wizard.
  * /afterschool-register
  *
  * Collects child + parent identification, pick-up authorization, a short
@@ -35,8 +35,8 @@ const UNIFORM = 50;
 const SUPPLY_FEE = 65;
 
 const PLANS = {
-  "4_5_day": { label: "4–5 Day/Week", weekly: 125, monthly: 500, desc: "$100 After School Care + $25 TKD/Kickboxing" },
-  "2_3_day": { label: "2–3 Day/Week", weekly: 100, monthly: 400, desc: "$75 After School Care + $25 TKD" },
+  "4_5_day": { label: "4-5 Day/Week", weekly: 125, monthly: 500, desc: "$100 After School Care + $25 TKD/Kickboxing" },
+  "2_3_day": { label: "2-3 Day/Week", weekly: 100, monthly: 400, desc: "$75 After School Care + $25 TKD" },
 } as const;
 type Plan = keyof typeof PLANS;
 function getEarlyBirdDiscount(plan: Plan): number {
@@ -104,7 +104,7 @@ function PaymentForm({ paymentIntentId, total, onSuccess }: { paymentIntentId: s
       <PaymentElement />
       <Button type="submit" disabled={!stripe || isProcessing}
         className="w-full bg-[#c41e3a] hover:bg-[#c41e3a]/90 text-white py-3 text-base font-semibold">
-        {isProcessing ? (<><Loader2 className="w-4 h-4 animate-spin mr-2" />Processing…</>) : `Pay ${total} — Complete Registration`}
+        {isProcessing ? (<><Loader2 className="w-4 h-4 animate-spin mr-2" />Processing…</>) : `Pay ${total}, Complete Registration`}
       </Button>
     </form>
   );
@@ -350,7 +350,7 @@ export default function AfterschoolRegister() {
         </div>
         <h1 className="text-3xl md:text-4xl font-extrabold mb-3">Enroll Your Child Today</h1>
         <p className="text-white/80 max-w-xl mx-auto text-base">
-          Safe pick-up from school, supervised homework, and daily martial arts training. 3:00 PM – 6:30 PM.
+          Safe pick-up from school, supervised homework, and daily martial arts training. 3:00 PM to 6:30 PM.
         </p>
         {earlyBird && (
           <div className="mt-4 inline-flex items-center gap-2 bg-yellow-400/20 border border-yellow-400/40 rounded-full px-4 py-2">
@@ -400,7 +400,7 @@ export default function AfterschoolRegister() {
                 <CheckCircle2 className="w-4 h-4" /> Enrollment + waiver signed and saved. Last step: one-time fees.
               </div>
               <h2 className="text-xl font-bold text-[#1a2d5a] mb-1">Secure Checkout</h2>
-              <p className="text-sm text-gray-500 mb-6">One-time enrollment fees — monthly tuition is billed separately.</p>
+              <p className="text-sm text-gray-500 mb-6">One-time enrollment fees, monthly tuition is billed separately.</p>
 
               <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-6 space-y-2 text-sm">
                 <div className="flex justify-between"><span className="text-gray-600">Registration fee</span><span className="font-medium">${REGISTRATION}</span></div>
@@ -412,7 +412,7 @@ export default function AfterschoolRegister() {
                       <span className="text-gray-600">1st month tuition<span className="ml-1 text-xs text-gray-400 line-through">${PLANS[plan].monthly}</span></span>
                       <span className="font-medium text-green-700">${earlyBirdDiscount}</span>
                     </div>
-                    <div className="text-xs text-green-700 font-medium">🎉 Early Bird 50% off — saves ${earlyBirdDiscount}!</div>
+                    <div className="text-xs text-green-700 font-medium">🎉 Early Bird 50% off, saves ${earlyBirdDiscount}!</div>
                   </>
                 )}
                 <div className="flex justify-between pt-2 border-t border-gray-200 font-bold text-base"><span>Total due today</span><span className="text-[#1a2d5a]">{totalDisplay}</span></div>
@@ -444,7 +444,7 @@ export default function AfterschoolRegister() {
                 </div>
               </div>
 
-              {/* Step 0 — Children */}
+              {/* Step 0, Children */}
               {step === 0 && (
                 <div className="space-y-5">
                   <h2 className="text-xl font-bold text-[#1a2d5a]">Child / Student Information</h2>
@@ -482,7 +482,7 @@ export default function AfterschoolRegister() {
                 </div>
               )}
 
-              {/* Step 1 — Parents */}
+              {/* Step 1, Parents */}
               {step === 1 && (
                 <div className="space-y-5">
                   <h2 className="text-xl font-bold text-[#1a2d5a]">Parent / Guardian Contacts</h2>
@@ -522,7 +522,7 @@ export default function AfterschoolRegister() {
                 </div>
               )}
 
-              {/* Step 2 — Pickup authorization */}
+              {/* Step 2, Pickup authorization */}
               {step === 2 && (
                 <div className="space-y-5">
                   <h2 className="text-xl font-bold text-[#1a2d5a]">Pick-Up Authorization</h2>
@@ -532,7 +532,7 @@ export default function AfterschoolRegister() {
                   </p>
                   {pickupAuth.map((p, i) => (
                     <div key={i} className="grid sm:grid-cols-2 gap-3">
-                      <input className={inputCls} value={p.name} placeholder={`Authorized person ${i + 1} — full name`}
+                      <input className={inputCls} value={p.name} placeholder={`Authorized person ${i + 1}, full name`}
                         onChange={e => setPickupAuth(prev => prev.map((x, j) => j === i ? { ...x, name: e.target.value } : x))} />
                       <input className={inputCls} value={p.phone} placeholder="Phone #"
                         onChange={e => setPickupAuth(prev => prev.map((x, j) => j === i ? { ...x, phone: e.target.value } : x))} />
@@ -544,7 +544,7 @@ export default function AfterschoolRegister() {
                 </div>
               )}
 
-              {/* Step 3 — About the child */}
+              {/* Step 3, About the child */}
               {step === 3 && (
                 <div className="space-y-5">
                   <h2 className="text-xl font-bold text-[#1a2d5a]">Getting to Know Your Child</h2>
@@ -561,7 +561,7 @@ export default function AfterschoolRegister() {
                 </div>
               )}
 
-              {/* Step 4 — Plan */}
+              {/* Step 4, Plan */}
               {step === 4 && (
                 <div className="space-y-5">
                   <h2 className="text-xl font-bold text-[#1a2d5a]">Plan & Schedule</h2>
@@ -603,18 +603,18 @@ export default function AfterschoolRegister() {
                     <div className="space-y-2">
                       <label className="flex items-center gap-3 cursor-pointer">
                         <input type="checkbox" checked={includeUniform} onChange={e => setIncludeUniform(e.target.checked)} className="w-4 h-4 rounded border-gray-300 text-[#c41e3a] focus:ring-[#c41e3a]" />
-                        <span className="text-sm text-gray-700">Uniform — <strong>$50</strong></span>
+                        <span className="text-sm text-gray-700">Uniform, <strong>$50</strong></span>
                       </label>
                       <label className="flex items-center gap-3 cursor-pointer">
                         <input type="checkbox" checked={includeSupplyFee} onChange={e => setIncludeSupplyFee(e.target.checked)} className="w-4 h-4 rounded border-gray-300 text-[#c41e3a] focus:ring-[#c41e3a]" />
-                        <span className="text-sm text-gray-700">Supply Fee (once/year) — <strong>$65</strong></span>
+                        <span className="text-sm text-gray-700">Supply Fee (once/year), <strong>$65</strong></span>
                       </label>
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* Step 5 — Waiver + signature */}
+              {/* Step 5, Waiver + signature */}
               {step === 5 && (
                 <div className="space-y-5">
                   <h2 className="text-xl font-bold text-[#1a2d5a]">Enrollment Agreement</h2>
@@ -698,7 +698,7 @@ export default function AfterschoolRegister() {
               ))}
             </div>
             <div className="mt-4 pt-4 border-t border-gray-100 text-sm text-gray-600">
-              <strong>Hours:</strong> 3:00 PM – 6:30 PM<br /><strong>Late pick-up:</strong> $5 per 5 min after 6:30 PM
+              <strong>Hours:</strong> 3:00 PM to 6:30 PM<br /><strong>Late pick-up:</strong> $5 per 5 min after 6:30 PM
             </div>
           </Card>
 
@@ -717,7 +717,7 @@ export default function AfterschoolRegister() {
 
           <Card className="bg-white border border-gray-200 shadow-sm p-5">
             <h3 className="font-bold text-[#1a2d5a] mb-2 text-base">Questions?</h3>
-            <p className="text-sm text-gray-600 mb-3">Call or text us — we're happy to help.</p>
+            <p className="text-sm text-gray-600 mb-3">Call or text us, we're happy to help.</p>
             <a href="tel:+17702773009" className="block text-[#c41e3a] font-semibold text-sm hover:underline">(770) 277-3009</a>
             <button onClick={goToTour} className="mt-3 text-sm text-[#1a2d5a] hover:text-[#c41e3a] transition font-medium underline underline-offset-2">Schedule a tour instead →</button>
           </Card>

@@ -44,7 +44,7 @@ export default function TrialClassPicker({
         </div>
       );
     }
-    // afterschool / summer camp — no calendar
+    // afterschool / summer camp, no calendar
     return null;
   }
 
@@ -52,7 +52,7 @@ export default function TrialClassPicker({
 
   return (
     <div className="space-y-4">
-      {/* Step 1 — Pick a class time */}
+      {/* Step 1, Pick a class time */}
       <div>
         <p className="text-sm font-semibold text-primary mb-2">
           Choose a class time to try:
@@ -77,7 +77,7 @@ export default function TrialClassPicker({
               >
                 <span className="font-medium">{slot.day}</span>
                 <span className={isActive ? "text-white/90" : "text-gray-500"}>
-                  {slot.startTime} – {slot.endTime}
+                  {slot.startTime} to {slot.endTime}
                 </span>
               </button>
             );
@@ -85,7 +85,7 @@ export default function TrialClassPicker({
         </div>
       </div>
 
-      {/* Step 2 — Pick a date */}
+      {/* Step 2, Pick a date */}
       {activeSlot && (
         <div>
           <p className="text-sm font-semibold text-primary mb-2">
