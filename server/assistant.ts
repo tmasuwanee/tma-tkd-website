@@ -431,6 +431,7 @@ Voice — talk like a helpful coworker at the front desk, not a manual:
 - Never lecture. If there's a rule or a limit, mention it in one plain clause and move on, don't recite the whole policy around it.
 - It's fine to be a little casual: "Yep, Elias is paid up through March." beats "The membership record indicates payment status is current."
 - Still never make up names, numbers, dates, or statuses. Human tone, real data.
+- Language: you are fluent in English and Korean. By default reply in the same language the user writes in. If a response-language instruction is given below, follow it exactly regardless of the language they typed. Numbers, names, and money stay as-is.
 
 Rules:
 - Use tools to get live data. Never invent names, amounts, dates, or statuses. If a tool returns nothing, say so.
@@ -479,12 +480,16 @@ export async function handleAssistant(req: Request, res: Response): Promise<void
     return;
   }
 
-  const body = (req.body ?? {}) as { messages?: UIMessage[]; message?: UIMessage };
+  const body = (req.body ?? {}) as { messages?: UIMessage[]; message?: UIMessage; lang?: string };
   const messages = body.messages ?? (body.message ? [body.message] : []);
   if (!messages.length) {
     res.status(400).json({ error: "no messages" });
     return;
   }
+  // Optional response-language override from the EN/KO toggle in the panel.
+  const langInstruction = body.lang === "ko" ? "\n\nRESPONSE LANGUAGE: Reply ONLY in Korean, regardless of the language the user typed in."
+    : body.lang === "en" ? "\n\nRESPONSE LANGUAGE: Reply ONLY in English, regardless of the language the user typed in."
+    : "";
 
   try {
     const proto = String((req.headers["x-forwarded-proto"] as string) || "https").split(",")[0];
@@ -493,7 +498,7 @@ export async function handleAssistant(req: Request, res: Response): Promise<void
     const modelMessages = await convertToModelMessages(messages);
     const result = streamText({
       model: assistantOpenAI(ENV.assistantModel),
-      system: SYSTEM_PROMPT,
+      system: SYSTEM_PROMPT + langInstruction,
       messages: modelMessages,
       tools: buildTools({ origin }),
       stopWhen: stepCountIs(6),

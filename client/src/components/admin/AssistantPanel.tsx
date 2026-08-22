@@ -88,6 +88,7 @@ export default function AssistantPanel({ open, onClose }: { open: boolean; onClo
     transport: new DefaultChatTransport({ api: "/api/admin/assistant" }),
   });
 
+  const [lang, setLang] = useState<"en" | "ko">("en");
   const busy = status === "submitted" || status === "streaming";
 
   useEffect(() => {
@@ -113,7 +114,7 @@ export default function AssistantPanel({ open, onClose }: { open: boolean; onClo
   const submit = (text: string) => {
     const t = text.trim();
     if (!t || busy) return;
-    sendMessage({ text: t });
+    sendMessage({ text: t }, { body: { lang } });
     setInput("");
   };
 
@@ -125,6 +126,15 @@ export default function AssistantPanel({ open, onClose }: { open: boolean; onClo
         <div className="flex-1">
           <div className="text-sm font-bold text-[#1a2d5a]">TMA Assistant</div>
           <div className="text-[10px] text-gray-400">Looks things up, opens profiles, and proposes changes you approve here.</div>
+        </div>
+        {/* Reply-language toggle (also applies to voice via its own mirroring). */}
+        <div className="flex items-center rounded-full border border-gray-200 overflow-hidden text-[11px] font-semibold shrink-0">
+          {(["en", "ko"] as const).map(l => (
+            <button key={l} onClick={() => setLang(l)}
+              className={`px-2 py-1 ${lang === l ? "bg-[#1a2d5a] text-white" : "text-gray-500 hover:bg-gray-50"}`}>
+              {l === "en" ? "EN" : "한국어"}
+            </button>
+          ))}
         </div>
         <button onClick={onClose} className="text-gray-400 hover:text-gray-700"><X className="w-4 h-4" /></button>
       </div>
