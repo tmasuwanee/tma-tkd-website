@@ -67,7 +67,7 @@ import {
 import { dayCampTotalCents } from "@shared/dayCamp";
 import { sendTelegramMessage } from "./telegram";
 import { tuitionConfiguredFor, ensureStripeCustomer, createAfterschoolSubscription } from "./tuition";
-import { proposeAction, confirmAction, rejectAction } from "./action-flow";
+import { proposeAction, confirmAction, rejectAction, undoAction } from "./action-flow";
 import { createMembership, changeMembership, setMembershipDiscount, pauseMembership, resumeMembership, cancelMembership, adjustCharge, firstChargeInfo } from "./membership-ops";
 import { memberList, memberOverview, memberWaivers, resolveStudentIdForMembership } from "./members";
 import { createWaiver } from "./db";
@@ -2037,12 +2037,19 @@ export const appRouter = router({
       .query(async ({ input }) => {
         const a = await getPendingAction(input.id);
         if (!a) return null;
-        return { id: a.id, actionType: a.actionType, title: a.title, preview: a.preview, status: a.status, confirmedBy: a.confirmedBy };
+        let payload: Record<string, unknown> | null = null;
+        try { payload = a.payload ? JSON.parse(a.payload) : null; } catch { payload = null; }
+        let result: Record<string, unknown> | null = null;
+        try { result = a.result ? JSON.parse(a.result) : null; } catch { result = null; }
+        const undoable = a.status === "executed" && !!result && "_undo" in result;
+        return { id: a.id, actionType: a.actionType, title: a.title, preview: a.preview, status: a.status, confirmedBy: a.confirmedBy, payload, undoable };
       }),
-    confirm: publicProcedure.input(z.object({ id: z.number().int().positive() }))
-      .mutation(async ({ input, ctx }) => confirmAction(input.id, ctx.adminEmail ?? "admin")),
+    confirm: publicProcedure.input(z.object({ id: z.number().int().positive(), overridePayload: z.record(z.string(), z.unknown()).optional() }))
+      .mutation(async ({ input, ctx }) => confirmAction(input.id, ctx.adminEmail ?? "admin", input.overridePayload)),
     reject: publicProcedure.input(z.object({ id: z.number().int().positive() }))
       .mutation(async ({ input, ctx }) => { await rejectAction(input.id, ctx.adminEmail ?? "admin"); return { ok: true }; }),
+    undo: publicProcedure.input(z.object({ id: z.number().int().positive() }))
+      .mutation(async ({ input, ctx }) => undoAction(input.id, ctx.adminEmail ?? "admin")),
     // Manual proposer (also what the assistant will call to draft an email for review).
     proposeEmail: publicProcedure.input(z.object({ to: z.string().email(), subject: z.string().min(1).max(255), html: z.string().min(1).max(20000) }))
       .mutation(async ({ input, ctx }) => proposeAction("send_email", input, ctx.adminEmail ?? "admin")),

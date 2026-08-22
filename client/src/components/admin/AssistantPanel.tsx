@@ -5,7 +5,19 @@ import { toast } from "sonner";
 import { Markdown } from "@/components/Markdown";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
-import { Loader2, Send, Sparkles, X, Search as SearchIcon, ShieldCheck, UserSquare, Check, Ban, ExternalLink, CreditCard } from "lucide-react";
+import { Loader2, Send, Sparkles, X, Search as SearchIcon, ShieldCheck, UserSquare, Check, Ban, ExternalLink, CreditCard, PencilLine, Undo2 } from "lucide-react";
+
+// Fields staff may edit on a proposed action before approving. Money fields are
+// shown in dollars and sent as cents; the server re-validates through the same
+// catalog/bounds guardrails, so an edit can't slip past them.
+type EditField = { name: string; label: string; kind: "money" | "text" };
+const EDITABLE_FIELDS: Record<string, EditField[]> = {
+  membership_change: [{ name: "monthlyAmountCents", label: "Monthly tuition", kind: "money" }, { name: "planLabel", label: "Plan label", kind: "text" }],
+  membership_create: [{ name: "monthlyAmountCents", label: "Monthly tuition", kind: "money" }, { name: "planLabel", label: "Plan label", kind: "text" }],
+  membership_discount: [{ name: "discountCents", label: "Discount", kind: "money" }, { name: "note", label: "Note", kind: "text" }],
+  charge_adjust: [{ name: "amountCents", label: "Amount", kind: "money" }, { name: "note", label: "Note", kind: "text" }],
+  send_email: [{ name: "subject", label: "Subject", kind: "text" }],
+};
 import { useMemberDock } from "@/components/admin/MemberDock";
 import { VoiceBar } from "@/components/admin/VoiceAssistant";
 
@@ -241,6 +253,12 @@ function ApprovalCard({ actionId }: { actionId: number }) {
     onSuccess: () => { toast.success("Rejected."); refreshAll(); },
     onError: (e) => toast.error(e.message ?? "Could not reject."),
   });
+  const undo = trpc.actions.undo.useMutation({
+    onSuccess: () => { toast.success("Undone."); refreshAll(); },
+    onError: (e) => toast.error(e.message ?? "Could not undo."),
+  });
+  const [editing, setEditing] = useState(false);
+  const [edits, setEdits] = useState<Record<string, string>>({});
 
   const a = q.data;
   if (q.isLoading) return <div className="border border-gray-200 rounded-lg p-3 text-xs text-gray-400 flex items-center gap-2"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading proposal...</div>;
@@ -249,28 +267,76 @@ function ApprovalCard({ actionId }: { actionId: number }) {
   const pending = a.status === "proposed";
   const busy = confirm.isPending || reject.isPending;
   const statusView = a.status === "executed" ? { label: "Approved and applied", cls: "text-green-700", Icon: Check }
+    : a.status === "reversed" ? { label: "Undone", cls: "text-gray-500", Icon: Ban }
     : a.status === "rejected" ? { label: "Rejected", cls: "text-gray-500", Icon: Ban }
     : a.status === "failed" ? { label: "Failed", cls: "text-red-600", Icon: Ban }
     : { label: a.status, cls: "text-gray-500", Icon: ShieldCheck };
   const StatusIcon = statusView.Icon;
 
+  const editable = EDITABLE_FIELDS[a.actionType] ?? [];
+  const payload = (a.payload ?? {}) as Record<string, unknown>;
+  const fieldValue = (f: EditField): string => {
+    if (f.name in edits) return edits[f.name];
+    const raw = payload[f.name];
+    if (raw === undefined || raw === null) return "";
+    return f.kind === "money" ? (Number(raw) / 100).toFixed(0) : String(raw);
+  };
+  const approveEdited = () => {
+    const override: Record<string, unknown> = {};
+    for (const f of editable) {
+      const v = fieldValue(f).trim();
+      if (v === "") continue;
+      override[f.name] = f.kind === "money" ? Math.round(parseFloat(v.replace(/[^0-9.]/g, "")) * 100) : v;
+    }
+    confirm.mutate({ id: actionId, overridePayload: override });
+  };
+
   return (
     <div className="border border-[#1a2d5a]/20 bg-[#1a2d5a]/[0.04] rounded-lg p-3 text-sm">
       <div className="font-semibold text-[#1a2d5a] flex items-center gap-1.5"><ShieldCheck className="w-4 h-4 shrink-0" /> {a.title || "Proposed change"}</div>
       {a.preview ? <div className="text-xs text-gray-600 whitespace-pre-wrap mt-1">{a.preview}</div> : null}
+      {pending && editing && editable.length > 0 && (
+        <div className="mt-2 space-y-2 border border-gray-200 rounded-lg p-2 bg-white">
+          {editable.map(f => (
+            <label key={f.name} className="flex items-center gap-2 text-xs text-gray-600">
+              <span className="w-28 shrink-0">{f.label}</span>
+              <div className="flex items-center gap-1 flex-1">
+                {f.kind === "money" && <span className="text-gray-400">$</span>}
+                <input value={fieldValue(f)} onChange={e => setEdits(s => ({ ...s, [f.name]: e.target.value }))}
+                  className="flex-1 border border-gray-300 rounded px-2 py-1 text-xs" />
+              </div>
+            </label>
+          ))}
+          <div className="text-[10px] text-gray-400">Edited values are re-checked against the catalog rules before applying.</div>
+        </div>
+      )}
       {pending ? (
-        <div className="flex gap-2 mt-2.5">
-          <button onClick={() => confirm.mutate({ id: actionId })} disabled={busy}
+        <div className="flex flex-wrap gap-2 mt-2.5">
+          <button onClick={() => (editing ? approveEdited() : confirm.mutate({ id: actionId }))} disabled={busy}
             className="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-green-600 hover:bg-green-700 rounded px-3 py-1.5 disabled:opacity-50">
-            {confirm.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />} Approve
+            {confirm.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />} {editing ? "Approve edited" : "Approve"}
           </button>
+          {editable.length > 0 && (
+            <button onClick={() => setEditing(v => !v)} disabled={busy}
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-[#1a2d5a] border border-[#1a2d5a]/30 hover:bg-[#1a2d5a]/5 rounded px-3 py-1.5 disabled:opacity-50">
+              <PencilLine className="w-3.5 h-3.5" /> {editing ? "Cancel edit" : "Edit"}
+            </button>
+          )}
           <button onClick={() => reject.mutate({ id: actionId })} disabled={busy}
             className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-600 border border-gray-200 hover:border-red-200 hover:text-red-600 rounded px-3 py-1.5 disabled:opacity-50">
             <Ban className="w-3.5 h-3.5" /> Reject
           </button>
         </div>
       ) : (
-        <div className={`flex items-center gap-1.5 text-xs font-medium mt-2 ${statusView.cls}`}><StatusIcon className="w-3.5 h-3.5" /> {statusView.label}</div>
+        <div className="flex items-center gap-2 mt-2">
+          <div className={`flex items-center gap-1.5 text-xs font-medium ${statusView.cls}`}><StatusIcon className="w-3.5 h-3.5" /> {statusView.label}</div>
+          {a.status === "executed" && a.undoable && (
+            <button onClick={() => undo.mutate({ id: actionId })} disabled={undo.isPending}
+              className="inline-flex items-center gap-1 text-[11px] font-medium text-gray-500 hover:text-[#1a2d5a] underline disabled:opacity-50">
+              {undo.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Undo2 className="w-3 h-3" />} Undo
+            </button>
+          )}
+        </div>
       )}
     </div>
   );

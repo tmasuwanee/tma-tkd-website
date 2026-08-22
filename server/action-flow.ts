@@ -18,13 +18,14 @@
 import { z } from "zod";
 import {
   insertPendingAction, getPendingAction, claimPendingAction, finishPendingAction,
-  setPendingActionStatus, getMembership, getMembershipCharge, getStudentById, updateStudent,
+  setPendingActionStatus, updatePendingActionPayload, getMembership, getMembershipCharge, getStudentById, updateStudent,
+  updateMembership, demoteBeltRank,
   type PendingActionRow,
 } from "./db";
 import { sendReviewedEmail } from "./integrations";
 import {
   createMembership, changeMembership, setMembershipDiscount, pauseMembership,
-  cancelMembership, adjustCharge, describeMembershipOp,
+  resumeMembership, cancelMembership, adjustCharge, describeMembershipOp,
 } from "./membership-ops";
 import { setPayerPrimaryCard, detachPayerCard } from "./membership-billing";
 
@@ -132,7 +133,7 @@ const HANDLERS: Record<string, ActionHandler> = {
     execute: async (payload) => {
       const p = membershipCreateSchema.parse(payload);
       const r = await createMembership(p);
-      return { created: true, membershipId: r.id };
+      return { created: true, membershipId: r.id, _undo: { type: "membership_create_undo", membershipId: r.id } };
     },
   },
 
@@ -146,8 +147,9 @@ const HANDLERS: Record<string, ActionHandler> = {
     },
     execute: async (payload) => {
       const { id, ...changes } = membershipChangeSchema.parse(payload);
+      const before = await getMembership(id);
       await changeMembership(id, changes);
-      return { changed: true, id };
+      return { changed: true, id, _undo: before ? { type: "membership_change", id, program: before.program, planLabel: before.planLabel, monthlyAmountCents: before.monthlyAmountCents } : undefined };
     },
   },
 
@@ -162,8 +164,9 @@ const HANDLERS: Record<string, ActionHandler> = {
     },
     execute: async (payload) => {
       const p = membershipDiscountSchema.parse(payload);
+      const before = await getMembership(p.id);
       await setMembershipDiscount(p.id, p.discountCents, p.note ?? null);
-      return { discountSet: true, id: p.id };
+      return { discountSet: true, id: p.id, _undo: before ? { type: "membership_discount", id: p.id, discountCents: before.discountCents, discountNote: before.discountNote } : undefined };
     },
   },
 
@@ -177,7 +180,7 @@ const HANDLERS: Record<string, ActionHandler> = {
     execute: async (payload) => {
       const p = membershipIdSchema.parse(payload);
       await pauseMembership(p.id);
-      return { paused: true, id: p.id };
+      return { paused: true, id: p.id, _undo: { type: "resume", id: p.id } };
     },
   },
 
@@ -190,8 +193,9 @@ const HANDLERS: Record<string, ActionHandler> = {
     },
     execute: async (payload) => {
       const p = membershipCancelSchema.parse(payload);
+      const before = await getMembership(p.id);
       await cancelMembership(p.id, { immediate: p.immediate });
-      return { canceled: true, id: p.id, immediate: p.immediate };
+      return { canceled: true, id: p.id, immediate: p.immediate, _undo: { type: "cancel_undo", id: p.id, status: before?.status ?? "active" } };
     },
   },
 
@@ -208,8 +212,9 @@ const HANDLERS: Record<string, ActionHandler> = {
     },
     execute: async (payload) => {
       const { chargeId, ...changes } = chargeAdjustSchema.parse(payload);
+      const before = await getMembershipCharge(chargeId);
       await adjustCharge(chargeId, changes, "assistant (confirmed)");
-      return { adjusted: true, chargeId };
+      return { adjusted: true, chargeId, _undo: before ? { type: "charge_adjust", chargeId, amountCents: before.amountCents, status: before.status, note: before.note } : undefined };
     },
   },
 
@@ -258,7 +263,7 @@ const HANDLERS: Record<string, ActionHandler> = {
       const p = z.object({ studentId: z.number().int().positive(), note: z.string().max(255).optional() }).parse(payload);
       const { promoteBeltRank } = await import("./db");
       await promoteBeltRank(p.studentId, { note: p.note, by: "assistant (confirmed)" });
-      return { promoted: true, studentId: p.studentId };
+      return { promoted: true, studentId: p.studentId, _undo: { type: "belt_undo", studentId: p.studentId } };
     },
   },
 
@@ -303,8 +308,11 @@ export async function proposeAction(actionType: string, payload: unknown, propos
 }
 
 /** Confirm + execute an action, exactly once. Idempotent: re-confirming an already
- *  executed action returns its prior result rather than running it again. */
-export async function confirmAction(id: number, confirmedBy: string | null): Promise<{ status: string; result: Record<string, unknown> | null }> {
+ *  executed action returns its prior result rather than running it again.
+ *  `override` lets staff EDIT the proposed values before approving: the edited fields
+ *  are merged onto the stored payload and RE-VALIDATED through the same prepare()
+ *  guardrails, so an edit can't slip past the catalog/bounds checks. */
+export async function confirmAction(id: number, confirmedBy: string | null, override?: Record<string, unknown>): Promise<{ status: string; result: Record<string, unknown> | null }> {
   const row = await getPendingAction(id);
   if (!row) throw new Error("Action not found");
 
@@ -312,6 +320,18 @@ export async function confirmAction(id: number, confirmedBy: string | null): Pro
   if (row.status === "executing") throw new Error("Action is already being processed");
   if (row.status !== "proposed") throw new Error(`Action is ${row.status}, cannot confirm`);
   if (isExpired(row)) { await setPendingActionStatus(id, "expired", confirmedBy); throw new Error("Action expired; propose it again"); }
+
+  const handler = HANDLERS[row.actionType];
+  if (!handler) { await setPendingActionStatus(id, "failed", confirmedBy); throw new Error("Unknown action type"); }
+
+  // Apply + re-validate an edit BEFORE claiming, so an invalid edit doesn't leave the
+  // row stuck in 'executing'. The merged payload runs through the same guardrails.
+  let payload: unknown = JSON.parse(row.payload);
+  if (override && Object.keys(override).length) {
+    payload = { ...(payload as Record<string, unknown>), ...override };
+    const { title, preview } = await handler.prepare(payload); // throws on an invalid edit
+    await updatePendingActionPayload(id, JSON.stringify(payload), title, preview);
+  }
 
   // Atomic claim: only one caller flips proposed->executing, so it never runs twice.
   const won = await claimPendingAction(id);
@@ -321,17 +341,40 @@ export async function confirmAction(id: number, confirmedBy: string | null): Pro
     throw new Error("Action was already taken");
   }
 
-  const handler = HANDLERS[row.actionType];
-  if (!handler) { await finishPendingAction(id, { status: "failed", result: JSON.stringify({ error: "unknown action type" }), confirmedBy }); throw new Error("Unknown action type"); }
-
   try {
-    const result = await handler.execute(JSON.parse(row.payload));
+    const result = await handler.execute(payload);
     await finishPendingAction(id, { status: "executed", result: JSON.stringify(result), confirmedBy });
     return { status: "executed", result };
   } catch (e) {
     await finishPendingAction(id, { status: "failed", result: JSON.stringify({ error: (e as Error).message }), confirmedBy });
     throw e;
   }
+}
+
+/** Reverse an executed action, using the before-state captured in its result (_undo).
+ *  Only within 24h, and only for action types that captured a reversible snapshot. */
+export async function undoAction(id: number, by: string | null): Promise<{ ok: true }> {
+  const row = await getPendingAction(id);
+  if (!row) throw new Error("Action not found");
+  if (row.status === "reversed") throw new Error("This action was already undone.");
+  if (row.status !== "executed") throw new Error("Only an applied action can be undone.");
+  const executedAt = row.executedAt ? new Date(row.executedAt).getTime() : 0;
+  if (executedAt && Date.now() - executedAt > EXPIRY_MS) throw new Error("Too long ago to undo automatically; reverse it in the dashboard.");
+  const undo = (safeJson(row.result)?._undo ?? null) as null | Record<string, unknown>;
+  if (!undo) throw new Error("This action can't be undone automatically. Reverse it in the dashboard.");
+  const u = undo as { type: string; id?: number; membershipId?: number; studentId?: number; chargeId?: number; program?: string; planLabel?: string | null; monthlyAmountCents?: number; discountCents?: number; discountNote?: string | null; amountCents?: number; status?: string; note?: string | null };
+  switch (u.type) {
+    case "membership_change": await changeMembership(u.id!, { program: u.program, planLabel: u.planLabel, monthlyAmountCents: u.monthlyAmountCents }); break;
+    case "membership_discount": await setMembershipDiscount(u.id!, u.discountCents ?? 0, u.discountNote ?? null); break;
+    case "charge_adjust": await adjustCharge(u.chargeId!, { amountCents: u.amountCents, status: u.status as "scheduled" | "waived" | "canceled" | "paid" | undefined, note: `undo: ${u.note ?? "restored"}` }, by); break;
+    case "resume": await resumeMembership(u.id!); break;
+    case "cancel_undo": await updateMembership(u.id!, { status: "active", cancelEffectiveDate: null, canceledAt: null }); break;
+    case "membership_create_undo": await cancelMembership(u.membershipId!, { immediate: true }); break;
+    case "belt_undo": await demoteBeltRank(u.studentId!); break;
+    default: throw new Error("This action can't be undone automatically.");
+  }
+  await setPendingActionStatus(id, "reversed", by);
+  return { ok: true };
 }
 
 export async function rejectAction(id: number, by: string | null): Promise<void> {

@@ -3135,6 +3135,13 @@ export async function setPendingActionStatus(id: number, status: string, by: str
   await db.execute(sql`UPDATE pendingActions SET status = ${status}, confirmedBy = ${by} WHERE id = ${id}`);
 }
 
+/** Overwrite a proposed action's payload + refreshed preview (edit-before-approve). */
+export async function updatePendingActionPayload(id: number, payload: string, title: string, preview: string): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.execute(sql`UPDATE pendingActions SET payload = ${payload}, title = ${title}, preview = ${preview} WHERE id = ${id}`);
+}
+
 // ─── Memberships (membership engine) ─────────────────────────────────────────
 export type MembershipRow = {
   id: number;
