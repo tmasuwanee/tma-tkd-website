@@ -11,6 +11,42 @@ import { Loader2, Send, Sparkles, X, Search as SearchIcon, ShieldCheck, UserSqua
 // shown in dollars and sent as cents; the server re-validates through the same
 // catalog/bounds guardrails, so an edit can't slip past them.
 type EditField = { name: string; label: string; kind: "money" | "text" };
+// Contextual follow-up chips keyed by the last tool the assistant used.
+const NEXT_CHIPS: Record<string, string[]> = {
+  listPastDueTuition: ["Draft a reminder email to the first family", "Who's been past due the longest?"],
+  openMemberProfile: ["Show their payment history", "Check their waiver", "What's their belt status?"],
+  getBeltStatus: ["Propose the promotion", "Who else is ready to test?"],
+  checkWaiverStatus: ["Text the waiver link to the parent", "Who's missing an after-school waiver?"],
+  findMembership: ["Show their charges", "Check their waiver"],
+  getMembershipCharges: ["Waive this month's charge", "Show their payment history"],
+  getRevenueSummary: ["Break it down by month", "Compare to last year"],
+  listMissingAfterschoolWaivers: ["Draft a reminder to the first family"],
+};
+
+// Render an array-shaped tool output as a compact table instead of leaving the model
+// to retype it (which is where miscounts creep in). Returns null for non-table tools.
+function ToolTable({ name, output }: { name: string; output: Record<string, unknown> | undefined }) {
+  if (!output) return null;
+  const cols = (headers: string[], rows: (string | number | null)[][]) => rows.length === 0 ? null : (
+    <div className="overflow-x-auto border border-gray-200 rounded-lg">
+      <table className="w-full text-xs">
+        <thead><tr className="bg-gray-50 text-left text-gray-500">{headers.map(h => <th key={h} className="px-2 py-1 font-semibold">{h}</th>)}</tr></thead>
+        <tbody>{rows.map((r, i) => <tr key={i} className="border-t border-gray-100">{r.map((c, j) => <td key={j} className="px-2 py-1 whitespace-nowrap">{c ?? "—"}</td>)}</tr>)}</tbody>
+      </table>
+    </div>
+  );
+  if (name === "listPastDueTuition" && Array.isArray(output.families)) {
+    return cols(["Parent", "Child", "Monthly", "Source"], (output.families as Record<string, unknown>[]).map(f => [String(f.parent ?? ""), String(f.child ?? ""), String(f.monthly ?? "—"), String(f.source ?? "")]));
+  }
+  if (name === "getMembershipCharges" && Array.isArray(output.charges)) {
+    return cols(["Month", "Amount", "Status"], (output.charges as Record<string, unknown>[]).map(c => [String(c.month ?? ""), String(c.amount ?? ""), String(c.status ?? "")]));
+  }
+  if (name === "listMemberCards" && Array.isArray(output.cards)) {
+    return cols(["Card", "Exp", "Primary"], (output.cards as Record<string, unknown>[]).map(c => [String(c.label ?? ""), String(c.exp ?? ""), c.primary ? "✓" : ""]));
+  }
+  return null;
+}
+
 const EDITABLE_FIELDS: Record<string, EditField[]> = {
   membership_change: [{ name: "monthlyAmountCents", label: "Monthly tuition", kind: "money" }, { name: "planLabel", label: "Plan label", kind: "text" }],
   membership_create: [{ name: "monthlyAmountCents", label: "Monthly tuition", kind: "money" }, { name: "planLabel", label: "Plan label", kind: "text" }],
@@ -82,7 +118,7 @@ export default function AssistantPanel({ open, onClose }: { open: boolean; onClo
   };
 
   return (
-    <div className="fixed top-0 right-0 bottom-0 z-30 w-full max-w-md bg-white h-full flex flex-col shadow-2xl border-l border-gray-200">
+    <div className="fixed top-0 right-0 bottom-0 z-30 w-full max-w-2xl bg-white h-full flex flex-col shadow-2xl border-l border-gray-200">
       {/* Header */}
       <div className="h-14 flex items-center gap-2 px-4 border-b border-gray-100 shrink-0">
         <Sparkles className="w-4 h-4 text-[#1a2d5a]" />
@@ -146,6 +182,10 @@ export default function AssistantPanel({ open, onClose }: { open: boolean; onClo
                     if (done && output?.pendingActionId) {
                       return <ApprovalCard key={i} actionId={output.pendingActionId} />;
                     }
+                    if (done) {
+                      const rendered = ToolTable({ name, output: output as unknown as Record<string, unknown> });
+                      if (rendered) return <div key={i}>{rendered}</div>;
+                    }
                     return (
                       <div key={i} className="flex items-center gap-1.5 text-xs text-gray-500">
                         {done ? <SearchIcon className="w-3 h-3" /> : <Loader2 className="w-3 h-3 animate-spin" />}
@@ -159,6 +199,21 @@ export default function AssistantPanel({ open, onClose }: { open: boolean; onClo
             )
           ))
         )}
+        {!busy && (() => {
+          // Contextual follow-up chips based on the last tool the assistant used.
+          const lastAssistant = [...messages].reverse().find(mm => mm.role === "assistant");
+          if (!lastAssistant) return null;
+          const lastTool = [...(lastAssistant.parts as Array<{ type?: string }>)].reverse().find(p => p.type?.startsWith("tool-"))?.type?.replace("tool-", "");
+          const chips = lastTool ? (NEXT_CHIPS[lastTool] ?? []) : [];
+          if (chips.length === 0) return null;
+          return (
+            <div className="flex flex-wrap gap-1.5">
+              {chips.map(c => (
+                <button key={c} onClick={() => submit(c)} className="text-[11px] text-[#1a2d5a] border border-[#1a2d5a]/25 bg-[#1a2d5a]/[0.03] rounded-full px-2.5 py-1 hover:bg-[#1a2d5a]/10">{c}</button>
+              ))}
+            </div>
+          );
+        })()}
         {busy && messages[messages.length - 1]?.role === "user" && (
           <div className="flex items-center gap-2 text-xs text-gray-400"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Thinking...</div>
         )}
