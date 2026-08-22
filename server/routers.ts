@@ -255,6 +255,7 @@ export const appRouter = router({
           // Element). This removes Klarna / Affirm / Amazon Pay / Cash App that
           // Stripe's automatic payment methods would otherwise pull in.
           payment_method_types: ["card"],
+          ...(input.email ? { receipt_email: input.email } : {}),
           metadata: {
             camper1Name: input.camper1Name,
             parentEmail: input.email,
@@ -2022,6 +2023,16 @@ export const appRouter = router({
   // in the dashboard instead of living only in Stripe + Telegram scrollback.
   payments: router({
     listOneOff: publicProcedure.query(async () => getOneOffPayments()),
+    // Email (or re-email) a receipt for a one-off payment (supply fee, field trip).
+    // Handles "no email on file / send it later": staff type/confirm the address.
+    resendOneOffReceipt: publicProcedure.input(z.object({ paymentId: z.number().int().positive(), email: z.string().email() }))
+      .mutation(async ({ input }) => {
+        const p = (await getOneOffPayments()).find(x => x.id === input.paymentId);
+        if (!p) throw new Error("Payment not found.");
+        const label = p.product === "afterschool_supply_fee" ? "After-school supply fee" : p.product === "field_trip" ? "Field trip" : p.product.replace(/_/g, " ");
+        await sendPaymentReceipt({ email: input.email, amountCents: p.amountCents, description: p.detail ? `${label} — ${p.detail}` : label, paidOn: String(p.paidAt).slice(0, 10), payerName: p.payerName, referenceId: p.stripePaymentIntentId });
+        return { sent: true, email: input.email };
+      }),
   }),
 
   // Write-action confirm-flow: an action is proposed (does nothing), then a human
@@ -2853,6 +2864,7 @@ export const appRouter = router({
           // Element). This removes Klarna / Affirm / Amazon Pay / Cash App that
           // Stripe's automatic payment methods would otherwise pull in.
           payment_method_types: ["card"],
+          ...(input.email ? { receipt_email: input.email } : {}),
           metadata: { product: "3_week_99", studentName: input.studentName, email: input.email ?? "" },
         });
         const trialId = await createTrialEnrollment({

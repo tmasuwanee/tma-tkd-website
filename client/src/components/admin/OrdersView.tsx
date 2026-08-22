@@ -1,7 +1,8 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { trpc } from "@/lib/trpc";
+import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
-import { Loader2, ShoppingBag, Phone, Mail, Receipt } from "lucide-react";
+import { Loader2, ShoppingBag, Phone, Mail, Receipt, X } from "lucide-react";
 import ProShopSpecials from "@/components/admin/ProShopSpecials";
 
 /**
@@ -46,6 +47,7 @@ function amountFromNotes(notes: string | null): string | null {
 export default function OrdersView() {
   const { data, isLoading } = trpc.leads.getAll.useQuery();
   const oneOff = trpc.payments.listOneOff.useQuery();
+  const [receiptFor, setReceiptFor] = useState<{ id: number; amountCents: number; email: string | null; label: string } | null>(null);
 
   const orders = useMemo(
     () => ((data ?? []) as unknown as LeadRow[])
@@ -176,7 +178,8 @@ export default function OrdersView() {
                 </thead>
                 <tbody>
                   {(oneOff.data ?? []).map(p => (
-                    <tr key={p.id} className="border-b border-gray-100 hover:bg-gray-50 align-top">
+                    <tr key={p.id} onClick={() => setReceiptFor({ id: p.id, amountCents: p.amountCents, email: p.email, label: ONE_OFF_LABEL[p.product] ?? p.product })}
+                      title="Click to email a receipt" className="border-b border-gray-100 hover:bg-gray-50 align-top cursor-pointer">
                       <td className="px-4 py-3">
                         <div className="font-medium text-gray-900">{p.payerName}</div>
                         {p.studentName && <div className="text-xs text-gray-500">{p.studentName}</div>}
@@ -189,7 +192,9 @@ export default function OrdersView() {
                       <td className="px-4 py-3 text-gray-600 text-xs max-w-[280px]">{p.detail || "—"}</td>
                       <td className="px-4 py-3 font-semibold text-gray-900 tabular-nums">${(p.amountCents / 100).toFixed(2)}</td>
                       <td className="px-4 py-3">
-                        {p.email && <a href={`mailto:${p.email}`} className="inline-flex items-center gap-1 text-xs text-[#1a2d5a] hover:underline"><Mail className="w-3 h-3" />{p.email}</a>}
+                        {p.email
+                          ? <a href={`mailto:${p.email}`} onClick={e => e.stopPropagation()} className="inline-flex items-center gap-1 text-xs text-[#1a2d5a] hover:underline"><Mail className="w-3 h-3" />{p.email}</a>
+                          : <span className="text-xs text-amber-600">no email — click to send</span>}
                       </td>
                       <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
                         {p.paidAt ? new Date(p.paidAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—"}
@@ -202,6 +207,44 @@ export default function OrdersView() {
           )}
         </CardContent>
       </Card>
+
+      {receiptFor && <OneOffReceiptModal payment={receiptFor} onClose={() => setReceiptFor(null)} />}
+    </div>
+  );
+}
+
+/** Email (or re-email) a receipt for a one-off payment. Covers "no email on file /
+ *  send it to them later": staff type or confirm the address here. */
+function OneOffReceiptModal({ payment, onClose }: { payment: { id: number; amountCents: number; email: string | null; label: string }; onClose: () => void }) {
+  const [email, setEmail] = useState(payment.email ?? "");
+  const send = trpc.payments.resendOneOffReceipt.useMutation({
+    onSuccess: (r) => { toast.success(`Receipt sent to ${r.email}.`); onClose(); },
+    onError: (e) => toast.error(e.message ?? "Couldn't send the receipt."),
+  });
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[10vh] px-4 bg-black/40" onClick={onClose}>
+      <div className="w-full max-w-md bg-white rounded-xl shadow-2xl border border-gray-200" onClick={e => e.stopPropagation()}>
+        <div className="h-12 flex items-center justify-between px-4 border-b border-gray-100">
+          <div className="font-bold text-[#1a2d5a] text-sm flex items-center gap-2"><Receipt className="w-4 h-4" /> Email a receipt</div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-700"><X className="w-4 h-4" /></button>
+        </div>
+        <div className="p-4 space-y-3">
+          <div className="text-sm text-gray-700 border border-gray-200 rounded-lg p-3 bg-gray-50 flex justify-between">
+            <span className="text-gray-500">{payment.label}</span><span className="font-semibold tabular-nums">${(payment.amountCents / 100).toFixed(2)}</span>
+          </div>
+          <label className="block">
+            <span className="text-xs font-semibold text-gray-600">Send the receipt to</span>
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="parent@email.com"
+              className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a2d5a]/20 focus:border-[#1a2d5a]/40" />
+            {!payment.email && <span className="text-[11px] text-amber-600">No email on file — enter one to send it.</span>}
+          </label>
+          <button onClick={() => { if (!/^\S+@\S+\.\S+$/.test(email)) { toast.error("Enter a valid email."); return; } send.mutate({ paymentId: payment.id, email: email.trim() }); }}
+            disabled={send.isPending}
+            className="w-full inline-flex items-center justify-center gap-1.5 text-sm font-semibold text-white bg-[#1a2d5a] hover:bg-[#142347] rounded-lg py-2.5 disabled:opacity-50">
+            {send.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />} Send receipt
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
