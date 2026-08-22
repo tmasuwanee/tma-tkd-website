@@ -17,6 +17,8 @@ import { handleAssistant } from "../assistant";
 import { handleVoiceSession, handleVoiceRun } from "../voice-assistant";
 import { chargeDueMemberships } from "../membership-billing";
 import { topUpAllChargeRunways } from "../membership-ops";
+import { reconcileMembershipBilling } from "../billing-reconciliation";
+import { sendTelegramMessage } from "../telegram";
 import { handleMorningReport } from "../morning-report";
 import { registerVoiceRoutes } from "../voice-routes";
 import { handleTrialRemindersAM, handleTrialCheckinPM, handleDailyCallQueue } from "../staff-reminders";
@@ -124,6 +126,16 @@ async function startServer() {
       const charged = await chargeDueMemberships();
       res.json({ runway, ...charged });
     } catch (e) { console.error("[membership-charges] error:", e); res.status(500).json({ error: "failed" }); }
+  });
+
+  // Daily billing reconciliation: Stripe vs the ledger, alert-only. Safe to leave
+  // registered (read-only detection).
+  app.post("/api/scheduled/reconcile-billing", async (_req: Request, res: Response) => {
+    try {
+      const r = await reconcileMembershipBilling(48);
+      if (r.drift.length) await sendTelegramMessage(`🔎 <b>Billing reconciliation: ${r.drift.length} issue(s)</b>\n${r.drift.slice(0, 10).join("\n")}`).catch(() => {});
+      res.json({ ok: true, ...r });
+    } catch (e) { console.error("[reconcile-billing] error:", e); res.status(500).json({ error: "failed" }); }
   });
 
   // ─── Scheduled: morning blast health report ────────────────────────────────

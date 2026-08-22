@@ -2138,6 +2138,44 @@ export const appRouter = router({
         await updateMembership(input.id, { payerId });
         return { ok: true, payerId };
       }),
+
+    // Bulk-link imported siblings to ONE family payer. Groups unlinked active
+    // memberships by shared email/phone (union-find, so a family sharing either is
+    // one group), reuses an existing payer when one matches by contact, else creates
+    // one. dryRun previews; idempotent (already-linked and canceled are skipped).
+    bulkAssignPayers: publicProcedure.input(z.object({ dryRun: z.boolean().optional() }))
+      .mutation(async ({ input }) => {
+        const nEmail = (s: string | null | undefined) => (s ?? "").trim().toLowerCase();
+        const nPhone = (s: string | null | undefined) => (s ?? "").replace(/[^0-9]/g, "");
+        const memberships = await listMemberships();
+        const payers = await listPayers();
+        const cand = memberships.filter(m => m.status !== "canceled" && !m.payerId);
+        // union-find over candidates by shared email or phone
+        const parent = new Map<number, number>();
+        cand.forEach(m => parent.set(m.id, m.id));
+        const find = (x: number): number => { let r = x; while (parent.get(r) !== r) r = parent.get(r)!; while (parent.get(x) !== r) { const n = parent.get(x)!; parent.set(x, r); x = n; } return r; };
+        const union = (a: number, b: number) => { const ra = find(a), rb = find(b); if (ra !== rb) parent.set(ra, rb); };
+        const byEmail = new Map<string, number>(), byPhone = new Map<string, number>();
+        for (const m of cand) {
+          const e = nEmail(m.email), p = nPhone(m.phone);
+          if (e) { if (byEmail.has(e)) union(m.id, byEmail.get(e)!); else byEmail.set(e, m.id); }
+          if (p) { if (byPhone.has(p)) union(m.id, byPhone.get(p)!); else byPhone.set(p, m.id); }
+        }
+        const groups = new Map<number, typeof cand>();
+        for (const m of cand) { const r = find(m.id); if (!groups.has(r)) groups.set(r, []); groups.get(r)!.push(m); }
+        let linked = 0, payersCreated = 0; const noContact: string[] = []; const plan: { members: string[]; action: string }[] = [];
+        for (const grp of Array.from(groups.values())) {
+          const e = grp.map(m => nEmail(m.email)).find(Boolean) || "";
+          const p = grp.map(m => nPhone(m.phone)).find(Boolean) || "";
+          if (!e && !p) { grp.forEach(m => noContact.push(m.studentName)); continue; }
+          let payerId = payers.find(pr => (e && nEmail(pr.email) === e) || (p && nPhone(pr.phone) === p))?.id ?? null;
+          plan.push({ members: grp.map(m => m.studentName), action: payerId ? "link to existing payer" : "create new family payer" });
+          if (input.dryRun) { if (!payerId) payersCreated++; linked += grp.length; continue; }
+          if (!payerId) { payerId = await insertPayer({ name: grp.find(m => m.parentName)?.parentName || `Family (${e || p})`, email: grp.find(m => m.email)?.email ?? null, phone: grp.find(m => m.phone)?.phone ?? null }); payersCreated++; }
+          for (const m of grp) { await updateMembership(m.id, { payerId }); linked++; }
+        }
+        return { dryRun: !!input.dryRun, examined: cand.length, families: plan.length, linked, payersCreated, noContact, plan };
+      }),
   }),
 
   // Members — unified People→Members view: memberships + afterschool registrations
@@ -2525,7 +2563,15 @@ export const appRouter = router({
         method: "POST",
         description: "Daily sweep of due membership tuition charges (no-op unless MEMBERSHIP_AUTOCHARGE_ENFORCE=true).",
       }, "");
-      return { created: true, taskUid, cron: "0 0 14 * * *" };
+      // Also register the daily reconciliation (Stripe vs ledger, alert-only) if absent.
+      let reconcileRegistered = jobs.some(j => j.callbackPath === "/api/scheduled/reconcile-billing");
+      if (!reconcileRegistered) {
+        try {
+          await createHeartbeatJob({ name: "reconcile-billing", cron: "0 30 14 * * *", path: "/api/scheduled/reconcile-billing", method: "POST", description: "Daily Stripe-vs-ledger billing reconciliation (alert only)." }, "");
+          reconcileRegistered = true;
+        } catch { /* non-fatal; the charge cron is the critical one */ }
+      }
+      return { created: true, taskUid, cron: "0 0 14 * * *", reconcileRegistered };
     }),
   }),
 

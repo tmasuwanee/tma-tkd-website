@@ -221,7 +221,7 @@ export function MemberPanelBody({ id, onChanged, onName }: { id: number; onChang
     const s = window.prompt("New monthly tuition (dollars):", m ? String((m.monthlyAmountCents / 100).toFixed(2)) : "");
     if (s === null) return;
     const cents = dollarsToCents(s); if (cents === null) { toast.error("Invalid amount."); return; }
-    const prorate = window.confirm("Prorate this change to the current month?\n\nOK = prorate. Cancel = change takes effect next billing cycle (recommended default).");
+    const prorate = window.confirm("Prorate this month?\n\nOK = charge this month a real blended rate (old rate for days already passed + new rate for the rest of the month), IF this month isn't paid yet.\nCancel = new rate starts next billing cycle (recommended default).");
     change.mutate({ id, monthlyAmountCents: cents, prorate });
   };
   const applyDiscount = () => {

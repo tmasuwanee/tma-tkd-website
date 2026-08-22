@@ -3331,10 +3331,11 @@ export type MembershipChargeRow = {
   baseAmountCents: number; amountCents: number; status: string; note: string | null;
   adjustedBy: string | null; stripeInvoiceId: string | null;
   paidAt: string | Date | null; stripePaymentIntentId: string | null; attemptCount: number;
+  stripeChargeId: string | null; refundTotalCents: number; stripeDisputeId: string | null; disputeStatus: string | null; disputedAt: string | Date | null;
   createdAt: string | Date;
 };
 
-const CHARGE_COLS = sql`id, membershipId, periodMonth, dueDate, baseAmountCents, amountCents, status, note, adjustedBy, stripeInvoiceId, paidAt, stripePaymentIntentId, attemptCount, createdAt`;
+const CHARGE_COLS = sql`id, membershipId, periodMonth, dueDate, baseAmountCents, amountCents, status, note, adjustedBy, stripeInvoiceId, paidAt, stripePaymentIntentId, attemptCount, stripeChargeId, refundTotalCents, stripeDisputeId, disputeStatus, disputedAt, createdAt`;
 
 /** Create a month's charge if it doesn't already exist (idempotent per month). */
 export async function upsertMembershipCharge(p: {
@@ -3363,7 +3364,7 @@ export async function getMembershipCharge(id: number): Promise<MembershipChargeR
   return Array.isArray(rows) && rows[0] ? rows[0] : null;
 }
 
-export async function updateMembershipCharge(id: number, fields: Partial<{ amountCents: number; status: string; note: string | null; adjustedBy: string | null; stripeInvoiceId: string | null; paidAt: string | null; stripePaymentIntentId: string | null; attemptCount: number }>): Promise<void> {
+export async function updateMembershipCharge(id: number, fields: Partial<{ amountCents: number; status: string; note: string | null; adjustedBy: string | null; stripeInvoiceId: string | null; paidAt: string | null; stripePaymentIntentId: string | null; attemptCount: number; stripeChargeId: string | null; refundTotalCents: number; stripeDisputeId: string | null; disputeStatus: string | null; disputedAt: string | null }>): Promise<void> {
   const db = await getDb();
   if (!db) return;
   const sets: ReturnType<typeof sql>[] = [];
@@ -3375,8 +3376,39 @@ export async function updateMembershipCharge(id: number, fields: Partial<{ amoun
   if (fields.paidAt !== undefined) sets.push(sql`paidAt = ${fields.paidAt}`);
   if (fields.stripePaymentIntentId !== undefined) sets.push(sql`stripePaymentIntentId = ${fields.stripePaymentIntentId}`);
   if (fields.attemptCount !== undefined) sets.push(sql`attemptCount = ${fields.attemptCount}`);
+  if (fields.stripeChargeId !== undefined) sets.push(sql`stripeChargeId = ${fields.stripeChargeId}`);
+  if (fields.refundTotalCents !== undefined) sets.push(sql`refundTotalCents = ${fields.refundTotalCents}`);
+  if (fields.stripeDisputeId !== undefined) sets.push(sql`stripeDisputeId = ${fields.stripeDisputeId}`);
+  if (fields.disputeStatus !== undefined) sets.push(sql`disputeStatus = ${fields.disputeStatus}`);
+  if (fields.disputedAt !== undefined) sets.push(sql`disputedAt = ${fields.disputedAt}`);
   if (sets.length === 0) return;
   await db.execute(sql`UPDATE membershipCharges SET ${sql.join(sets, sql`, `)} WHERE id = ${id}`);
+}
+
+/** Find a membership charge by the Stripe PaymentIntent that paid it (refund/dispute mapping). */
+export async function findMembershipChargeByPaymentIntentId(piId: string): Promise<MembershipChargeRow | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const [rows] = await db.execute(sql`SELECT ${CHARGE_COLS} FROM membershipCharges WHERE stripePaymentIntentId = ${piId} LIMIT 1`) as unknown as [MembershipChargeRow[]];
+  return Array.isArray(rows) && rows[0] ? rows[0] : null;
+}
+
+/** Recover a membership id from a positive ledger payment by its PaymentIntent. */
+export async function findMembershipPaymentByPaymentIntentId(piId: string): Promise<{ membershipId: number; studentName: string | null; amountCents: number } | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const [rows] = await db.execute(sql`SELECT membershipId, studentName, amountCents FROM membershipPayments WHERE stripePaymentIntentId = ${piId} AND amountCents > 0 LIMIT 1`) as unknown as [Array<{ membershipId: number; studentName: string | null; amountCents: number }>];
+  return Array.isArray(rows) && rows[0] ? rows[0] : null;
+}
+
+/** Record a Stripe refund as an immutable NEGATIVE ledger row. Idempotent on the
+ *  refund id (importDedupKey). Returns false if already recorded. */
+export async function recordStripeRefund(input: { membershipId: number; studentName: string | null; refundId: string; amountCents: number; refundedAt: string; note: string }): Promise<boolean> {
+  return insertMembershipPayment({
+    membershipId: input.membershipId, studentName: input.studentName, amountCents: -Math.abs(input.amountCents),
+    paidAt: input.refundedAt, method: "stripe_refund", source: "stripe_webhook", stripePaymentIntentId: null,
+    importDedupKey: `stripe-refund:${input.refundId}`, note: input.note,
+  });
 }
 
 /** Membership ids with at least one past_due charge (for the dashboard billing

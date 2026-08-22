@@ -198,13 +198,27 @@ export async function changeMembership(id: number, changes: {
   // current month is left for a staff/Stripe proration step; we note it.
   const after = await getMembership(id);
   if (after && changes.monthlyAmountCents !== undefined) {
-    const net = Math.max(0, after.monthlyAmountCents - (after.discountCents || 0));
+    const newNet = Math.max(0, after.monthlyAmountCents - (after.discountCents || 0));
+    const oldNet = Math.max(0, before.monthlyAmountCents - (before.discountCents || 0));
     const thisMonth = monthKeys(1)[0];
+    const today = etToday();
+    const todayDay = Number(today.slice(8, 10));
+    const [ty, tm] = today.split("-").map(Number);
+    const daysInMonth = new Date(ty, tm, 0).getDate(); // day 0 of next month = last day of this
     for (const c of await listMembershipCharges(id)) {
-      if (c.status !== "scheduled") continue;
+      if (c.status !== "scheduled") continue; // a paid/waived month is not retroactively changed
       if (c.periodMonth < thisMonth) continue;
-      if (c.periodMonth === thisMonth && !changes.prorate) continue; // change hits next cycle
-      await updateMembershipCharge(c.id, { amountCents: net, note: changes.prorate ? "re-priced (prorate requested)" : "re-priced (next cycle)" });
+      if (c.periodMonth === thisMonth) {
+        if (!changes.prorate) continue; // change hits next cycle
+        // REAL calendar proration: charge old rate for the days already elapsed and
+        // the new rate for the remaining days of the current month.
+        const elapsed = Math.max(0, Math.min(daysInMonth, todayDay - 1));
+        const remaining = daysInMonth - elapsed;
+        const prorated = Math.round((oldNet * elapsed + newNet * remaining) / daysInMonth);
+        await updateMembershipCharge(c.id, { amountCents: prorated, note: `Prorated ${today}: ${elapsed}d @ ${dollars(oldNet)} + ${remaining}d @ ${dollars(newNet)}` });
+      } else {
+        await updateMembershipCharge(c.id, { amountCents: newNet, note: "re-priced (next cycle)" });
+      }
     }
   }
   void sendTelegramMessage(

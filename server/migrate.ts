@@ -271,6 +271,14 @@ const MIGRATIONS: { name: string; sql: string }[] = [
   { name: "membershipCharges.paidAt", sql: "ALTER TABLE membershipCharges ADD COLUMN IF NOT EXISTS paidAt DATETIME NULL" },
   { name: "membershipCharges.stripePaymentIntentId", sql: "ALTER TABLE membershipCharges ADD COLUMN IF NOT EXISTS stripePaymentIntentId VARCHAR(255) NULL" },
   { name: "membershipCharges.attemptCount", sql: "ALTER TABLE membershipCharges ADD COLUMN IF NOT EXISTS attemptCount INT NOT NULL DEFAULT 0" },
+  // Refund / dispute reflection from the Stripe webhook (keeps the ledger truthful
+  // when money is refunded or disputed in the Stripe dashboard).
+  { name: "membershipCharges.stripeChargeId", sql: "ALTER TABLE membershipCharges ADD COLUMN IF NOT EXISTS stripeChargeId VARCHAR(255) NULL" },
+  { name: "membershipCharges.refundTotalCents", sql: "ALTER TABLE membershipCharges ADD COLUMN IF NOT EXISTS refundTotalCents INT NOT NULL DEFAULT 0" },
+  { name: "membershipCharges.stripeDisputeId", sql: "ALTER TABLE membershipCharges ADD COLUMN IF NOT EXISTS stripeDisputeId VARCHAR(255) NULL" },
+  { name: "membershipCharges.disputeStatus", sql: "ALTER TABLE membershipCharges ADD COLUMN IF NOT EXISTS disputeStatus VARCHAR(64) NULL" },
+  { name: "membershipCharges.disputedAt", sql: "ALTER TABLE membershipCharges ADD COLUMN IF NOT EXISTS disputedAt DATETIME NULL" },
+  { name: "membershipCharges PI lookup index", sql: "CREATE INDEX IF NOT EXISTS membership_charges_pi_idx ON membershipCharges (stripePaymentIntentId)" },
   // Immutable payments ledger: legacy imported payments + future real Stripe
   // payments. INSERT-only. importDedupKey makes a re-run of the same import a
   // no-op; the unique index on stripePaymentIntentId (NULLs allowed) makes a

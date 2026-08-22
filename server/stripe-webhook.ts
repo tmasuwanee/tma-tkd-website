@@ -13,7 +13,8 @@
  *   Stripe Dashboard -> Developers -> Webhooks -> Add endpoint
  *   URL: https://tmatkd.com/api/stripe/webhook
  *   Events: invoice.paid, invoice.payment_failed,
- *           customer.subscription.updated, customer.subscription.deleted
+ *           customer.subscription.updated, customer.subscription.deleted,
+ *           charge.refunded, charge.dispute.created, charge.dispute.closed
  *   Copy the signing secret -> set TMA_STRIPE_WEBHOOK_SECRET in Secrets.
  *
  * NOTE (rule D4/D5): the Stripe object field names read below (invoice.subscription,
@@ -24,7 +25,9 @@ import type { Request, Response } from "express";
 import Stripe from "stripe";
 import { ENV } from "./_core/env";
 import { sendTelegramMessage } from "./telegram";
-import { updateSubscriptionByStripeId, updateMembership, updatePayerStripeCustomer } from "./db";
+import { updateSubscriptionByStripeId, updateMembership, updatePayerStripeCustomer, findMembershipChargeByPaymentIntentId, findMembershipPaymentByPaymentIntentId, recordStripeRefund, updateMembershipCharge, type MembershipChargeRow } from "./db";
+
+const toMysqlDate = (unixSeconds: number) => new Date(unixSeconds * 1000).toISOString().slice(0, 19).replace("T", " ");
 
 export async function handleStripeWebhook(req: Request, res: Response): Promise<void> {
   const secret = ENV.tmaStripeWebhookSecret;
@@ -47,6 +50,20 @@ export async function handleStripeWebhook(req: Request, res: Response): Promise<
     res.status(400).send("bad signature");
     return;
   }
+
+  // Map a Stripe charge/PaymentIntent back to our membership ledger.
+  const piFromCharge = async (chargeRef: string | Stripe.Charge | null | undefined): Promise<string | null> => {
+    if (!chargeRef) return null;
+    if (typeof chargeRef !== "string") return typeof chargeRef.payment_intent === "string" ? chargeRef.payment_intent : chargeRef.payment_intent?.id ?? null;
+    try { const c = await stripe.charges.retrieve(chargeRef); return typeof c.payment_intent === "string" ? c.payment_intent : c.payment_intent?.id ?? null; } catch { return null; }
+  };
+  const resolveByPI = async (piId: string | null): Promise<{ ch: MembershipChargeRow | null; membershipId: number | null; studentName: string | null }> => {
+    if (!piId) return { ch: null, membershipId: null, studentName: null };
+    const ch = await findMembershipChargeByPaymentIntentId(piId);
+    if (ch) return { ch, membershipId: ch.membershipId, studentName: null };
+    const p = await findMembershipPaymentByPaymentIntentId(piId);
+    return { ch: null, membershipId: p?.membershipId ?? null, studentName: p?.studentName ?? null };
+  };
 
   try {
     switch (event.type) {
@@ -119,6 +136,43 @@ export async function handleStripeWebhook(req: Request, res: Response): Promise<
           else if (membershipId) await updateMembership(Number(membershipId), { stripeCustomerId: String(session.customer) });
           void sendTelegramMessage(`💳 <b>Card saved</b>\n${payerId ? `Payer #${payerId}` : `Membership #${membershipId}`}`).catch(() => {});
         }
+        break;
+      }
+      case "charge.refunded": {
+        const charge = event.data.object as Stripe.Charge;
+        const piId = typeof charge.payment_intent === "string" ? charge.payment_intent : charge.payment_intent?.id ?? null;
+        const { ch, membershipId, studentName } = await resolveByPI(piId);
+        if (membershipId === null) { void sendTelegramMessage(`⚠️ <b>Unmapped Stripe refund</b>\nCharge ${charge.id} (PI ${piId ?? "?"}). Reconcile manually.`).catch(() => {}); break; }
+        // Record each succeeded refund as an immutable negative ledger row (idempotent per refund).
+        for (const rf of charge.refunds?.data ?? []) {
+          if (rf.status && rf.status !== "succeeded") continue;
+          await recordStripeRefund({ membershipId, studentName, refundId: rf.id, amountCents: rf.amount, refundedAt: toMysqlDate(rf.created ?? charge.created), note: `Refund on charge ${charge.id}` });
+        }
+        if (ch) {
+          const fully = (charge.amount_refunded ?? 0) >= (charge.amount ?? 0);
+          await updateMembershipCharge(ch.id, { refundTotalCents: charge.amount_refunded ?? 0, ...(fully ? { status: "refunded" } : {}), note: `${fully ? "Refunded" : "Partially refunded"} ${charge.id}` });
+        }
+        void sendTelegramMessage(`↩️ <b>Refund recorded</b>\n${studentName ?? `Membership #${membershipId}`} · $${((charge.amount_refunded ?? 0) / 100).toFixed(2)} of $${((charge.amount ?? 0) / 100).toFixed(2)}`).catch(() => {});
+        break;
+      }
+      case "charge.dispute.created": {
+        const dispute = event.data.object as Stripe.Dispute;
+        const piId = await piFromCharge(dispute.charge);
+        const { ch } = await resolveByPI(piId);
+        if (ch) await updateMembershipCharge(ch.id, { status: "disputed", stripeDisputeId: dispute.id, disputeStatus: dispute.status, disputedAt: toMysqlDate(dispute.created), note: `Dispute ${dispute.id}: ${dispute.status}` });
+        void sendTelegramMessage(`⚠️ <b>Charge disputed</b>\nDispute ${dispute.id} · $${((dispute.amount ?? 0) / 100).toFixed(2)} · ${dispute.status}${ch ? "" : " (unmapped — reconcile)"}`).catch(() => {});
+        break;
+      }
+      case "charge.dispute.closed": {
+        const dispute = event.data.object as Stripe.Dispute;
+        const piId = await piFromCharge(dispute.charge);
+        const { ch, membershipId, studentName } = await resolveByPI(piId);
+        const won = dispute.status === "won";
+        if (ch) await updateMembershipCharge(ch.id, { status: won ? "paid" : "refunded", disputeStatus: dispute.status, note: `Dispute ${dispute.id} ${dispute.status}` });
+        if (!won && membershipId !== null) {
+          await recordStripeRefund({ membershipId, studentName, refundId: `dispute-lost:${dispute.id}`, amountCents: dispute.amount, refundedAt: toMysqlDate(dispute.created), note: `Lost dispute ${dispute.id}` });
+        }
+        void sendTelegramMessage(`⚖️ <b>Dispute closed (${dispute.status})</b>\nDispute ${dispute.id} · $${((dispute.amount ?? 0) / 100).toFixed(2)}${ch ? "" : " (unmapped)"}`).catch(() => {});
         break;
       }
       default:

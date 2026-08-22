@@ -72,6 +72,18 @@ export default function MembersView() {
     onSuccess: (r) => { if (!r.existed) refresh(); dock.open(r.membershipId); },
     onError: (e) => toast.error(e.message),
   });
+  const bulkPayers = trpc.memberships.bulkAssignPayers.useMutation({ onError: (e) => toast.error(e.message) });
+  const linkFamilies = async () => {
+    try {
+      const preview = await bulkPayers.mutateAsync({ dryRun: true });
+      if (preview.linked === 0) { toast.info("No unlinked members to group — everyone already has a family payer."); return; }
+      const noContactNote = preview.noContact.length ? `\n${preview.noContact.length} member(s) have no email/phone and will be skipped.` : "";
+      if (!window.confirm(`Link ${preview.linked} member(s) into ${preview.families} family payer(s) (${preview.payersCreated} new)?${noContactNote}\n\nSiblings sharing an email or phone get one shared payer/card.`)) return;
+      const r = await bulkPayers.mutateAsync({ dryRun: false });
+      toast.success(`Linked ${r.linked} member(s) into ${r.families} families (${r.payersCreated} new payers).`);
+      refresh();
+    } catch { /* toast handled */ }
+  };
 
   const refresh = () => { utils.members.list.invalidate(); utils.members.overview.invalidate(); };
 
@@ -105,6 +117,9 @@ export default function MembersView() {
           </button>
           <button onClick={() => setImportingPayments(true)} className="inline-flex items-center gap-1.5 text-sm font-medium text-[#1a2d5a] border border-[#1a2d5a]/30 hover:bg-[#1a2d5a]/5 rounded-lg px-3 py-2">
             <Receipt className="w-4 h-4" /> Import payments
+          </button>
+          <button onClick={linkFamilies} disabled={bulkPayers.isPending} className="inline-flex items-center gap-1.5 text-sm font-medium text-[#1a2d5a] border border-[#1a2d5a]/30 hover:bg-[#1a2d5a]/5 rounded-lg px-3 py-2 disabled:opacity-50">
+            {bulkPayers.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <UsersRound className="w-4 h-4" />} Link families
           </button>
           <button onClick={() => setCreating(true)} className="inline-flex items-center gap-1.5 text-sm font-semibold text-white bg-[#1a2d5a] hover:bg-[#142347] rounded-lg px-3 py-2">
             <UserPlus className="w-4 h-4" /> Add member
