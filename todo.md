@@ -252,3 +252,6 @@
 - [ ] After publishing commit e35c794, verify live authenticated dashboard behavior, Financials popup, afterschool tour dropdown, and console/network health
 - [x] Pull commit 69b15f6 and validate the production build, fresh migrations, disabled gates, member waiver and belt-testing tools, and public pages locally
 - [ ] After publishing commit 69b15f6, verify live authenticated member waiver/testing behavior, public pages, admin views, and console/network health
+- [ ] Securely set ADMIN_PASSWORD and ADMIN_AUTH_ENFORCE=true for commit d6d0d11 while keeping card collection and auto-charge disabled
+- [ ] Pull commit d6d0d11 and validate the production build, access control, safety gates, and new billing/import migrations locally
+- [ ] After publishing commit d6d0d11, verify live migration logs, secured admin access, and console/network health
