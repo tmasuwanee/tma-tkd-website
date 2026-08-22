@@ -3445,6 +3445,14 @@ export async function getStudentPhoto(studentId: number): Promise<string | null>
   return Array.isArray(rows) && rows[0] ? rows[0].photoUrl ?? null : null;
 }
 
+/** One payment ledger row by id (for the resend-receipt flow). */
+export async function getMembershipPayment(id: number): Promise<{ id: number; membershipId: number; amountCents: number; paidAt: string | Date; method: string; note: string | null; stripePaymentIntentId: string | null } | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const [rows] = await db.execute(sql`SELECT id, membershipId, amountCents, paidAt, method, note, stripePaymentIntentId FROM membershipPayments WHERE id = ${id} LIMIT 1`) as unknown as [Array<{ id: number; membershipId: number; amountCents: number; paidAt: string | Date; method: string; note: string | null; stripePaymentIntentId: string | null }>];
+  return Array.isArray(rows) && rows[0] ? rows[0] : null;
+}
+
 /** Advance a membership's paidThroughDate forward only (never backward). */
 export async function bumpMembershipPaidThrough(membershipId: number, paidThroughDate: string): Promise<void> {
   const db = await getDb();

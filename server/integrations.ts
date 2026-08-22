@@ -255,6 +255,48 @@ export async function sendReviewedEmail(to: string, subject: string, html: strin
 }
 
 /**
+ * Generic branded payment receipt — used by every charge path that doesn't have a
+ * bespoke template, and by the resend-receipt tool. Throws if there is no email, so
+ * callers can surface "no email on file" (charge-time callers should catch + skip).
+ */
+export async function sendPaymentReceipt(params: {
+  email: string | null | undefined;
+  amountCents: number;
+  description: string;      // what they paid for, e.g. "After-school supply fee"
+  paidOn?: string;          // ISO date; defaults to today
+  payerName?: string | null;
+  referenceId?: string | null; // Stripe PI / order id, shown small for support
+}): Promise<{ sent: boolean }> {
+  const email = (params.email ?? "").trim();
+  if (!email) throw new Error("No email on file for this payment.");
+  const amount = `$${(params.amountCents / 100).toFixed(2)}`;
+  const when = (() => { try { return new Date((params.paidOn ?? new Date().toISOString().slice(0, 10)) + "T12:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }); } catch { return params.paidOn ?? ""; } })();
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <div style="background: #1a2d5a; padding: 24px; text-align: center;">
+        <h1 style="color: white; margin: 0; font-size: 22px;">Payment Receipt</h1>
+        <p style="color: #a0b4d6; margin: 8px 0 0;">Top Martial Arts</p>
+      </div>
+      <div style="padding: 24px; background: #ffffff;">
+        ${params.payerName ? `<p style="font-size: 16px;">Hi ${params.payerName},</p>` : ""}
+        <p>Thank you. This confirms your payment to Top Martial Arts.</p>
+        <div style="background: #f0f4ff; border-left: 4px solid #1a2d5a; padding: 16px; margin: 20px 0; border-radius: 4px;">
+          <p style="margin: 4px 0;"><strong>For:</strong> ${params.description}</p>
+          <p style="margin: 4px 0;"><strong>Amount paid:</strong> ${amount}</p>
+          <p style="margin: 4px 0;"><strong>Date:</strong> ${when}</p>
+          ${params.referenceId ? `<p style="margin: 8px 0 0; font-size: 11px; color: #888;">Ref: ${params.referenceId}</p>` : ""}
+        </div>
+        <p>Questions? Call <strong>(770) 277-3009</strong> or email <a href="mailto:tmasuwanee@gmail.com">tmasuwanee@gmail.com</a>.</p>
+      </div>
+      <div style="background: #1a2d5a; padding: 16px; text-align: center;">
+        <p style="color: white; margin: 0; font-size: 12px;">Top Martial Arts Suwanee &bull; 2005 Lawrenceville Suwanee Rd, Suwanee, GA 30024 &bull; (770) 277-3009</p>
+      </div>
+    </div>`;
+  await sendEmail(email, `Your Top Martial Arts receipt — ${amount}`, html);
+  return { sent: true };
+}
+
+/**
  * Emails the completed GCPS transportation authorization PDF to the parent and
  * to staff, as an attachment. Called by transportation.submit after the parent
  * signs. The PDF is the authoritative signed record.

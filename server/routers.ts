@@ -72,11 +72,11 @@ import { createMembership, changeMembership, setMembershipDiscount, pauseMembers
 import { memberList, memberOverview, memberWaivers, resolveStudentIdForMembership } from "./members";
 import { createWaiver } from "./db";
 import { listSpecials, insertSpecial, updateSpecial } from "./db";
-import { createImportBatch, completeImportBatch, insertMembershipPayment, bumpMembershipPaidThrough, listMembershipPayments, setStudentPhoto, getStudentPhoto } from "./db";
+import { createImportBatch, completeImportBatch, insertMembershipPayment, bumpMembershipPaidThrough, listMembershipPayments, getMembershipPayment, setStudentPhoto, getStudentPhoto } from "./db";
 import { listHeartbeatJobs, createHeartbeatJob } from "./_core/heartbeat";
 import { createCardSetupSession, chargeDueMemberships, listPayerCards, setPayerPrimaryCard, detachPayerCard } from "./membership-billing";
 import { storagePut, storageGet } from "./storage";
-import { sendEmailNotification, sendProShopOrderNotification, sendCampRegistrationConfirmation, sendCampWaiverEmail, sendFieldTripConfirmation, sendTransportationForm, sendTrialReceipt, sendAfterschoolConfirmation, sendAfterschoolIntake, sendWaiverNotification, sendReviewedEmail } from "./integrations";
+import { sendEmailNotification, sendProShopOrderNotification, sendCampRegistrationConfirmation, sendCampWaiverEmail, sendFieldTripConfirmation, sendTransportationForm, sendTrialReceipt, sendAfterschoolConfirmation, sendAfterschoolIntake, sendWaiverNotification, sendReviewedEmail, sendPaymentReceipt } from "./integrations";
 import { fillTransportationPdf } from "./transportation-pdf";
 import { buildAfterschoolIntakePdf } from "./afterschool-intake-pdf";
 import { buildInvoicePdf } from "./invoice-pdf";
@@ -2010,6 +2010,9 @@ export const appRouter = router({
             `🎒 <b>After-school supply fee paid</b>\n` +
             `${m.payerName || "Parent"}${m.studentName ? ` · ${m.studentName}` : ""} · $${(pi.amount / 100).toFixed(2)}`
           ).catch(() => {});
+          // Customer receipt (best-effort; skipped silently if no email — staff can
+          // re-send later from the transaction row).
+          if (m.email) void sendPaymentReceipt({ email: m.email, amountCents: pi.amount, description: "After-school supply fee", payerName: m.payerName || null, referenceId: pi.id }).catch(() => {});
         }
         return { status: pi.status };
       }),
@@ -2352,6 +2355,24 @@ export const appRouter = router({
     // Immutable payment history for a member (legacy imports + future real payments).
     paymentHistory: publicProcedure.input(z.object({ id: z.number().int().positive() }))
       .query(async ({ input }) => listMembershipPayments(input.id)),
+
+    // Email (or re-email) a receipt for one recorded payment. Handles the "no email
+    // on file / email it to them later" case: staff type/confirm the address here.
+    resendReceipt: publicProcedure.input(z.object({ paymentId: z.number().int().positive(), email: z.string().email() }))
+      .mutation(async ({ input }) => {
+        const p = await getMembershipPayment(input.paymentId);
+        if (!p) throw new Error("Payment not found.");
+        const m = await getMembership(p.membershipId);
+        await sendPaymentReceipt({
+          email: input.email,
+          amountCents: p.amountCents,
+          description: p.note || `${m?.program ?? "Membership"} tuition`,
+          paidOn: String(p.paidAt).slice(0, 10),
+          payerName: m?.parentName || m?.studentName || null,
+          referenceId: p.stripePaymentIntentId,
+        });
+        return { sent: true, email: input.email };
+      }),
 
     // Profile photo for a member (resolves to the roster student).
     photo: publicProcedure.input(z.object({ id: z.number().int().positive() }))
@@ -2946,6 +2967,7 @@ export const appRouter = router({
           void sendTelegramMessage(
             `🎒 Back to School $49 PAID\n${lead.parentName}${lead.kidName ? ` (${lead.kidName})` : ""} · ${pi.metadata?.program ?? lead.programInterest}\n$${(pi.amount / 100).toFixed(2)}\n${adminLink("/admin/leads")}`
           ).catch(() => {});
+          if (lead.email) void sendPaymentReceipt({ email: lead.email, amountCents: pi.amount, description: `Back to School Special (${pi.metadata?.program ?? lead.programInterest})`, payerName: lead.parentName || null, referenceId: pi.id }).catch(() => {});
         }
         return { status: pi.status, leadId };
       }),
@@ -3083,6 +3105,7 @@ export const appRouter = router({
           void sendTelegramMessage(
             `🛍️ Christmas in July order PAID\n${lead.parentName}${lead.kidName ? ` (${lead.kidName})` : ""}\n$${(pi.amount / 100).toFixed(2)}\n${adminLink("/admin/leads")}`
           ).catch(() => {});
+          if (lead.email) void sendPaymentReceipt({ email: lead.email, amountCents: pi.amount, description: "Christmas in July order", payerName: lead.parentName || null, referenceId: pi.id }).catch(() => {});
         }
         return { status: pi.status, leadId };
       }),
