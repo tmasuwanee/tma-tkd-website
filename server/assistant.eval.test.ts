@@ -87,7 +87,10 @@ const CASES: { q: string; tool: string; contains: string[] }[] = [
   { q: "Which afterschool families never signed a waiver?", tool: "listMissingAfterschoolWaivers", contains: ["Dana Fox"] },
   { q: "How much revenue did we collect in 2026?", tool: "getRevenueSummary", contains: ["18"] },
   { q: "Give Test Student a $20/mo sibling discount", tool: "proposeSetDiscount", contains: ["approve"] },
-  { q: "Open Test Student's profile", tool: "openMemberProfile", contains: ["opened"] },
+  // Models may say "open on your dashboard" instead of "opened". The tool-call
+  // assertion below remains the behavior contract; this checks the user-facing
+  // confirmation without requiring one exact verb inflection.
+  { q: "Open Test Student's profile", tool: "openMemberProfile", contains: ["open"] },
 ];
 
 describe("assistant routing eval (needs OPENAI_API_KEY)", () => {

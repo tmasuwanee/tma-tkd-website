@@ -35,5 +35,7 @@ describe("Retell env vars", () => {
       [400, 403, 404],
       `Retell API returned ${res.status} — RETELL_API_KEY may be invalid (expected 400, 403, or 404 for auth-OK)`
     ).toContain(res.status);
-  }, 10_000);
+  // This is a real external request; allow brief provider/network variation
+  // without treating a healthy credential as a release failure.
+  }, 30_000);
 });
