@@ -1,0 +1,56 @@
+# Render Blueprint — stand up an independent copy of the TMA app off Manus.
+# It runs the same GitHub code against the same TiDB Cloud database, so no data
+# migration is needed. After first deploy, paste the secret values (sync:false keys)
+# in the Render dashboard, then point tmatkd.com's DNS at the Render URL.
+#
+# Deploy: render.com -> New -> Blueprint -> connect the tmasuwanee/tma-tkd-website repo.
+services:
+  - type: web
+    name: tma-tkd-website
+    runtime: node
+    plan: starter
+    region: ohio            # closest US region to the TiDB us-east-1 cluster
+    branch: main
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    healthCheckPath: /
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: NODE_ENV
+        value: production
+      # --- Paste these values in the Render dashboard (sync:false = not stored in git) ---
+      - key: DATABASE_URL              # the TiDB Cloud mysql:// string you saved
+        sync: false
+      - key: TMA_STRIPE_SECRET_KEY
+        sync: false
+      - key: TMA_STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: TMA_TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TMA_TELEGRAM_STAFF_CHAT_ID
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: ADMIN_AUTH_ENFORCE
+        value: "true"
+      - key: VOICE_AGENT_SHARED_SECRET
+        sync: false
+      - key: GMAIL_POLLER_SHARED_SECRET
+        sync: false
+      - key: OPENAI_ASSISTANT_MODEL
+        value: gpt-5
+      - key: LEAD_NOTIFICATION_EMAIL
+        sync: false
+      - key: FACEBOOK_PIXEL_ID
+        sync: false
+      # Retell / voice-agent + Facebook-ads keys if you use those on the live site:
+      - key: RETELL_API_KEY
+        sync: false
+      # Leave BILLING switches OFF until you deliberately go live:
+      # (do NOT set CARD_COLLECTION_ENABLED or MEMBERSHIP_AUTOCHARGE_ENFORCE here yet)

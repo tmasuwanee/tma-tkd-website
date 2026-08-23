@@ -35,7 +35,24 @@ export async function getDb() {
   const dsn = ENV.databaseUrl || process.env.DATABASE_URL;
   if (!_db && dsn) {
     try {
-      _pool = _pool ?? mysql.createPool(dsn);
+      if (!_pool) {
+        // Parse the DSN into an options object so we can force TLS. TiDB Cloud REQUIRES
+        // TLS, and connecting from any host that isn't the Manus network (Render, Railway,
+        // a VPS, local) needs ssl set explicitly. Falls back to the raw DSN if parsing fails.
+        let cfg: string | Record<string, unknown> = dsn;
+        try {
+          const u = new URL(dsn);
+          cfg = {
+            host: u.hostname,
+            port: Number(u.port) || 3306,
+            user: decodeURIComponent(u.username),
+            password: decodeURIComponent(u.password),
+            database: u.pathname.replace(/^\//, "") || undefined,
+            ...(u.hostname.includes("tidbcloud.com") ? { ssl: { minVersion: "TLSv1.2" } } : {}),
+          };
+        } catch { cfg = dsn; }
+        _pool = mysql.createPool(cfg as Parameters<typeof mysql.createPool>[0]);
+      }
       _db = drizzle(_pool);
       console.log("[Database] Connected via mysql2 pool");
     } catch (error) {
