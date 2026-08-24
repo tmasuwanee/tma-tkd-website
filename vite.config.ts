@@ -1,11 +1,8 @@
-import { jsxLocPlugin } from "@builder.io/vite-plugin-jsx-loc";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
-import { execSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { defineConfig, type Plugin, type ViteDevServer } from "vite";
-import { vitePluginManusRuntime } from "vite-plugin-manus-runtime";
 
 // =============================================================================
 // Manus Debug Collector - Vite Plugin
@@ -151,7 +148,9 @@ function vitePluginManusDebugCollector(): Plugin {
   };
 }
 
-const plugins = [react(), tailwindcss(), jsxLocPlugin(), vitePluginManusRuntime(), vitePluginManusDebugCollector()];
+// Manus-only visual-editor + runtime plugins removed for off-Manus hosting; the
+// local dev debug-collector stays (no npm dep, no-ops in production).
+const plugins = [react(), tailwindcss(), vitePluginManusDebugCollector()];
 
 export default defineConfig({
   plugins,
