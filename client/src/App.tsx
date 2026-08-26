@@ -62,6 +62,8 @@ function Router() {
       <Route path={"/attendance"} component={AttendanceKiosk} />
       {/* Walk-in QR flow: /walkin is the customer form; /walkin-qr is the staff QR display */}
       <Route path={"/walkin"} component={WalkIn} />
+      {/* /trial is the clean, print-friendly alias for the flyer QR -> same self-serve walk-in form */}
+      <Route path={"/trial"} component={WalkIn} />
       <Route path={"/walkin-qr"} component={WalkInQR} />
       <Route path={"/afterschooltour"} component={AfterschoolTour} />
       <Route path={"/back-to-school"} component={BackToSchool} />
