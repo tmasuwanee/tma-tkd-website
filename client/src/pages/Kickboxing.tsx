@@ -46,7 +46,7 @@ export default function Kickboxing() {
         <div 
           className="absolute inset-0 bg-cover bg-center"
           style={{
-            backgroundImage: "url('https://private-us-east-1.manuscdn.com/user_upload_by_module/session_file/310519663276898689/KQnyCuSsUrwQxXZM.jpg?Expires=1804101685&Signature=UWr52ZNg~XUDyX5VDgePDbsW-bigrm2MMcQWm4wMXjsAfkHP5z9XkCgFb4Z-fyJIFNF9-2MjbYhRsjhmsNivpkCJyQmB7mfrJjl9uuOuba1W0fLbX794U57OVqCn5zuOzcRpmE0Fw4vNvfIDm~wOBzU2DeX574VGUUW9-ZGeg6l05nYaWEDSflUXVx8asTsWnMlnc7~8Xp0qJbPGqo-cpUOSe695gLs8iGKA1EZq3ReBZG9K0zu~OerPA2PWLxikq50XisEep5c8LGuB~dDSPs-ADZgUA8VvlDM5hQnoRaO9s8DF3I7J1Ief9lW-8EPJs-GMaDWarChwJbp03VgSQ__&Key-Pair-Id=K2HSFNDJXOU9YS')",
+            backgroundImage: "url('/site-media/kickboxing-still.jpg')",
           }}
         >
           <div className="absolute inset-0 bg-black/40"></div>
@@ -113,7 +113,7 @@ export default function Kickboxing() {
             </div>
             <div>
               <video 
-                src="https://private-us-east-1.manuscdn.com/user_upload_by_module/session_file/310519663276898689/FlyIdGKscuyatxqq.mov?Expires=1804101194&Signature=tHWUiHYLpZkFx2JYlqTMs9h3poJg4Sty1UYkzXwjBATkOVtSWFjQxa3sI5ShZV6CEuyHS4ClN8PuYCTbUJV3ABr2AlfAtk~JjCBw9Ce9~gCp~IINbmGK7LUGcHkOv6F1zVw8ggy7l9naFufhmX6h52z4JSoxAPcLtCtoYPrr7i0huZdToSm7EcbCcgkPUr4~afcLX8tvHnVvIs9kjZlX2aOs2qnA8GynquhCg9HUIgJvzocHCQdJq8lwIEQknlpQGzVdMCBuEY38LxHlV~Tsi~y33sRTkLABvTIFdDVA~PFU9vAkrdkUwYlaUcNmF5MyVxbGYaYWvuUyUG3cZ6XrrA__&Key-Pair-Id=K2HSFNDJXOU9YS"
+                src="/site-media/kickboxing-showcase.mp4"
                 controls
                 muted
                 className="rounded-lg shadow-lg w-full h-auto"

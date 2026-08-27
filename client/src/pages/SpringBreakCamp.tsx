@@ -45,7 +45,7 @@ export default function SpringBreakCamp() {
       <section className="relative h-[520px] overflow-hidden bg-[#1a2d5a]">
         <div
           className="absolute inset-0 bg-cover bg-center"
-          style={{ backgroundImage: "url('https://d2xsxph8kpxj0f.cloudfront.net/310519663276898689/XZyF96feSckHUgem3ipsHV/spring-break-hero-EYs4ojTbbUbt7KCBuZZ2hE.webp')" }}
+          style={{ backgroundImage: "url('/site-media/home-4.png')" }}
         >
           <div className="absolute inset-0 bg-[#1a2d5a]/60"></div>
         </div>

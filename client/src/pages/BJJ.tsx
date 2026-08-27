@@ -104,7 +104,7 @@ export default function BJJ() {
             </div>
             <div>
               <video 
-                src="https://private-us-east-1.manuscdn.com/user_upload_by_module/session_file/310519663276898689/paOmVDsPAvUigYDo.mov?Expires=1804099066&Signature=X0De~KBA2SAwlEQlgLP7kI933wlInps-sXq5Ap6zXRcBeIOsKUz3ewZc-om0RNjHUyPt0-3iQXuvh02BofU-yBGe0DlX2rzNmZKwvGKe9v4nDbKPvjXIvFUKEqHzwj3hQgcxKPbvSiVy3QeBOGXP-rqtjENinb14GKvmgGemsDSKFt0iy9VD9G4d7-~YY9XD3LxzijRxNvyzk2Ndpc-5kv6yHYkvmBUD89skErPKNxtJ-02Vhc4ZWgpagBwhuwP8cgvRhqiZv3kN~lkkOk6GGFQsSxvnuW-9E9eqMPxFK35pUW3VCuC3wq0pvMPxG6Ir97totrOs8VZPJTOMUZ4yOg__&Key-Pair-Id=K2HSFNDJXOU9YS"
+                src="/site-media/bjj-showcase.mp4"
                 controls
                 muted
                 className="rounded-lg shadow-lg w-full h-auto"

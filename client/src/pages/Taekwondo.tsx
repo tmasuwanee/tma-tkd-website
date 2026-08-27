@@ -50,7 +50,7 @@ export default function Taekwondo() {
           loop
           playsInline
         >
-          <source src="https://private-us-east-1.manuscdn.com/user_upload_by_module/session_file/310519663276898689/RoEBQMhHoqFYjoTr.MOV" type="video/mp4" />
+          <source src="/site-media/taekwondo-showcase.mp4" type="video/mp4" />
         </video>
         <div className="absolute inset-0 bg-black/40"></div>
 
@@ -122,7 +122,7 @@ export default function Taekwondo() {
                 loop
                 playsInline
               >
-                <source src="https://d2xsxph8kpxj0f.cloudfront.net/310519663276898689/XZyF96feSckHUgem3ipsHV/tkdshowcase2_6aac9cfd.mov" type="video/mp4" />
+                <source src="/site-media/taekwondo-showcase.mp4" type="video/mp4" />
                 Your browser does not support the video tag.
               </video>
             </div>

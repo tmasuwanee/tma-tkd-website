@@ -116,7 +116,7 @@ export default function Afterschool() {
             </div>
             <div>
               <img 
-                src="https://private-us-east-1.manuscdn.com/user_upload_by_module/session_file/310519663276898689/ANroMGYLoSYGifIh.PNG?Expires=1804092394&Signature=Pn3WDt2ZLgoS0duJZWlKd4ty0vPUhPVSZe5d-bZuPXFYIHgsZiXbXE-qlPRvIbQ9Gz31qErBC9vWLXds8BtNmN6O43zDdqo92B3fGPXuv~PDHcmDfHVECt7JGgEppEo6LQ5Me1qs1RVAfCvwH5WNCXbCAV4XBvgxtzrugl0zXaMd4UN5hleEUs6jfYnN4kD4ecP2THBQRE2mFq5SiJh5Mp-FFTNCwtTr4VD-kjmTBLUXl3qu08iG4PBUzfeJMaMuJaTIoQ0XxquagopwY5RlB1luPsSVX8tnCfgkvoc6BjWK-yCHNWfVdnH1SHh8-2OQa9nVaj1AAGCLvcCXR8YFiA__&Key-Pair-Id=K2HSFNDJXOU9YS"
+                src="/site-media/home-4.png"
                 alt="Afterschool program"
                 className="rounded-lg shadow-lg w-full h-auto"
               />

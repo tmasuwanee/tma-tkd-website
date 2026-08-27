@@ -164,7 +164,7 @@ export default function Home() {
           loop
           playsInline
         >
-          <source src="https://files.manuscdn.com/user_upload_by_module/session_file/310519663276898689/uqzrgyXrYKdJLgpN.mov" type="video/mp4" />
+          <source src="/site-media/home-showcase.mp4" type="video/mp4" />
           Your browser does not support the video tag.
         </video>
         {/* Overlay */}
@@ -302,7 +302,7 @@ export default function Home() {
                 loop
                 playsInline
               >
-                <source src="https://files.manuscdn.com/user_upload_by_module/session_file/310519663276898689/uqzrgyXrYKdJLgpN.mov" type="video/mp4" />
+                <source src="/site-media/home-showcase.mp4" type="video/mp4" />
                 Your browser does not support the video tag.
               </video>
             </div>
@@ -334,19 +334,19 @@ export default function Home() {
               {
                 title: "Brazilian Jiu-Jitsu",
                 description: "Learn grappling and ground fighting with Master Jo. Develop real self-defense skills through controlled drills, technique work, and rolling. Safe, respectful training for all levels.",
-                image: "https://private-us-east-1.manuscdn.com/user_upload_by_module/session_file/310519663276898689/lmWnKYYOVjyQNtSf.jpg?Expires=1804099066&Signature=az-3G0R6vcAGvuYGphE4r9rorgTDxbleb3nV4ThS5Lawb6PtnnRif5793jVmtwLWKLZyrcJGmcKB4-jfoNlbbOtgYap3QYmXQH86Aj0JMcH20pGl4lhCxswqLfrKxbUX76hFQI0NjPffHTwbTYEk~nwpgVmVMSxiknVPXwZFkGjrxKjPEKm5PHUzDiIq~-Y~z4YmxQ04PHdyMJL3ZPqyYoBMotTkuRbuYuFMVwavfTtaNJk~4ENo5WWEaPc7vFs6X9xkMNYwXVrH8TWPukRwlaXBlRHyxzQuUuOMiRK0R17NDgmxzsd3y0sjL9Gc3jR~7gmo~c1kiv81fP6wDTo~uA__&Key-Pair-Id=K2HSFNDJXOU9YS",
+                image: "/site-media/bjj-still.jpg",
                 link: "/bjj"
               },
               {
                 title: "Kickboxing",
                 description: "Learn striking with punching, kicking, and knee techniques through partner drills, combinations, and controlled sparring. High-energy training for kids 9 and up, teens, and adults.",
-                image: "https://private-us-east-1.manuscdn.com/user_upload_by_module/session_file/310519663276898689/fLmmxFDaAHkWhhca.jpg?Expires=1804101194&Signature=m8erRLpUGqq~xsLNnWpFqZ5GWEsje3SEEOqKwmcQyOQLFW5Twk4TXVita1YgoIKs9oGcOkQr63TgyZcRqYhDhEwwLe2GfmlK~XEe4BLpx6ZsyUpHmExkUGivUwfbaCXRDWKEeqdWJKYrdznpBs1bC4b5WoxnS6Dn8L37PIT20v-h1HhQF8FWf3u6x29-kiN9jfdI7nv0HebVabwm8J38YL7B1yGSnA-EYVeZJElZFitCiBOHmytXzVCQlqGkt9N0oqx1BrRPgURQyrskz6XrTg2S8s6I9aejnipmEi0yBaXGDzFD029ZQ6jRElaGGg2CkJ5pJhRZDEjxgDRn~BlX4A__&Key-Pair-Id=K2HSFNDJXOU9YS",
+                image: "/site-media/kickboxing-still.jpg",
                 link: "/kickboxing"
               },
               {
                 title: "Afterschool Program",
                 description: "We pick up your kids after school and bring them to TMA for training and supervised care. They'll learn martial arts, build friendships, and have fun in a safe environment.",
-                image: "https://private-us-east-1.manuscdn.com/user_upload_by_module/session_file/310519663276898689/ANroMGYLoSYGifIh.PNG?Expires=1804092394&Signature=Pn3WDt2ZLgoS0duJZWlKd4ty0vPUhPVSZe5d-bZuPXFYIHgsZiXbXE-qlPRvIbQ9Gz31qErBC9vWLXds8BtNmN6O43zDdqo92B3fGPXuv~PDHcmDfHVECt7JGgEppEo6LQ5Me1qs1RVAfCvwH5WNCXbCAV4XBvgxtzrugl0zXaMd4UN5hleEUs6jfYnN4kD4ecP2THBQRE2mFq5SiJh5Mp-FFTNCwtTr4VD-kjmTBLUXl3qu08iG4PBUzfeJMaMuJaTIoQ0XxquagopwY5RlB1luPsSVX8tnCfgkvoc6BjWK-yCHNWfVdnH1SHh8-2OQa9nVaj1AAGCLvcCXR8YFiA__&Key-Pair-Id=K2HSFNDJXOU9YS",
+                image: "/site-media/home-4.png",
                 link: "/afterschool"
               },
 
