@@ -17,6 +17,7 @@ import DayCamp from "./pages/DayCamp";
 import DayCampSheet from "./pages/DayCampSheet";
 import MartialArtsMembershipAgreement from "./pages/MartialArtsMembershipAgreement";
 import OpenHouse from "./pages/OpenHouse";
+import FallFestVolunteer from "./pages/FallFestVolunteer";
 import AfterschoolWaiver from "./pages/AfterschoolWaiver";
 import FreeClass from "./pages/FreeClass";
 import StudentWaiver from "./pages/StudentWaiver";
@@ -51,6 +52,8 @@ function Router() {
       <Route path={"/day-camp"} component={DayCamp} />
       <Route path={"/day-camp-sheet"} component={DayCampSheet} />
       <Route path={"/open-house"} component={OpenHouse} />
+      <Route path={"/fall-fest-volunteer"} component={FallFestVolunteer} />
+      <Route path={"/volunteer"} component={FallFestVolunteer} />
       <Route path={"/afterschool-waiver"} component={AfterschoolWaiver} />
       <Route path={"/agreement"} component={MartialArtsMembershipAgreement} />
       <Route path={"/free-class"} component={FreeClass} />
