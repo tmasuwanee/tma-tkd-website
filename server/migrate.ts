@@ -317,6 +317,25 @@ const MIGRATIONS: { name: string; sql: string }[] = [
       "createdAt DATETIME NOT NULL, " +
       "INDEX import_batches_kind_idx (kind, createdAt))",
   },
+  {
+    // 2026-09-03: Fall Fest volunteer sign-ups (the /fall-fest-volunteer page).
+    // Kept OUT of the leads pipeline on purpose: volunteers are not sales leads,
+    // and there is no A2P/SMS consent flow, so nothing here is textable marketing.
+    // roles / donations are comma-joined lists of the checkboxes the parent picked.
+    name: "fallFestVolunteers table",
+    sql: "CREATE TABLE IF NOT EXISTS fallFestVolunteers (" +
+      "id BIGINT PRIMARY KEY AUTO_INCREMENT, " +
+      "name VARCHAR(255) NOT NULL, " +
+      "phone VARCHAR(40) NOT NULL, " +
+      "email VARCHAR(320) NULL, " +
+      "roles TEXT NULL, " +
+      "availability VARCHAR(120) NULL, " +
+      "donations TEXT NULL, " +
+      "note VARCHAR(1000) NULL, " +
+      "source VARCHAR(24) NOT NULL DEFAULT 'web', " +
+      "createdAt DATETIME NOT NULL, " +
+      "INDEX ffv_created_idx (createdAt))",
+  },
 ];
 
 export async function runStartupMigrations(): Promise<void> {

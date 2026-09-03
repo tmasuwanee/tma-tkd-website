@@ -73,6 +73,7 @@ import { memberList, memberOverview, memberWaivers, resolveStudentIdForMembershi
 import { createWaiver } from "./db";
 import { listSpecials, insertSpecial, updateSpecial } from "./db";
 import { createImportBatch, completeImportBatch, insertMembershipPayment, bumpMembershipPaidThrough, listMembershipPayments, getMembershipPayment, setStudentPhoto, getStudentPhoto } from "./db";
+import { createFallFestVolunteer, listFallFestVolunteers } from "./db";
 import { listHeartbeatJobs, createHeartbeatJob } from "./_core/heartbeat";
 import { createCardSetupSession, chargeDueMemberships, listPayerCards, setPayerPrimaryCard, detachPayerCard } from "./membership-billing";
 import { storagePut, storageGet } from "./storage";
@@ -174,6 +175,36 @@ export type PipelineStage = typeof PIPELINE_STAGES[number]["value"];
 
 export const appRouter = router({
   system: systemRouter,
+
+  // ─── Fall Fest Volunteers ─────────────────────────────────────────────────
+  // Public sign-up (/fall-fest-volunteer) + admin-only list. submitVolunteer is
+  // in PUBLIC_PATHS; listVolunteers is admin-gated by default (not allowlisted).
+  fallFest: router({
+    submitVolunteer: publicProcedure
+      .input(z.object({
+        name: z.string().min(1).max(255),
+        phone: z.string().min(1).max(40),
+        email: z.string().email().max(320).optional().or(z.literal("")),
+        roles: z.array(z.string().max(120)).max(20).optional(),
+        availability: z.string().max(120).optional(),
+        donations: z.array(z.string().max(120)).max(20).optional(),
+        note: z.string().max(1000).optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const id = await createFallFestVolunteer({
+          name: input.name.trim(),
+          phone: input.phone.trim(),
+          email: input.email?.trim() || null,
+          roles: input.roles?.length ? input.roles.join(", ") : null,
+          availability: input.availability?.trim() || null,
+          donations: input.donations?.length ? input.donations.join(", ") : null,
+          note: input.note?.trim() || null,
+        });
+        return { ok: true, id } as const;
+      }),
+    listVolunteers: publicProcedure.query(async () => listFallFestVolunteers()),
+  }),
+
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
     logout: publicProcedure.mutation(({ ctx }) => {

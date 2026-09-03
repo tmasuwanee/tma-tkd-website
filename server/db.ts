@@ -2827,6 +2827,56 @@ export async function recordReturningParentTrial(args: {
   }).where(eq(leads.id, args.leadId));
 }
 
+// ─── Fall Fest Volunteers ─────────────────────────────────────────────────────
+export type FallFestVolunteerRow = {
+  id: number;
+  name: string;
+  phone: string;
+  email: string | null;
+  roles: string | null;
+  availability: string | null;
+  donations: string | null;
+  note: string | null;
+  source: string;
+  createdAt: string | Date;
+};
+
+/** Insert one Fall Fest volunteer sign-up. Stored outside the leads pipeline on
+ *  purpose (not a sales lead, no SMS consent flow). Returns the new row id. */
+export async function createFallFestVolunteer(params: {
+  name: string;
+  phone: string;
+  email?: string | null;
+  roles?: string | null;
+  availability?: string | null;
+  donations?: string | null;
+  note?: string | null;
+}): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+  const [result] = await db.execute(
+    sql`INSERT INTO fallFestVolunteers
+      (name, phone, email, roles, availability, donations, note, source, createdAt)
+     VALUES (
+       ${params.name}, ${params.phone}, ${params.email ?? null},
+       ${params.roles ?? null}, ${params.availability ?? null},
+       ${params.donations ?? null}, ${params.note ?? null}, 'web', NOW()
+     )`
+  ) as unknown as [{ insertId: number }];
+  return result?.insertId ?? 0;
+}
+
+/** All Fall Fest volunteer sign-ups, newest first (admin dashboard read). */
+export async function listFallFestVolunteers(): Promise<FallFestVolunteerRow[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const [rows] = await db.execute(
+    sql`SELECT id, name, phone, email, roles, availability, donations, note, source, createdAt
+        FROM fallFestVolunteers ORDER BY createdAt DESC`
+  ) as unknown as [FallFestVolunteerRow[]];
+  return Array.isArray(rows) ? rows : [];
+}
+
 // ─── After School Care Registrations ──────────────────────────────────────────
 /** Insert a new afterschool registration row after Stripe payment succeeds. */
 export async function insertAfterschoolRegistration(params: {

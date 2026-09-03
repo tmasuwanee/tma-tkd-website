@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -6,14 +6,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { CheckCircle2, Leaf, CalendarDays, Clock, MapPin, HandHeart, Gift } from "lucide-react";
-import { SMS_CONSENT_TEXT } from "../../../shared/smsConsent";
 
 /**
  * Fall Fest volunteer sign-up page (/fall-fest-volunteer).
- * Parents pick how they want to help and what they can donate. Every sign-up
- * becomes a lead tagged `fall_fest_volunteer`, so staff can filter for the
- * volunteer crew in the admin without any new table. Roles, availability, and
- * donations are packed into the lead notes.
+ * Parents pick how they want to help and what they can donate. Sign-ups are
+ * stored in their own `fallFestVolunteers` table via fallFest.submitVolunteer,
+ * deliberately OUTSIDE the leads pipeline: volunteers are not sales leads and
+ * there is no SMS/A2P consent flow, so there is no consent gate here.
  *
  * Event details are constants below so staff can update them in one place.
  */
@@ -43,23 +42,13 @@ const TIMES = [
 ];
 
 const DONATIONS = [
-  "Pumpkins to paint",
+  "Craft paint & brushes",
   "Candy",
   "Bottled water / drinks",
   "Snacks",
   "Paper goods (plates, napkins, cups)",
   "Other (tell us below)",
 ];
-
-function getUtm() {
-  const p = new URLSearchParams(window.location.search);
-  return {
-    utmSource: p.get("utm_source") ?? undefined,
-    utmMedium: p.get("utm_medium") ?? undefined,
-    utmCampaign: p.get("utm_campaign") ?? undefined,
-    utmContent: p.get("utm_content") ?? undefined,
-  };
-}
 
 function toggle(list: string[], value: string): string[] {
   return list.includes(value) ? list.filter(v => v !== value) : [...list, value];
@@ -73,12 +62,10 @@ export default function FallFestVolunteer() {
   const [availability, setAvailability] = useState<string>(TIMES[0]);
   const [donations, setDonations] = useState<string[]>([]);
   const [note, setNote] = useState("");
-  const [smsConsent, setSmsConsent] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const submit = trpc.leads.submit.useMutation();
-  const utm = useMemo(getUtm, []);
+  const submit = trpc.fallFest.submitVolunteer.useMutation();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -90,30 +77,16 @@ export default function FallFestVolunteer() {
       toast.error("Pick at least one way to help or one thing to donate.");
       return;
     }
-    if (!smsConsent) {
-      toast.error("Please agree to text updates so we can coordinate the day with you.");
-      return;
-    }
     setIsSubmitting(true);
     try {
-      const notes =
-        `Fall Fest volunteer (${EVENT.dateLine}). ` +
-        `Helping with: ${roles.length ? roles.join(", ") : "none selected"}. ` +
-        `Available: ${availability}. ` +
-        `Donating: ${donations.length ? donations.join(", ") : "none"}.` +
-        (note.trim() ? ` Note: ${note.trim()}` : "");
       await submit.mutateAsync({
-        parentName: name.trim(),
-        kidName: "Volunteer",
-        kidAge: "N/A",
-        programInterest: "Fall Fest Volunteer",
-        email: email.trim() || "",
+        name: name.trim(),
         phone: phone.trim(),
-        additionalNotes: notes,
-        tags: ["fall_fest_volunteer"],
-        smsConsent: true,
-        smsConsentText: SMS_CONSENT_TEXT,
-        ...utm,
+        email: email.trim() || undefined,
+        roles,
+        availability,
+        donations,
+        note: note.trim() || undefined,
       });
       setSubmitted(true);
       window.scrollTo(0, 0);
@@ -276,16 +249,6 @@ export default function FallFestVolunteer() {
             className="w-full border border-gray-300 rounded-md px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-[#1a2d5a]/30"
           />
         </div>
-
-        {/* SMS consent */}
-        <label className="flex items-start gap-3 p-3.5 bg-[#1a2d5a]/5 border border-[#1a2d5a]/20 rounded-xl cursor-pointer hover:bg-[#1a2d5a]/10 transition-colors">
-          <Checkbox checked={smsConsent} onCheckedChange={v => setSmsConsent(v === true)}
-            className="mt-0.5 h-5 w-5 border-2 border-[#1a2d5a]/50 data-[state=checked]:bg-[#1a2d5a] data-[state=checked]:border-[#1a2d5a] shrink-0" />
-          <span className="text-xs text-gray-700 leading-relaxed">
-            <span className="font-semibold block mb-0.5 text-sm">Text me Fall Fest updates <span className="text-[#c41e3a]">*</span></span>
-            {SMS_CONSENT_TEXT}
-          </span>
-        </label>
 
         <Button type="submit" disabled={isSubmitting}
           className="w-full bg-[#c41e3a] hover:bg-[#a81830] text-white text-base font-semibold h-12 rounded-xl">

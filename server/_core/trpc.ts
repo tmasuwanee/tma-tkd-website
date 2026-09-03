@@ -35,6 +35,7 @@ const PUBLIC_PATHS = new Set<string>([
   "supplyFee.createIntent", "supplyFee.confirm",
   "transportation.submit",
   "waiver.submit",
+  "fallFest.submitVolunteer",
   // background automation (n8n dispatcher, FB sync, Gmail poller) — these callers
   // have no admin cookie. Tighten later with a machine-secret (see the doc).
   "leads.upsertFromFacebook", "leads.logActivity",
