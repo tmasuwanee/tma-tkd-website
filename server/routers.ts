@@ -73,7 +73,7 @@ import { memberList, memberOverview, memberWaivers, resolveStudentIdForMembershi
 import { createWaiver } from "./db";
 import { listSpecials, insertSpecial, updateSpecial } from "./db";
 import { createImportBatch, completeImportBatch, insertMembershipPayment, bumpMembershipPaidThrough, listMembershipPayments, getMembershipPayment, setStudentPhoto, getStudentPhoto } from "./db";
-import { createFallFestVolunteer, listFallFestVolunteers } from "./db";
+import { createFallFestVolunteer, listFallFestVolunteers, deleteFallFestVolunteer } from "./db";
 import { listHeartbeatJobs, createHeartbeatJob } from "./_core/heartbeat";
 import { createCardSetupSession, chargeDueMemberships, listPayerCards, setPayerPrimaryCard, detachPayerCard } from "./membership-billing";
 import { storagePut, storageGet } from "./storage";
@@ -203,6 +203,12 @@ export const appRouter = router({
         return { ok: true, id } as const;
       }),
     listVolunteers: publicProcedure.query(async () => listFallFestVolunteers()),
+    deleteVolunteer: publicProcedure
+      .input(z.object({ id: z.number().int().positive() }))
+      .mutation(async ({ input }) => {
+        await deleteFallFestVolunteer(input.id);
+        return { ok: true } as const;
+      }),
   }),
 
   auth: router({

@@ -6,7 +6,7 @@ import {
   Kanban, ClipboardCheck, Phone, PhoneOutgoing, Mail, Route as RouteIcon,
   BarChart2, GraduationCap, CalendarCheck, ShieldAlert, Camera, LogOut,
   Menu, PhoneCall, CalendarDays, CheckSquare, FileSignature, Link2, BookOpen,
-  ShoppingBag, Users, ClipboardList, FileText, Home, ChevronDown, ChevronRight, Search, Sparkles, ShieldCheck,
+  ShoppingBag, Users, ClipboardList, FileText, Home, ChevronDown, ChevronRight, Search, Sparkles, ShieldCheck, Leaf,
 } from "lucide-react";
 import { CallsApp } from "@/pages/AdminTodaysCalls";
 import { CallLogApp } from "@/pages/AdminCallLog";
@@ -38,6 +38,7 @@ import MembersView from "@/components/admin/MembersView";
 import TrialsView from "@/components/admin/TrialsView";
 import CampsView from "@/components/admin/CampsView";
 import DayCampView from "@/components/admin/DayCampView";
+import VolunteersView from "@/components/admin/VolunteersView";
 import { MemberDockProvider } from "@/components/admin/MemberDock";
 
 // Keys double as URL segments (/admin/<key>). They match the old standalone
@@ -46,7 +47,7 @@ import { MemberDockProvider } from "@/components/admin/MemberDock";
 type ViewKey =
   | "today" | "calls" | "calendar" | "leads" | "checkin" | "waivers" | "call-log" | "voice-test"
   | "sequences" | "rules" | "ads" | "students" | "camp" | "controls" | "studio" | "tasks" | "links" | "playbook"
-  | "orders" | "enrolled" | "afterschool-roster" | "invoices" | "approvals" | "memberships" | "members" | "trials" | "camps" | "day-camp";
+  | "orders" | "enrolled" | "afterschool-roster" | "invoices" | "approvals" | "memberships" | "members" | "trials" | "camps" | "day-camp" | "volunteers";
 
 type NavItem = { key: ViewKey; label: string; icon: any };
 type NavGroup = { group: string; items: NavItem[]; collapsible?: boolean };
@@ -78,6 +79,7 @@ const NAV: NavGroup[] = [
     { key: "calendar", label: "Calendar", icon: CalendarDays },
     { key: "afterschool-roster", label: "After-School", icon: ClipboardList },
     { key: "camps", label: "Camps", icon: CalendarCheck },
+    { key: "volunteers", label: "Volunteers", icon: Leaf },
   ]},
   { group: "Sales", items: [
     { key: "orders", label: "Pro Shop", icon: ShoppingBag },
@@ -154,6 +156,7 @@ function renderView(key: ViewKey, email: string) {
     case "trials": return <TrialsView />;
     case "camps": return <CampsView />;
     case "day-camp": return <DayCampView />;
+    case "volunteers": return <VolunteersView />;
   }
 }
 

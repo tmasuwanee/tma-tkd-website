@@ -2866,6 +2866,13 @@ export async function createFallFestVolunteer(params: {
   return result?.insertId ?? 0;
 }
 
+/** Remove one Fall Fest volunteer sign-up (admin: clear a duplicate or test row). */
+export async function deleteFallFestVolunteer(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.execute(sql`DELETE FROM fallFestVolunteers WHERE id = ${id}`);
+}
+
 /** All Fall Fest volunteer sign-ups, newest first (admin dashboard read). */
 export async function listFallFestVolunteers(): Promise<FallFestVolunteerRow[]> {
   const db = await getDb();
