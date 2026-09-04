@@ -18,6 +18,7 @@ import DayCampSheet from "./pages/DayCampSheet";
 import MartialArtsMembershipAgreement from "./pages/MartialArtsMembershipAgreement";
 import OpenHouse from "./pages/OpenHouse";
 import FallFestVolunteer from "./pages/FallFestVolunteer";
+import FreeMonth from "./pages/FreeMonth";
 import AfterschoolWaiver from "./pages/AfterschoolWaiver";
 import FreeClass from "./pages/FreeClass";
 import StudentWaiver from "./pages/StudentWaiver";
@@ -57,6 +58,7 @@ function Router() {
       <Route path={"/afterschool-waiver"} component={AfterschoolWaiver} />
       <Route path={"/agreement"} component={MartialArtsMembershipAgreement} />
       <Route path={"/free-class"} component={FreeClass} />
+      <Route path={"/free-month"} component={FreeMonth} />
       {/* In-person sign-up + waiver (QR / iPad / link). /waiver is an alias. */}
       <Route path={"/enroll"} component={StudentWaiver} />
       <Route path={"/waiver"} component={StudentWaiver} />
