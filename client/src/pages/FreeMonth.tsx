@@ -123,13 +123,13 @@ export default function FreeMonth() {
         <div className="max-w-lg mx-auto text-center">
           <div className="inline-flex items-center gap-2 bg-[#c41e3a]/20 rounded-full px-4 py-1.5 mb-4">
             <Gift className="w-4 h-4 text-[#c41e3a]" />
-            <span className="text-[#c41e3a] font-semibold text-xs tracking-wide uppercase">Limited-Time Offer</span>
+            <span className="text-[#c41e3a] font-semibold text-xs tracking-wide uppercase">25 Year Anniversary Special</span>
           </div>
           <h1 className="text-white text-4xl sm:text-5xl font-extrabold leading-tight">
             One Month <span className="text-[#c41e3a]">Free</span>
           </h1>
           <p className="text-white/80 mt-3">
-            Try Top Martial Arts Suwanee for a full month, on us. Pick a program, claim your spot, and come train.
+            One month free at Top Martial Arts Suwanee, celebrating 25 years of quality instruction. Pick a program and claim your spot. Limited spots.
           </p>
 
           <div className="grid grid-cols-2 gap-2.5 mt-6">
