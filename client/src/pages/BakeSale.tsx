@@ -102,12 +102,25 @@ export default function BakeSale() {
 
   return (
     <div className="min-h-screen bg-gray-50 pb-40">
-      <header className="bg-[#1a2d5a] px-5 pt-8 pb-7 text-center">
-        <h1 className="text-3xl font-extrabold tracking-tight text-white">Bake Sale</h1>
-        <p className="mt-2 text-base text-white/80">Choose your treats and support our fundraiser.</p>
-        <p className="mt-3 text-xs font-semibold uppercase tracking-widest text-white/50">
-          Top Martial Arts Suwanee
-        </p>
+      <header className="bg-[#1a2d5a]">
+        {menu.data?.bannerImage && (
+          <img
+            src={menu.data.bannerImage}
+            alt="Top Martial Arts Bake Sale"
+            className="w-full object-cover"
+            // Reserve the space before the image lands so the cards below do
+            // not jump on a slow connection at the table.
+            width={1400}
+            height={933}
+            onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+          />
+        )}
+        <div className="px-5 pb-6 pt-5 text-center">
+          <p className="text-base text-white/85">Choose your treats and support our fundraiser.</p>
+          {menu.data?.cause && (
+            <p className="mt-1.5 text-sm text-white/60">{menu.data.cause}</p>
+          )}
+        </div>
       </header>
 
       {goal?.showGoal && (

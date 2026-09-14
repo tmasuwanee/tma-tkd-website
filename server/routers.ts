@@ -2101,6 +2101,8 @@ export const appRouter = router({
     // keeps "what is for sale" a server decision.
     menu: publicProcedure.query(() => ({
       eventName: bakeSaleConfig.eventName,
+      bannerImage: bakeSaleConfig.bannerImage,
+      cause: bakeSaleConfig.cause,
       goal: bakeSaleConfig.goal,
       contributionOptions: bakeSaleConfig.contributionOptions,
       minContribution: MIN_CONTRIBUTION_CENTS,

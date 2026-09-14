@@ -32,6 +32,11 @@ export const bakeSaleConfig = {
   eventName: "Top Martial Arts Bake Sale",
   currency: "usd",
 
+  // Header banner. Same art as the printed flyer so the phone screen and the
+  // table match. Set to null to fall back to the plain navy header.
+  bannerImage: "/site-media/bake-sale/banner.jpg",
+  cause: "Supporting our competing students and demo team.",
+
   // Set showGoal:false to hide the progress area entirely.
   goal: {
     showGoal: false,
@@ -49,7 +54,7 @@ export const bakeSaleConfig = {
       active: true,
       sortOrder: 1,
       allergenWarning: "Contains wheat, egg, milk, soy. May contain tree nuts.",
-      image: "/site-media/bake-sale/large-cookies.jpg",
+      image: "/site-media/bake-sale/large-cookie.jpg",
     },
     {
       id: "two-cookie-bundle",
@@ -59,12 +64,12 @@ export const bakeSaleConfig = {
       active: true,
       sortOrder: 2,
       allergenWarning: "Contains wheat, egg, milk, soy. May contain tree nuts.",
-      image: "/site-media/bake-sale/chocolate-chunk.jpg",
+      image: "/site-media/bake-sale/assorted-cookies.jpg",
     },
     {
       id: "mini-cookie-bag",
       name: "Mini Cookie Bag",
-      description: "Three mini chocolate chip cookies, bagged and tied.",
+      description: "Four mini chocolate chip cookies, bagged and tied.",
       unitAmount: 300,
       active: true,
       sortOrder: 3,
