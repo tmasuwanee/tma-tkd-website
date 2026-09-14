@@ -90,9 +90,40 @@ import { computeOrderCents, buildOrderSummary } from "../shared/christmasPricing
 import { getAdInsights, syncAdInsights } from "./facebook-ads";
 import Stripe from "stripe";
 import { ENV } from "./_core/env";
+import {
+  bakeSaleConfig, activeBakeSaleProducts, findActiveProduct, maxQuantityFor, formatCents,
+  DEFAULT_MAX_QUANTITY, MAX_LINE_ITEMS, MIN_CONTRIBUTION_CENTS, MAX_CONTRIBUTION_CENTS,
+  MAX_ORDER_CENTS, CONTRIBUTION_LINE_NAME,
+} from "../shared/bakeSaleProducts";
 
 function getStripe() {
   return new Stripe(ENV.tmaStripeSecretKey);
+}
+
+// Short order number for the bake-sale table. Staff read this aloud off a phone
+// screen, so the alphabet drops O/0/I/1 to kill the "is that a one or an L"
+// problem. 6 chars of this alphabet is ~1 in a billion, plenty for one event.
+function randomOrderId(): string {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let out = "";
+  for (let i = 0; i < 6; i++) out += alphabet[Math.floor(Math.random() * alphabet.length)];
+  return out;
+}
+
+// Stripe redirects the customer back to whatever success_url we hand it, so the
+// origin must never come from an untrusted field. Anything not on the allowlist
+// falls back to the production site.
+const ALLOWED_ORIGINS = [
+  "https://tmatkd.com",
+  "https://www.tmatkd.com",
+  "http://localhost:3000",
+  "http://localhost:5173",
+];
+function allowedOrigin(...candidates: (string | undefined)[]): string {
+  for (const c of candidates) {
+    if (c && ALLOWED_ORIGINS.includes(c.replace(/\/$/, ""))) return c.replace(/\/$/, "");
+  }
+  return "https://tmatkd.com";
 }
 
 // Identity disposition for the roster import: given existing memberships, classify
@@ -2053,6 +2084,152 @@ export const appRouter = router({
           if (m.email) void sendPaymentReceipt({ email: m.email, amountCents: pi.amount, description: "After-school supply fee", payerName: m.payerName || null, referenceId: pi.id }).catch(() => {});
         }
         return { status: pi.status };
+      }),
+  }),
+
+
+  // ─── Bake sale QR checkout (/bake-sale, 2026-09-14) ──────────────────────
+  // One QR beside the table opens /bake-sale. Customer picks items, optionally
+  // adds a fundraiser contribution, and pays on Stripe's HOSTED Checkout page
+  // (no card fields ever touch this site). Prices come ONLY from
+  // shared/bakeSaleProducts.ts: the browser sends ids and quantities, the
+  // server looks up every id and builds the line items itself, so a tampered
+  // payload cannot change a price. The DB row is written by the WEBHOOK
+  // (checkout.session.completed), never by the client redirect.
+  bakeSale: router({
+    // Public menu. Lets the page render without bundling the whole config and
+    // keeps "what is for sale" a server decision.
+    menu: publicProcedure.query(() => ({
+      eventName: bakeSaleConfig.eventName,
+      goal: bakeSaleConfig.goal,
+      contributionOptions: bakeSaleConfig.contributionOptions,
+      minContribution: MIN_CONTRIBUTION_CENTS,
+      maxContribution: MAX_CONTRIBUTION_CENTS,
+      products: activeBakeSaleProducts().map(p => ({
+        id: p.id,
+        name: p.name,
+        description: p.description,
+        unitAmount: p.unitAmount,
+        allergenWarning: p.allergenWarning ?? null,
+        image: p.image ?? null,
+        maxQuantity: maxQuantityFor(p),
+      })),
+    })),
+
+    createCheckout: publicProcedure
+      .input(z.object({
+        items: z.array(z.object({
+          // NOTE: no price field on purpose. A price sent by the browser would
+          // be ignored anyway; not accepting one makes that explicit.
+          productId: z.string().min(1).max(64),
+          quantity: z.number().int().min(1).max(DEFAULT_MAX_QUANTITY),
+        })).min(1).max(MAX_LINE_ITEMS),
+        contributionCents: z.number().int().min(0).max(MAX_CONTRIBUTION_CENTS).optional(),
+        origin: z.string().url().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        // 1. Resolve every id against the trusted config. Unknown or inactive
+        //    ids are a hard error, not a silently skipped line.
+        const seen = new Set<string>();
+        const lines: { name: string; description?: string; unitAmount: number; quantity: number }[] = [];
+        let subtotal = 0;
+        for (const item of input.items) {
+          if (seen.has(item.productId)) throw new Error("Duplicate item in cart.");
+          seen.add(item.productId);
+          const product = findActiveProduct(item.productId);
+          if (!product) throw new Error("That item is no longer available. Please refresh the page.");
+          if (item.quantity > maxQuantityFor(product)) {
+            throw new Error(`Maximum ${maxQuantityFor(product)} of ${product.name} per order. Please see us at the table for a larger order.`);
+          }
+          subtotal += product.unitAmount * item.quantity;
+          lines.push({
+            name: product.name,
+            description: product.description.slice(0, 250),
+            unitAmount: product.unitAmount,   // from config, never from the client
+            quantity: item.quantity,
+          });
+        }
+
+        // 2. Contribution: optional, bounded, and its own line item.
+        const contribution = input.contributionCents ?? 0;
+        if (contribution > 0 && contribution < MIN_CONTRIBUTION_CENTS) {
+          throw new Error(`The smallest contribution is ${formatCents(MIN_CONTRIBUTION_CENTS)}.`);
+        }
+        if (contribution > 0) {
+          lines.push({ name: CONTRIBUTION_LINE_NAME, unitAmount: contribution, quantity: 1 });
+        }
+
+        const total = subtotal + contribution;
+        if (total <= 0) throw new Error("Your cart is empty.");
+        if (total > MAX_ORDER_CENTS) {
+          throw new Error("That order is larger than this page handles. Please see us at the table.");
+        }
+
+        // 3. Short, human-readable order number. Staff read this off the phone
+        //    screen, so it is 6 chars of unambiguous alphabet (no O/0/I/1).
+        const orderId = randomOrderId();
+
+        // Only ever use our own origin for the return URLs. An attacker-supplied
+        // origin would turn the success redirect into an open redirect.
+        const origin = allowedOrigin(ctx?.req?.headers?.origin as string | undefined, input.origin);
+
+        const stripe = getStripe();
+        const session = await stripe.checkout.sessions.create({
+          mode: "payment",
+          // Card covers Apple Pay and Google Pay in hosted Checkout. Listing it
+          // explicitly keeps Klarna / Affirm / Cash App out, matching every other
+          // TMA payment page.
+          payment_method_types: ["card"],
+          line_items: lines.map(l => ({
+            quantity: l.quantity,
+            price_data: {
+              currency: bakeSaleConfig.currency,
+              unit_amount: l.unitAmount,
+              product_data: { name: l.name, ...(l.description ? { description: l.description } : {}) },
+            },
+          })),
+          // No shipping, no account, no saved card. This is a table transaction.
+          billing_address_collection: "auto",
+          success_url: `${origin}/bake-sale/success?session_id={CHECKOUT_SESSION_ID}`,
+          cancel_url: `${origin}/bake-sale?checkout=cancelled`,
+          metadata: {
+            source: "bake_sale_qr",
+            orderId,
+            eventName: bakeSaleConfig.eventName,
+            contributionCents: String(contribution),
+            itemSummary: lines.map(l => `${l.quantity}x ${l.name}`).join(", ").slice(0, 450),
+          },
+        });
+
+        return { url: session.url, sessionId: session.id, orderId, total };
+      }),
+
+    // Success page verification. The URL alone proves nothing, so this asks
+    // Stripe directly and returns only what the screen needs to display.
+    verifySession: publicProcedure
+      .input(z.object({ sessionId: z.string().min(1).max(255) }))
+      .query(async ({ input }) => {
+        const stripe = getStripe();
+        let session;
+        try {
+          session = await stripe.checkout.sessions.retrieve(input.sessionId, { expand: ["line_items"] });
+        } catch {
+          // Unknown / malformed id. Never leak the Stripe error text.
+          return { paid: false as const };
+        }
+        if (session.payment_status !== "paid") return { paid: false as const };
+        return {
+          paid: true as const,
+          orderId: session.metadata?.orderId ?? session.id.slice(-6).toUpperCase(),
+          amountTotal: session.amount_total ?? 0,
+          eventName: session.metadata?.eventName ?? bakeSaleConfig.eventName,
+          paidAt: new Date((session.created ?? Math.floor(Date.now() / 1000)) * 1000).toISOString(),
+          items: (session.line_items?.data ?? []).map(li => ({
+            name: li.description ?? "Item",
+            quantity: li.quantity ?? 1,
+            amount: li.amount_total ?? 0,
+          })),
+        };
       }),
   }),
 

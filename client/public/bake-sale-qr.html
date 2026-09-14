@@ -1,0 +1,110 @@
+<!doctype html>
+<!--
+  Printable bake-sale QR card.
+
+  Open http://localhost:3000/bake-sale-qr.html (or the deployed
+  https://tmatkd.com/bake-sale-qr.html), then use the browser's Print dialog and
+  "Save as PDF" to get a print-ready sheet. Print at 100% scale, no fit-to-page.
+
+  Why a page and not a script: the repo has no QR dependency installed, and
+  adding one for a single printout is not worth the dependency. This renders the
+  QR locally in the browser from a vendored library, so nothing is uploaded to a
+  third-party QR site (those services can change or kill a redirect later, which
+  would break the table).
+
+  To change the destination: edit DESTINATION below, reload, print again.
+  The QR points at the MENU page, never at a price or a Checkout Session, so the
+  same printed card stays valid after every price change.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Bake Sale QR</title>
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<style>
+  :root { --navy: #1a2d5a; --red: #c41e3a; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 32px 16px;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: #f3f4f6; color: var(--navy);
+    display: flex; flex-direction: column; align-items: center; gap: 24px;
+  }
+  .card {
+    width: 5.5in; max-width: 100%;
+    background: #fff; border: 2px solid var(--navy); border-radius: 12px;
+    padding: 0.5in 0.4in; text-align: center;
+  }
+  h1 { margin: 0; font-size: 44px; font-weight: 800; letter-spacing: -0.02em; }
+  .sub { margin: 6px 0 0; font-size: 19px; color: var(--red); font-weight: 700; }
+  /* White quiet space around the modules is required for reliable scanning. */
+  .qrwrap { background: #fff; padding: 20px; display: inline-block; margin: 22px 0 14px; }
+  canvas { display: block; }
+  .methods { margin: 0; font-size: 16px; color: #4b5563; font-weight: 600; }
+  .url { margin: 10px 0 0; font-size: 13px; color: #6b7280; word-break: break-all; }
+  .school { margin: 18px 0 0; font-size: 13px; letter-spacing: 0.12em;
+            text-transform: uppercase; color: #9ca3af; font-weight: 700; }
+  .controls { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+  button, a.btn {
+    font: inherit; font-weight: 600; padding: 11px 18px; border-radius: 8px;
+    border: 1px solid var(--navy); background: #fff; color: var(--navy);
+    cursor: pointer; text-decoration: none;
+  }
+  input { font: inherit; padding: 11px; border: 1px solid #d1d5db; border-radius: 8px; width: 320px; max-width: 100%; }
+  @media print {
+    body { background: #fff; padding: 0; }
+    .controls, .noprint { display: none !important; }
+    .card { border: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="noprint controls">
+  <input id="dest" value="https://tmatkd.com/bake-sale" aria-label="QR destination URL" />
+  <button onclick="render()">Update QR</button>
+  <button onclick="window.print()">Print / Save as PDF</button>
+  <a class="btn" id="dlPng" download="bake-sale-qr.png">Download PNG</a>
+  <a class="btn" id="dlSvg" download="bake-sale-qr.svg">Download SVG</a>
+</div>
+
+<div class="card">
+  <h1>SCAN TO PAY</h1>
+  <p class="sub">Bake Sale</p>
+  <div class="qrwrap"><canvas id="qr"></canvas></div>
+  <p class="methods">Cards &bull; Apple Pay &bull; Google Pay</p>
+  <p class="url" id="urlText"></p>
+  <p class="school">Top Martial Arts Suwanee</p>
+</div>
+
+<script>
+  // High error correction ("H") so the card still scans with a smudge, a crease,
+  // or a thumb over one corner. No logo is drawn over the modules on purpose:
+  // covering modules is what makes a QR fail under bad table lighting.
+  const DESTINATION = "https://tmatkd.com/bake-sale";
+
+  function render() {
+    const url = document.getElementById("dest").value.trim() || DESTINATION;
+    document.getElementById("urlText").textContent = url;
+    const opts = { errorCorrectionLevel: "H", margin: 4, width: 900,
+                   color: { dark: "#1a2d5a", light: "#ffffff" } };
+
+    QRCode.toCanvas(document.getElementById("qr"), url, { ...opts, width: 460 }, err => {
+      if (err) console.error(err);
+    });
+    // Hi-res PNG for print, independent of the on-screen canvas size.
+    QRCode.toDataURL(url, opts, (err, dataUrl) => {
+      if (!err) document.getElementById("dlPng").href = dataUrl;
+    });
+    QRCode.toString(url, { ...opts, type: "svg" }, (err, svg) => {
+      if (!err) document.getElementById("dlSvg").href =
+        "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+    });
+  }
+
+  document.getElementById("dest").value = DESTINATION;
+  render();
+</script>
+</body>
+</html>

@@ -13,6 +13,8 @@ import SummerCamps from "./pages/SummerCamps";
 import CampRegistration from "./pages/CampRegistration";
 import FieldTripPay from "./pages/FieldTripPay";
 import SupplyFeePay from "./pages/SupplyFeePay";
+import BakeSale from "./pages/BakeSale";
+import BakeSaleSuccess from "./pages/BakeSaleSuccess";
 import DayCamp from "./pages/DayCamp";
 import DayCampSheet from "./pages/DayCampSheet";
 import MartialArtsMembershipAgreement from "./pages/MartialArtsMembershipAgreement";
@@ -50,6 +52,8 @@ function Router() {
       <Route path={"/camp-registration"} component={CampRegistration} />
       <Route path={"/field-trip"} component={FieldTripPay} />
       <Route path={"/supply-fee"} component={SupplyFeePay} />
+      <Route path={"/bake-sale"} component={BakeSale} />
+      <Route path={"/bake-sale/success"} component={BakeSaleSuccess} />
       <Route path={"/day-camp"} component={DayCamp} />
       <Route path={"/day-camp-sheet"} component={DayCampSheet} />
       <Route path={"/open-house"} component={OpenHouse} />

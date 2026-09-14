@@ -25,9 +25,42 @@ import type { Request, Response } from "express";
 import Stripe from "stripe";
 import { ENV } from "./_core/env";
 import { sendTelegramMessage } from "./telegram";
-import { updateSubscriptionByStripeId, updateMembership, updatePayerStripeCustomer, findMembershipChargeByPaymentIntentId, findMembershipPaymentByPaymentIntentId, recordStripeRefund, updateMembershipCharge, type MembershipChargeRow } from "./db";
+import { updateSubscriptionByStripeId, updateMembership, updatePayerStripeCustomer, findMembershipChargeByPaymentIntentId, findMembershipPaymentByPaymentIntentId, recordStripeRefund, updateMembershipCharge, insertBakeSaleOrder, updateBakeSaleOrderStatus, type MembershipChargeRow } from "./db";
 
 const toMysqlDate = (unixSeconds: number) => new Date(unixSeconds * 1000).toISOString().slice(0, 19).replace("T", " ");
+
+/**
+ * Records a paid bake-sale Checkout Session (source: bake_sale_qr).
+ * Called from checkout.session.completed and from the async-payment success
+ * event. insertBakeSaleOrder is idempotent on the session id, so a replayed
+ * delivery writes nothing the second time.
+ */
+async function recordBakeSaleOrder(stripe: Stripe, session: Stripe.Checkout.Session): Promise<void> {
+  let itemSummary = session.metadata?.itemSummary ?? "";
+  try {
+    const li = await stripe.checkout.sessions.listLineItems(session.id, { limit: 50 });
+    itemSummary = li.data.map(l => `${l.quantity ?? 1}x ${l.description ?? "Item"}`).join(", ");
+  } catch (e) {
+    // Fall back to the metadata summary written at session creation.
+    console.error("[stripe-webhook] bake sale line items fetch failed:", (e as Error).message);
+  }
+  const shortId = session.metadata?.orderId ?? session.id.slice(-6).toUpperCase();
+  await insertBakeSaleOrder({
+    orderId: shortId,
+    stripeSessionId: session.id,
+    stripePaymentIntentId: typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id ?? null,
+    paymentStatus: session.payment_status ?? "paid",
+    amountTotalCents: session.amount_total ?? 0,
+    contributionCents: Number(session.metadata?.contributionCents ?? 0) || 0,
+    email: session.customer_details?.email ?? null,
+    lineItems: itemSummary.slice(0, 1000),
+    eventName: session.metadata?.eventName ?? null,
+  });
+  void sendTelegramMessage(
+    `\u{1F36A} <b>Bake sale order paid</b>\n` +
+    `Order ${shortId} · $${((session.amount_total ?? 0) / 100).toFixed(2)}\n${itemSummary}`
+  ).catch(() => {});
+}
 
 export async function handleStripeWebhook(req: Request, res: Response): Promise<void> {
   const secret = ENV.tmaStripeWebhookSecret;
@@ -135,6 +168,26 @@ export async function handleStripeWebhook(req: Request, res: Response): Promise<
           if (payerId) await updatePayerStripeCustomer(Number(payerId), String(session.customer));
           else if (membershipId) await updateMembership(Number(membershipId), { stripeCustomerId: String(session.customer) });
           void sendTelegramMessage(`💳 <b>Card saved</b>\n${payerId ? `Payer #${payerId}` : `Membership #${membershipId}`}`).catch(() => {});
+        }
+        // Bake sale QR order (2026-09-14). Separate branch so the card-setup
+        // path above is untouched. This is the ONLY place a bake-sale order is
+        // marked paid; the browser redirect never writes a row.
+        if (session.metadata?.source === "bake_sale_qr" && session.payment_status === "paid") {
+          await recordBakeSaleOrder(stripe, session);
+        }
+        break;
+      }
+      case "checkout.session.async_payment_succeeded": {
+        // Delayed payment methods settle here rather than at completed.
+        const session = event.data.object as Stripe.Checkout.Session;
+        if (session.metadata?.source === "bake_sale_qr") await recordBakeSaleOrder(stripe, session);
+        break;
+      }
+      case "checkout.session.async_payment_failed": {
+        const session = event.data.object as Stripe.Checkout.Session;
+        if (session.metadata?.source === "bake_sale_qr") {
+          await updateBakeSaleOrderStatus(session.id, "failed");
+          void sendTelegramMessage(`⚠️ <b>Bake sale payment failed</b>\nOrder ${session.metadata?.orderId ?? session.id}`).catch(() => {});
         }
         break;
       }

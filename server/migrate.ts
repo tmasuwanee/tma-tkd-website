@@ -336,6 +336,27 @@ const MIGRATIONS: { name: string; sql: string }[] = [
       "createdAt DATETIME NOT NULL, " +
       "INDEX ffv_created_idx (createdAt))",
   },
+  {
+    // 2026-09-14: bake-sale QR orders (/bake-sale). One row per paid Stripe
+    // Checkout Session. The webhook writes it (source of truth); the success
+    // page only reads Stripe. UNIQUE on stripeSessionId makes replayed webhook
+    // deliveries idempotent: the duplicate INSERT is rejected, not duplicated.
+    name: "bakeSaleOrders table",
+    sql: "CREATE TABLE IF NOT EXISTS bakeSaleOrders (" +
+      "id BIGINT PRIMARY KEY AUTO_INCREMENT, " +
+      "orderId VARCHAR(32) NOT NULL, " +
+      "stripeSessionId VARCHAR(255) NOT NULL, " +
+      "stripePaymentIntentId VARCHAR(255) NULL, " +
+      "paymentStatus VARCHAR(32) NOT NULL, " +
+      "amountTotalCents INT NOT NULL, " +
+      "contributionCents INT NOT NULL DEFAULT 0, " +
+      "email VARCHAR(320) NULL, " +
+      "lineItems TEXT NULL, " +
+      "eventName VARCHAR(255) NULL, " +
+      "paidAt DATETIME NOT NULL, " +
+      "UNIQUE KEY bso_session_uniq (stripeSessionId), " +
+      "INDEX bso_paid_idx (paidAt))",
+  },
 ];
 
 export async function runStartupMigrations(): Promise<void> {

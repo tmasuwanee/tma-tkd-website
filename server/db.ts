@@ -3730,3 +3730,67 @@ export async function upsertRosterAttendance(
     ON DUPLICATE KEY UPDATE checked = ${checked ? 1 : 0}
   `);
 }
+
+// ─── Bake sale orders (/bake-sale QR checkout, 2026-09-14) ───────────────────
+// Written by the Stripe webhook only. The client redirect never marks an order
+// paid. Idempotent on stripeSessionId: a replayed webhook delivery inserts
+// nothing the second time (UNIQUE key + NOT EXISTS guard), so Stripe's retries
+// cannot duplicate an order.
+export async function insertBakeSaleOrder(params: {
+  orderId: string;
+  stripeSessionId: string;
+  stripePaymentIntentId?: string | null;
+  paymentStatus: string;
+  amountTotalCents: number;
+  contributionCents?: number;
+  email?: string | null;
+  lineItems?: string | null;
+  eventName?: string | null;
+}): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.execute(
+    sql`INSERT INTO bakeSaleOrders
+      (orderId, stripeSessionId, stripePaymentIntentId, paymentStatus, amountTotalCents,
+       contributionCents, email, lineItems, eventName, paidAt)
+     SELECT ${params.orderId}, ${params.stripeSessionId}, ${params.stripePaymentIntentId ?? null},
+       ${params.paymentStatus}, ${params.amountTotalCents}, ${params.contributionCents ?? 0},
+       ${params.email ?? null}, ${params.lineItems ?? null}, ${params.eventName ?? null}, NOW()
+     FROM DUAL
+     WHERE NOT EXISTS (SELECT 1 FROM bakeSaleOrders b WHERE b.stripeSessionId = ${params.stripeSessionId})`
+  );
+}
+
+export type BakeSaleOrderRow = {
+  id: number;
+  orderId: string;
+  stripeSessionId: string;
+  stripePaymentIntentId: string | null;
+  paymentStatus: string;
+  amountTotalCents: number;
+  contributionCents: number;
+  email: string | null;
+  lineItems: string | null;
+  eventName: string | null;
+  paidAt: string;
+};
+
+export async function getBakeSaleOrders(): Promise<BakeSaleOrderRow[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const [rows] = await db.execute(
+    sql`SELECT id, orderId, stripeSessionId, stripePaymentIntentId, paymentStatus,
+        amountTotalCents, contributionCents, email, lineItems, eventName, paidAt
+        FROM bakeSaleOrders ORDER BY paidAt DESC`
+  ) as unknown as [BakeSaleOrderRow[]];
+  return Array.isArray(rows) ? rows : [];
+}
+
+/** Marks a previously-recorded async order as failed (ACH/delayed methods). */
+export async function updateBakeSaleOrderStatus(stripeSessionId: string, paymentStatus: string): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.execute(
+    sql`UPDATE bakeSaleOrders SET paymentStatus = ${paymentStatus} WHERE stripeSessionId = ${stripeSessionId}`
+  );
+}

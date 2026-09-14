@@ -32,6 +32,10 @@ const PUBLIC_PATHS = new Set<string>([
   "camp.createRegistration", "camp.confirmPayment", "camp.submitWaiver",
   "christmas.createIntent", "christmas.confirm",
   "fieldTrip.createIntent", "fieldTrip.confirm",
+  // /bake-sale QR page (2026-09-14). menu renders the card list, createCheckout
+  // builds the hosted Checkout Session, verifySession backs the success screen.
+  // All three are read by walk-up customers with no admin cookie.
+  "bakeSale.menu", "bakeSale.createCheckout", "bakeSale.verifySession",
   "supplyFee.createIntent", "supplyFee.confirm",
   "transportation.submit",
   "waiver.submit",
