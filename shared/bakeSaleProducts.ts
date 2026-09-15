@@ -70,7 +70,7 @@ export const bakeSaleConfig = {
       id: "mini-cookie-bag",
       name: "Mini Cookie Bag",
       description: "Four mini chocolate chip cookies, bagged and tied.",
-      unitAmount: 300,
+      unitAmount: 400,
       active: true,
       sortOrder: 3,
       allergenWarning: "Contains wheat, egg, milk, soy.",
