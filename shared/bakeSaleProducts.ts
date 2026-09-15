@@ -80,7 +80,7 @@ export const bakeSaleConfig = {
       id: "beignet-bag",
       name: "Chocolate Hazelnut Beignets",
       description: "Two mini beignets filled with chocolate hazelnut, dusted with powdered sugar.",
-      unitAmount: 400,
+      unitAmount: 500,
       active: true,
       sortOrder: 4,
       allergenWarning: "Contains hazelnuts, wheat, egg, milk, soy. Made on equipment that also processes peanuts and tree nuts.",
