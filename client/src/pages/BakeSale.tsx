@@ -252,7 +252,7 @@ export default function BakeSale() {
         )}
 
         <p className="pt-2 text-center text-xs text-gray-400">
-          Payment is processed by Stripe. We never see your card number.
+          Payment is processed securely by Stripe.
         </p>
       </main>
 
