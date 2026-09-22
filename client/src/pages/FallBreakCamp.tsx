@@ -85,7 +85,7 @@ export default function FallBreakCamp() {
             <div className="flex items-center gap-2"><Clock className="w-4 h-4" /> 9:00 AM to 4:00 PM</div>
             <div className="flex items-center gap-2"><Users className="w-4 h-4" /> Ages 5 & Up</div>
             <div className="flex items-center gap-2"><MapPin className="w-4 h-4" /> 2005 Lawrenceville Suwanee Rd</div>
-            <div className="flex items-center gap-2"><Camera className="w-4 h-4" /> 2 Field Trips Included</div>
+            <div className="flex items-center gap-2"><Camera className="w-4 h-4" /> Martial Arts Every Day</div>
           </div>
         </div>
       </section>
@@ -103,7 +103,7 @@ export default function FallBreakCamp() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-4xl mx-auto">
             {[
               { icon: Zap, title: "Martial Arts Training", desc: "Daily Taekwondo, BJJ, and kickboxing classes taught by our certified instructors", color: "bg-[#1a2d5a]" },
-              { icon: Camera, title: "2 Field Trips", desc: "Two exciting field trips to local destinations, included in your registration", color: "bg-[#c41e3a]" },
+              { icon: Camera, title: "Board Breaking", desc: "Kids work toward breaking a board by the end of the week, plus belt skills practice", color: "bg-[#c41e3a]" },
               { icon: Star, title: "Games & Activities", desc: "Team games, obstacle courses, and fun challenges that build confidence and teamwork", color: "bg-[#1a2d5a]" },
               { icon: Shield, title: "Safe Environment", desc: "Small group sizes, certified instructors, and a structured daily schedule parents can trust", color: "bg-[#c41e3a]" },
               { icon: Users, title: "New Friends", desc: "A great opportunity to meet other kids and build lasting friendships over a fun week", color: "bg-[#1a2d5a]" },
@@ -141,7 +141,7 @@ export default function FallBreakCamp() {
                 days: "Monday to Friday (5 days)",
                 highlight: true,
                 badge: "Best Value",
-                includes: "2 field trips included",
+                includes: "Best value for the full week",
               },
               {
                 title: "3-Day Option",
@@ -150,7 +150,7 @@ export default function FallBreakCamp() {
                 days: "Mon, Wed & Fri",
                 highlight: false,
                 badge: null,
-                includes: "1 field trip included",
+                includes: "Mon, Wed and Fri only",
               },
               {
                 title: "Daily Drop-In",
@@ -159,7 +159,7 @@ export default function FallBreakCamp() {
                 days: "Any single day",
                 highlight: false,
                 badge: null,
-                includes: "Field trip day extra",
+                includes: "Pick any single day",
               },
             ].map((plan, i) => (
               <Card key={i} className={`relative border-2 ${plan.highlight ? "border-[#c41e3a] shadow-xl" : "border-gray-200"}`}>
@@ -189,11 +189,6 @@ export default function FallBreakCamp() {
                 <div className="font-semibold text-[#1a2d5a] text-sm mb-1">Early Drop-Off & Late Pick-Up</div>
                 <div className="text-[#c41e3a] font-bold text-lg mb-1">$25 / week</div>
                 <div className="text-gray-400 text-xs">7:30 AM drop-off + extended pick-up until 6:00 PM</div>
-              </div>
-              <div className="bg-gray-50 rounded-xl border border-gray-200 p-4 text-center flex-1 max-w-xs mx-auto sm:mx-0">
-                <div className="font-semibold text-[#1a2d5a] text-sm mb-1">Field Trip Fee</div>
-                <div className="text-[#c41e3a] font-bold text-lg mb-1">$25 / week</div>
-                <div className="text-gray-400 text-xs">Covers transportation & admission for both field trips</div>
               </div>
             </div>
           </div>
