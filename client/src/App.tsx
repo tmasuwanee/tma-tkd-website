@@ -25,6 +25,8 @@ import AfterschoolWaiver from "./pages/AfterschoolWaiver";
 import FreeClass from "./pages/FreeClass";
 import StudentWaiver from "./pages/StudentWaiver";
 import SpringBreakCamp from "./pages/SpringBreakCamp";
+import FallBreakCamp from "./pages/FallBreakCamp";
+import FallBreakRegistration from "./pages/FallBreakRegistration";
 import SpringBreakRegistration from "./pages/SpringBreakRegistration";
 import AttendanceKiosk from "./pages/AttendanceKiosk";
 import WalkIn from "./pages/WalkIn";
@@ -67,6 +69,8 @@ function Router() {
       <Route path={"/enroll"} component={StudentWaiver} />
       <Route path={"/waiver"} component={StudentWaiver} />
       <Route path={"/spring-break-camp"} component={SpringBreakCamp} />
+      <Route path={"/fall-break-camp"} component={FallBreakCamp} />
+      <Route path={"/fall-break-registration"} component={FallBreakRegistration} />
       <Route path={"/spring-break-registration"} component={SpringBreakRegistration} />
       <Route path={"/attendance"} component={AttendanceKiosk} />
       {/* Walk-in QR flow: /walkin is the customer form; /walkin-qr is the staff QR display */}
