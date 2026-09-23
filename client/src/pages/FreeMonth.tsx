@@ -7,6 +7,7 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { CheckCircle2, Gift, ShieldCheck, Users } from "lucide-react";
 import { SMS_CONSENT_TEXT } from "../../../shared/smsConsent";
+import { fireAdsConversion } from "@/lib/adsConversion";
 
 /**
  * One Month Free promotion landing page (/free-month). This is the QR target on
@@ -19,11 +20,45 @@ import { SMS_CONSENT_TEXT } from "../../../shared/smsConsent";
 
 const PROGRAMS = [
   { value: "Taekwondo", label: "Taekwondo" },
+  { value: "Little Tigers (ages 4 and 5)", label: "Little Tigers (ages 4 and 5)" },
   { value: "Kickboxing", label: "Kickboxing" },
   { value: "Brazilian Jiu-Jitsu", label: "Brazilian Jiu-Jitsu" },
   { value: "Kids After School", label: "Kids After School" },
   { value: "Not sure yet", label: "Not sure yet" },
 ];
+
+/**
+ * First class options, taken from the Aug 10 2026 class schedule image. A booked, named
+ * time converts better than "we'll call you", and a parent who picked a slot shows up more
+ * often than one who did not. Keep these in sync with /schedule when the schedule changes.
+ */
+const CLASS_SLOTS: Record<string, string[]> = {
+  "Taekwondo": [
+    "Monday 5:50 PM (White to Green Belt)",
+    "Tuesday 4:40 PM (All Belts)",
+    "Wednesday 5:20 PM (White to Green Belt)",
+    "Thursday 4:40 PM (All Belts)",
+    "Friday 5:20 PM (White to Green Belt)",
+    "Saturday 10:40 AM (All Belts, board breaking)",
+  ],
+  "Little Tigers (ages 4 and 5)": [
+    "Monday 4:40 PM (Little Tigers)",
+    "Tuesday 5:20 PM (Little Tigers)",
+    "Thursday 5:20 PM (Little Tigers)",
+  ],
+  "Kickboxing": [
+    "Monday 7:10 PM (Kickboxing)",
+    "Wednesday 6:45 PM (Kickboxing)",
+    "Thursday 6:30 PM (Kickboxing)",
+    "Saturday 12:00 PM (Kickboxing)",
+  ],
+  "Brazilian Jiu-Jitsu": [
+    "Tuesday 6:30 PM (Brazilian Jiu-Jitsu)",
+    "Wednesday 6:00 PM (Brazilian Jiu-Jitsu)",
+    "Friday 6:00 PM (Brazilian Jiu-Jitsu)",
+  ],
+};
+const ANY_SLOT = "I'm flexible, call me with options";
 
 const PROGRAM_MAP: Record<string, string> = {
   taekwondo: "Taekwondo",
@@ -54,6 +89,7 @@ export default function FreeMonth() {
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [program, setProgram] = useState(params.program || PROGRAMS[0].value);
+  const [slot, setSlot] = useState("");
   const [smsConsent, setSmsConsent] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -74,6 +110,7 @@ export default function FreeMonth() {
     try {
       const notes =
         `One Month Free claim. Interested in: ${program}.` +
+        (slot ? ` First class: ${slot}.` : "") +
         (kidName.trim() ? ` Student: ${kidName.trim()}${kidAge.trim() ? `, age ${kidAge.trim()}` : ""}.` : "");
       await submit.mutateAsync({
         parentName: parentName.trim(),
@@ -91,6 +128,7 @@ export default function FreeMonth() {
         utmCampaign: params.utmCampaign,
         utmContent: params.utmContent,
       });
+      fireAdsConversion("free_month_lead");
       setSubmitted(true);
       window.scrollTo(0, 0);
     } catch (err) {
@@ -108,8 +146,18 @@ export default function FreeMonth() {
           <CheckCircle2 className="w-11 h-11 text-white" />
         </div>
         <h1 className="text-3xl font-bold text-white mb-3">Your free month is reserved!</h1>
-        <p className="text-white/80 max-w-sm mb-6">
-          We'll text you shortly to get you scheduled for your first class. Welcome to the TMA family.
+        {slot && slot !== ANY_SLOT ? (
+          <p className="text-white/90 max-w-sm mb-3">
+            Your spot is held for <span className="font-semibold text-white">{slot}</span>. We'll call to confirm,
+            then text you a reminder before class.
+          </p>
+        ) : (
+          <p className="text-white/80 max-w-sm mb-3">
+            We'll call you shortly with class times that fit your week, then hold your spot.
+          </p>
+        )}
+        <p className="text-white/70 text-sm max-w-sm mb-6">
+          Arrive 10 to 15 minutes early and bring water. We're at 2005 Lawrenceville Suwanee Rd.
         </p>
         <p className="text-white/50 text-xs">Questions? Call or text (770) 277-3009.</p>
       </div>
@@ -156,11 +204,24 @@ export default function FreeMonth() {
           </div>
           <div>
             <Label className="text-gray-700 font-medium mb-1.5 block">Which program?</Label>
-            <select value={program} onChange={e => setProgram(e.target.value)}
+            <select value={program} onChange={e => { setProgram(e.target.value); setSlot(""); }}
               className="w-full border border-gray-300 rounded-md px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-[#1a2d5a]/30">
               {PROGRAMS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
             </select>
           </div>
+          {CLASS_SLOTS[program]?.length ? (
+            <div>
+              <Label className="text-gray-700 font-medium mb-1.5 block">
+                Pick your first class <span className="text-gray-400 font-normal">(we hold the spot in your name)</span>
+              </Label>
+              <select value={slot} onChange={e => setSlot(e.target.value)}
+                className="w-full border border-gray-300 rounded-md px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-[#1a2d5a]/30">
+                <option value="">Choose a day and time</option>
+                {CLASS_SLOTS[program].map(s => <option key={s} value={s}>{s}</option>)}
+                <option value={ANY_SLOT}>{ANY_SLOT}</option>
+              </select>
+            </div>
+          ) : null}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label className="text-gray-700 font-medium mb-1.5 block">Student's name <span className="text-gray-400 font-normal">(if a child)</span></Label>
