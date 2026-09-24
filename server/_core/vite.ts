@@ -58,7 +58,22 @@ export function serveStatic(app: Express) {
     );
   }
 
-  app.use(express.static(distPath));
+  // Bandwidth control (2026-09-24). This is the static handler production actually uses, so
+  // the Cache-Control rules have to live here. Without a max-age every new browser session
+  // re-downloads the site-media videos, which is what ate the Render bandwidth allowance.
+  // Hashed build assets can be cached forever, media gets 30 days, index.html is never cached
+  // or a deploy would not reach anyone.
+  app.use(express.static(distPath, {
+    setHeaders(res, filePath) {
+      if (filePath.endsWith("index.html")) {
+        res.setHeader("Cache-Control", "no-cache");
+      } else if (/[\\/]assets[\\/]/.test(filePath)) {
+        res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      } else if (/\.(mp4|webm|jpg|jpeg|png|gif|webp|svg|woff2?|ico)$/i.test(filePath)) {
+        res.setHeader("Cache-Control", "public, max-age=2592000");
+      }
+    },
+  }));
 
   // fall through to index.html if the file doesn't exist
   app.use("*", (_req, res) => {
