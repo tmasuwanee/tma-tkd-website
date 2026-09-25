@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { ChevronRight, Clock, MapPin, Star, Zap, Users, Shield, Camera, Backpack } from "lucide-react";
+import { ChevronRight, Clock, MapPin, Star, Zap, Users, Shield, Backpack } from "lucide-react";
 import { useLocation } from "wouter";
 
 /**
@@ -85,7 +85,7 @@ export default function FallBreakCamp() {
             <div className="flex items-center gap-2"><Clock className="w-4 h-4" /> 9:00 AM to 4:00 PM</div>
             <div className="flex items-center gap-2"><Users className="w-4 h-4" /> Ages 5 & Up</div>
             <div className="flex items-center gap-2"><MapPin className="w-4 h-4" /> 2005 Lawrenceville Suwanee Rd</div>
-            <div className="flex items-center gap-2"><Camera className="w-4 h-4" /> Martial Arts Every Day</div>
+            <div className="flex items-center gap-2"><Backpack className="w-4 h-4" /> Extended Care Available</div>
           </div>
         </div>
       </section>
@@ -102,12 +102,12 @@ export default function FallBreakCamp() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-4xl mx-auto">
             {[
-              { icon: Zap, title: "Martial Arts Training", desc: "Daily Taekwondo, BJJ, and kickboxing classes taught by our certified instructors", color: "bg-[#1a2d5a]" },
-              { icon: Camera, title: "Board Breaking", desc: "Kids work toward breaking a board by the end of the week, plus belt skills practice", color: "bg-[#c41e3a]" },
-              { icon: Star, title: "Games & Activities", desc: "Team games, obstacle courses, and fun challenges that build confidence and teamwork", color: "bg-[#1a2d5a]" },
-              { icon: Shield, title: "Safe Environment", desc: "Small group sizes, certified instructors, and a structured daily schedule parents can trust", color: "bg-[#c41e3a]" },
-              { icon: Users, title: "New Friends", desc: "A great opportunity to meet other kids and build lasting friendships over a fun week", color: "bg-[#1a2d5a]" },
+              { icon: Zap, title: "Martial Arts Training", desc: "Taekwondo classes every day of camp, taught by the same instructors who teach our regular classes", color: "bg-[#1a2d5a]" },
+              { icon: Star, title: "Games & Activities", desc: "Team games and challenges that keep kids moving and build confidence", color: "bg-[#1a2d5a]" },
               { icon: Backpack, title: "Full Day Care", desc: "9:00 AM to 4:00 PM supervised care, drop off and pick up at your convenience", color: "bg-[#c41e3a]" },
+              { icon: Clock, title: "Extended Care Available", desc: "Add 7:30 AM drop off and 6:00 PM pick up for $25 for the week", color: "bg-[#1a2d5a]" },
+              { icon: Shield, title: "A Structured Day", desc: "A set daily schedule at our Lawrenceville Suwanee Rd location, so parents know exactly how the day goes", color: "bg-[#c41e3a]" },
+              { icon: Users, title: "New Friends", desc: "A chance to meet other kids and build friendships over a full week together", color: "bg-[#1a2d5a]" },
             ].map((item, i) => (
               <Card key={i} className="border-0 shadow-md hover:shadow-lg transition-shadow">
                 <CardContent className="pt-6 text-center">
