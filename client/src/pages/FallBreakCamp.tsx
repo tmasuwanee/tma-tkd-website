@@ -102,12 +102,11 @@ export default function FallBreakCamp() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-4xl mx-auto">
             {[
-              { icon: Zap, title: "Martial Arts Training", desc: "Taekwondo classes every day of camp, taught by the same instructors who teach our regular classes", color: "bg-[#1a2d5a]" },
+              { icon: Zap, title: "Martial Arts Training", desc: "Martial arts classes every day of camp, taught by the same instructors who teach our regular classes", color: "bg-[#1a2d5a]" },
               { icon: Star, title: "Games & Activities", desc: "Team games and challenges that keep kids moving and build confidence", color: "bg-[#1a2d5a]" },
               { icon: Backpack, title: "Full Day Care", desc: "9:00 AM to 4:00 PM supervised care, drop off and pick up at your convenience", color: "bg-[#c41e3a]" },
               { icon: Clock, title: "Extended Care Available", desc: "Add 7:30 AM drop off and 6:00 PM pick up for $25 for the week", color: "bg-[#1a2d5a]" },
               { icon: Shield, title: "A Structured Day", desc: "A set daily schedule at our Lawrenceville Suwanee Rd location, so parents know exactly how the day goes", color: "bg-[#c41e3a]" },
-              { icon: Users, title: "New Friends", desc: "A chance to meet other kids and build friendships over a full week together", color: "bg-[#1a2d5a]" },
             ].map((item, i) => (
               <Card key={i} className="border-0 shadow-md hover:shadow-lg transition-shadow">
                 <CardContent className="pt-6 text-center">
