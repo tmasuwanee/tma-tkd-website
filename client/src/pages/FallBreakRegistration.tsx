@@ -19,15 +19,16 @@ const stripePromise = loadStripe(import.meta.env.VITE_TMA_STRIPE_PUBLISHABLE_KEY
 const FALL_BREAK_WEEK = "Fall Break: October 12 to 16, 2026 (Mon to Fri)";
 
 // Pricing constants, no early bird for fall break, straightforward pricing
+// Prices set by Arfa 2026-09-29. The old 3-day tier is gone: it was $199, which is now
+// the full week price, so it no longer means anything.
 const PRICING = {
-  "3day": 199_00,   // $199 per camper (Mon/Wed/Fri)
-  "5day": 239_00,   // $239 per camper (Mon to Fri)
-  "daily": 70_00,   // $70 per day per camper
-  fieldTrip: 25_00,
+  "5day": 199_00,   // $199 per camper (Mon to Fri)
+  "daily": 50_00,   // $50 per day per camper
+  fieldTrip: 30_00, // two field trips, per camper
   extendedCare: 25_00,
 };
 
-function getProgramPrice(programType: "3day" | "5day" | "daily") {
+function getProgramPrice(programType: "5day" | "daily") {
   return PRICING[programType];
 }
 
@@ -49,7 +50,7 @@ interface FormData {
   state: string;
   zip: string;
   howDidYouHear: string;
-  programType: "3day" | "5day" | "daily";
+  programType: "5day" | "daily";
   addFieldTrip: boolean;
   addExtendedCare: boolean;
   // 2026-06-08: CTIA-compliant SMS consent (Twilio toll-free verification).
@@ -321,11 +322,10 @@ function Step3({ data, onChange, onNext, onBack }: { data: FormData; onChange: (
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Program Type <span className="text-red-500">*</span></CardTitle>
         </CardHeader>
-        <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {([
-            { value: "5day", label: "Full Week (5 Days)", price: "$239/camper", desc: "Mon to Fri" },
-            { value: "3day", label: "3-Day Option", price: "$199/camper", desc: "Mon, Wed & Fri" },
-            { value: "daily", label: "Daily Drop-In", price: "$70/camper/day", desc: "Any single day" },
+            { value: "5day", label: "Full Week (5 Days)", price: "$199/camper", desc: "Mon to Fri" },
+            { value: "daily", label: "Daily Drop-In", price: "$50/camper/day", desc: "Any single day" },
           ] as const).map(opt => (
             <button
               key={opt.value}
@@ -351,7 +351,7 @@ function Step3({ data, onChange, onNext, onBack }: { data: FormData; onChange: (
         </CardHeader>
         <CardContent className="space-y-3">
           {[
-            // Field trips are not confirmed for Fall Break, so the add-on is not offered here (2026-09-22).
+            { key: "addFieldTrip" as const, label: "Two Field Trips", price: "+$30/camper", desc: "Both field trips for the week" },
             { key: "addExtendedCare" as const, label: "Early Drop-Off & Late Pick-Up", price: "+$25/week", desc: "7:30 AM drop-off + extended pick-up until 6:00 PM" },
           ].map(addon => (
             <div key={addon.key} className="flex items-start gap-3 p-3 rounded-lg border border-gray-100 hover:bg-gray-50">
@@ -376,14 +376,14 @@ function Step3({ data, onChange, onNext, onBack }: { data: FormData; onChange: (
           <div className="space-y-2 text-sm">
             <div className="flex justify-between">
               <span>
-                {data.programType === "3day" ? "3-Day Option" : data.programType === "5day" ? "Full Week (5-Day)" : "Daily Drop-In"}
+                {data.programType === "5day" ? "Full Week (5-Day)" : "Daily Drop-In"}
                 {` × ${numCampers} camper${numCampers > 1 ? "s" : ""}`}
               </span>
               <span>{formatCurrency(getProgramPrice(data.programType) * numCampers)}</span>
             </div>
             {data.addFieldTrip && (
               <div className="flex justify-between">
-                <span>Field Trip Fee × {numCampers} camper{numCampers > 1 ? "s" : ""}</span>
+                <span>Two Field Trips × {numCampers} camper{numCampers > 1 ? "s" : ""}</span>
                 <span>{formatCurrency(PRICING.fieldTrip * numCampers)}</span>
               </div>
             )}
@@ -546,9 +546,9 @@ function Step4({ data, onBack }: { data: FormData; onBack: () => void }) {
         </CardHeader>
         <CardContent className="space-y-1 text-sm">
           <div className="flex justify-between"><span>Camper(s):</span><span className="font-medium">{data.campers.filter(c => c.name).map(c => c.name).join(", ")}</span></div>
-          <div className="flex justify-between"><span>Program:</span><span className="font-medium">{data.programType === "3day" ? "3-Day Option" : data.programType === "5day" ? "Full Week (5-Day)" : "Daily Drop-In"}</span></div>
+          <div className="flex justify-between"><span>Program:</span><span className="font-medium">{data.programType === "5day" ? "Full Week (5-Day)" : "Daily Drop-In"}</span></div>
           <div className="flex justify-between"><span>Week:</span><span className="font-medium">October 12 to 16, 2026</span></div>
-          {data.addFieldTrip && <div className="flex justify-between"><span>Field Trip Fee</span><span>{formatCurrency(PRICING.fieldTrip * numCampers)}</span></div>}
+          {data.addFieldTrip && <div className="flex justify-between"><span>Two Field Trips</span><span>{formatCurrency(PRICING.fieldTrip * numCampers)}</span></div>}
           {data.addExtendedCare && <div className="flex justify-between"><span>Early Drop-Off &amp; Late Pick-Up</span><span>{formatCurrency(PRICING.extendedCare)}</span></div>}
           <div className="border-t mt-2 pt-2 flex justify-between font-bold text-base">
             <span>Total</span><span className="text-[#c41e3a]">{formatCurrency(total)}</span>

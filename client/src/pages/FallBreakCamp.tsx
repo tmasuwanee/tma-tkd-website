@@ -135,7 +135,7 @@ export default function FallBreakCamp() {
             {[
               {
                 title: "Full Week",
-                price: "$239",
+                price: "$199",
                 per: "per camper",
                 days: "Monday to Friday (5 days)",
                 highlight: true,
@@ -143,22 +143,22 @@ export default function FallBreakCamp() {
                 includes: "Best value for the full week",
               },
               {
-                title: "3-Day Option",
-                price: "$199",
-                per: "per camper",
-                days: "Mon, Wed & Fri",
-                highlight: false,
-                badge: null,
-                includes: "Mon, Wed and Fri only",
-              },
-              {
                 title: "Daily Drop-In",
-                price: "$70",
+                price: "$50",
                 per: "per camper / day",
                 days: "Any single day",
                 highlight: false,
                 badge: null,
                 includes: "Pick any single day",
+              },
+              {
+                title: "Two Field Trips",
+                price: "$30",
+                per: "per camper",
+                days: "Optional add-on",
+                highlight: false,
+                badge: null,
+                includes: "Both field trips for the week",
               },
             ].map((plan, i) => (
               <Card key={i} className={`relative border-2 ${plan.highlight ? "border-[#c41e3a] shadow-xl" : "border-gray-200"}`}>
@@ -184,6 +184,11 @@ export default function FallBreakCamp() {
           <div className="max-w-2xl mx-auto">
             <h3 className="text-center text-xl font-bold text-[#1a2d5a] mb-4">Optional Add-Ons</h3>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <div className="bg-gray-50 rounded-xl border border-gray-200 p-4 text-center flex-1 max-w-xs mx-auto sm:mx-0">
+                <div className="font-semibold text-[#1a2d5a] text-sm mb-1">Two Field Trips</div>
+                <div className="text-[#c41e3a] font-bold text-lg mb-1">$30 / camper</div>
+                <div className="text-gray-400 text-xs">Both field trips for the week</div>
+              </div>
               <div className="bg-gray-50 rounded-xl border border-gray-200 p-4 text-center flex-1 max-w-xs mx-auto sm:mx-0">
                 <div className="font-semibold text-[#1a2d5a] text-sm mb-1">Early Drop-Off & Late Pick-Up</div>
                 <div className="text-[#c41e3a] font-bold text-lg mb-1">$25 / week</div>
