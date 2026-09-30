@@ -74,10 +74,46 @@
     }
     </script>
     <script type="module" src="/src/main.tsx"></script>
-    <script
-      defer
-      src="%VITE_ANALYTICS_ENDPOINT%/umami"
-      data-website-id="%VITE_ANALYTICS_WEBSITE_ID%"></script>
+    <script>
+      // Analytics, only when the endpoint is actually configured at build time. It was
+      // previously a plain script tag, so when the variable was not set the browser
+      // requested the literal "%VITE_ANALYTICS_ENDPOINT%/umami" on every single page load
+      // and got the app's HTML back.
+      (function () {
+        var endpoint = "%VITE_ANALYTICS_ENDPOINT%";
+        var websiteId = "%VITE_ANALYTICS_WEBSITE_ID%";
+        if (!/^https?:\/\//.test(endpoint)) return;
+        var el = document.createElement("script");
+        el.defer = true;
+        el.src = endpoint + "/umami";
+        el.setAttribute("data-website-id", websiteId);
+        document.head.appendChild(el);
+      })();
+    </script>
+
+    <script>
+      // White screen self heal (2026-09-30). If the app has not mounted a few seconds after
+      // load, the page is blank to the visitor, usually because a cached page pointed at a
+      // bundle from an older deploy. Reload once, which picks up the current index.html,
+      // and never loop.
+      (function () {
+        var KEY = "tma-blank-reload";
+        window.addEventListener("load", function () {
+          setTimeout(function () {
+            var root = document.getElementById("root");
+            var mounted = root && root.children.length > 0;
+            try {
+              if (mounted) { sessionStorage.removeItem(KEY); return; }
+              if (sessionStorage.getItem(KEY)) return;
+              sessionStorage.setItem(KEY, "1");
+            } catch (e) {
+              if (mounted) return;
+            }
+            location.reload();
+          }, 4000);
+        });
+      })();
+    </script>
   </body>
 
 </html>

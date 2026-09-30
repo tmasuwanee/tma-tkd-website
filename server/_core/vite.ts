@@ -75,8 +75,16 @@ export function serveStatic(app: Express) {
     },
   }));
 
-  // fall through to index.html if the file doesn't exist
-  app.use("*", (_req, res) => {
+  // Fall through to index.html so client-side routes work. A request that clearly asks for
+  // a FILE must 404 instead (2026-09-30). Returning index.html for a missing asset was
+  // causing intermittent white screens: after a deploy the hashed bundle names change, a
+  // browser holding the old page asks for /assets/index-OLDHASH.js, got 200 with HTML back,
+  // tried to parse that HTML as JavaScript, threw, and React never mounted.
+  app.use("*", (req, res) => {
+    if (/\.[a-z0-9]{2,8}$/i.test(req.path) || req.path.startsWith("/assets/")) {
+      res.status(404).type("text/plain").send("Not found");
+      return;
+    }
     res.sendFile(path.resolve(distPath, "index.html"));
   });
 }

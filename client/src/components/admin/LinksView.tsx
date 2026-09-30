@@ -21,7 +21,6 @@ const LINK_GROUPS: LinkGroup[] = [
     group: "Sign-ups & Sales",
     items: [
       { label: "Free Class", path: "/free-class", desc: "Book a free intro class. Feeds the leads pipeline." },
-      { label: "Open House RSVP (Aug 29)", path: "/open-house", desc: "Back-to-School bring-a-friend open house. RSVPs become leads tagged open_house_2026. Referral link: /open-house?ref=MemberName" },
       { label: "One Month Free", path: "/free-month", desc: "25 year anniversary offer for new students. Pick a program and a class time, becomes a lead. This is what the ads and the QR codes point at." },
       { label: "Christmas in July Sale", path: "/christmas-in-july", desc: "Pro shop + bulk tuition + bundle order form." },
       { label: "Afterschool Tour Request", path: "/afterschooltour", desc: "Parents request a tour; staff calls to confirm." },

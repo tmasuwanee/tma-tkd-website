@@ -18,7 +18,6 @@ import BakeSaleSuccess from "./pages/BakeSaleSuccess";
 import DayCamp from "./pages/DayCamp";
 import DayCampSheet from "./pages/DayCampSheet";
 import MartialArtsMembershipAgreement from "./pages/MartialArtsMembershipAgreement";
-import OpenHouse from "./pages/OpenHouse";
 import FallFestVolunteer from "./pages/FallFestVolunteer";
 import FreeMonth from "./pages/FreeMonth";
 import AfterschoolWaiver from "./pages/AfterschoolWaiver";
@@ -57,7 +56,10 @@ function Router() {
       <Route path={"/bake-sale/success"} component={BakeSaleSuccess} />
       <Route path={"/day-camp"} component={DayCamp} />
       <Route path={"/day-camp-sheet"} component={DayCampSheet} />
-      <Route path={"/open-house"} component={OpenHouse} />
+      {/* Open House was the Aug 29 2026 back to school event. It is over, and the RSVP
+          form was still accepting entries, so the route now sends visitors to the
+          current offer. */}
+      <Route path={"/open-house"}><Redirect to="/free-month" /></Route>
       <Route path={"/fall-fest-volunteer"} component={FallFestVolunteer} />
       <Route path={"/volunteer"} component={FallFestVolunteer} />
       <Route path={"/afterschool-waiver"} component={AfterschoolWaiver} />

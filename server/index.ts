@@ -32,8 +32,14 @@ async function startServer() {
     },
   }));
 
-  // Handle client-side routing - serve index.html for all routes
-  app.get("*", (_req, res) => {
+  // Handle client-side routing. A request for a FILE that does not exist must 404 rather
+  // than receive index.html, or the browser parses HTML as JavaScript and the page is blank.
+  // Same rule as server/_core/vite.ts, which is the handler production actually boots.
+  app.get("*", (req, res) => {
+    if (/\.[a-z0-9]{2,8}$/i.test(req.path) || req.path.startsWith("/assets/")) {
+      res.status(404).type("text/plain").send("Not found");
+      return;
+    }
     res.sendFile(path.join(staticPath, "index.html"));
   });
 
