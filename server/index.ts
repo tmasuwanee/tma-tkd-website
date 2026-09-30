@@ -36,7 +36,8 @@ async function startServer() {
   // than receive index.html, or the browser parses HTML as JavaScript and the page is blank.
   // Same rule as server/_core/vite.ts, which is the handler production actually boots.
   app.get("*", (req, res) => {
-    if (/\.[a-z0-9]{2,8}$/i.test(req.path) || req.path.startsWith("/assets/")) {
+    const pathname = req.originalUrl.split("?")[0];
+    if (/\.[a-z0-9]{2,8}$/i.test(pathname) || pathname.startsWith("/assets/")) {
       res.status(404).type("text/plain").send("Not found");
       return;
     }

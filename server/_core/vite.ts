@@ -80,8 +80,11 @@ export function serveStatic(app: Express) {
   // causing intermittent white screens: after a deploy the hashed bundle names change, a
   // browser holding the old page asks for /assets/index-OLDHASH.js, got 200 with HTML back,
   // tried to parse that HTML as JavaScript, threw, and React never mounted.
+  // NOTE: inside app.use("*") Express rewrites req.url, so req.path is always "/" here.
+  // The real path is only on req.originalUrl, same as the dev handler above.
   app.use("*", (req, res) => {
-    if (/\.[a-z0-9]{2,8}$/i.test(req.path) || req.path.startsWith("/assets/")) {
+    const pathname = req.originalUrl.split("?")[0];
+    if (/\.[a-z0-9]{2,8}$/i.test(pathname) || pathname.startsWith("/assets/")) {
       res.status(404).type("text/plain").send("Not found");
       return;
     }
