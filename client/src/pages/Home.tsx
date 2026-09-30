@@ -194,20 +194,21 @@ export default function Home() {
       </section>
 
 
-      {/* Back to School Special Banner */}
+      {/* One Month Free banner. Replaced the Back to School $99 banner 2026-09-30:
+          that special is over, and this is the offer the ads point at. */}
       <section className="bg-[#c41e3a] text-white py-4">
         <div className="container mx-auto px-4">
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 text-center sm:text-left">
             <div className="flex items-center gap-3">
-              <span className="text-2xl">🎒</span>
+              <span className="text-2xl">🥋</span>
               <div>
-                <span className="font-bold text-lg">Back to School Special</span>
+                <span className="font-bold text-lg">One Month Free</span>
                 <span className="mx-3 text-white/70">|</span>
-                <span className="text-white/90">3 Weeks of Classes + Taekwondo Uniform &bull; Only $99</span>
+                <span className="text-white/90">New students, celebrating 25 years of Top Martial Arts Suwanee</span>
               </div>
             </div>
             <Button
-              onClick={() => navigate('/free-class')}
+              onClick={() => navigate('/free-month')}
               size="sm"
               className="bg-white text-[#c41e3a] hover:bg-white/90 font-bold shrink-0"
             >

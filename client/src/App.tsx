@@ -32,7 +32,6 @@ import AttendanceKiosk from "./pages/AttendanceKiosk";
 import WalkIn from "./pages/WalkIn";
 import WalkInQR from "./pages/WalkInQR";
 import AfterschoolTour from "./pages/AfterschoolTour";
-import BackToSchool from "./pages/BackToSchool";
 import Transportation from "./pages/Transportation";
 import Schedule from "./pages/Schedule";
 import AfterschoolRegister from "./pages/AfterschoolRegister";
@@ -79,7 +78,10 @@ function Router() {
       <Route path={"/trial"} component={WalkIn} />
       <Route path={"/walkin-qr"} component={WalkInQR} />
       <Route path={"/afterschooltour"} component={AfterschoolTour} />
-      <Route path={"/back-to-school"} component={BackToSchool} />
+      {/* Back to School $49 special ended (2026-09-30). The page is left in the repo for
+          the paid records that reference it, but the route now sends anyone with an old
+          link or flyer to the current offer instead of a live $49 checkout. */}
+      <Route path={"/back-to-school"}><Redirect to="/free-month" /></Route>
       <Route path={"/transportation"} component={Transportation} />
       <Route path={"/schedule"} component={Schedule} />
       {/* Christmas in July sale ended (July 2026). Redirect to home. */}
