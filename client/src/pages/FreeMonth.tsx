@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { CheckCircle2, Gift, ShieldCheck, Users } from "lucide-react";
 import { SMS_CONSENT_TEXT } from "../../../shared/smsConsent";
 import { fireAdsConversion } from "@/lib/adsConversion";
+import { fireMetaLead, fireMetaViewContent } from "@/lib/metaPixel";
 
 /**
  * One Month Free promotion landing page (/free-month). This is the QR target on
@@ -96,6 +97,12 @@ export default function FreeMonth() {
 
   const submit = trpc.leads.submit.useMutation();
 
+  // Tell Meta someone reached the offer page. Without this the pixel only ever sees
+  // PageView, which is too generic to build a lookalike or a retargeting audience from.
+  useEffect(() => {
+    fireMetaViewContent({ content_name: "One Month Free", content_category: "offer" });
+  }, []);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!parentName.trim() || !phone.trim()) {
@@ -112,7 +119,7 @@ export default function FreeMonth() {
         `One Month Free claim. Interested in: ${program}.` +
         (slot ? ` First class: ${slot}.` : "") +
         (kidName.trim() ? ` Student: ${kidName.trim()}${kidAge.trim() ? `, age ${kidAge.trim()}` : ""}.` : "");
-      await submit.mutateAsync({
+      const res = await submit.mutateAsync({
         parentName: parentName.trim(),
         kidName: kidName.trim() || "N/A",
         kidAge: kidAge.trim() || "N/A",
@@ -128,6 +135,9 @@ export default function FreeMonth() {
         utmCampaign: params.utmCampaign,
         utmContent: params.utmContent,
       });
+      // Meta pixel Lead. eventID matches the server CAPI event_id (the lead row id), so the
+      // browser event and the server event are deduplicated into one conversion.
+      fireMetaLead(res?.leadId, { content_name: "One Month Free", content_category: program });
       fireAdsConversion("free_month_lead");
       setSubmitted(true);
       window.scrollTo(0, 0);

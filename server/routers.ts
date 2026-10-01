@@ -712,6 +712,9 @@ export const appRouter = router({
 
           return {
             success: true,
+            // The browser pixel fires its own Lead event with eventID = this value, which
+            // is the same event_id the CAPI call above uses, so Meta counts it once.
+            leadId: String(newLeadId),
             message: isProShopOrder
               ? "Thank you for your order! We will contact you within 24 hours to confirm and arrange payment."
               : "Thank you for your interest! We will contact you soon to schedule your free class.",

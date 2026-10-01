@@ -75,6 +75,22 @@
     </script>
     <script type="module" src="/src/main.tsx"></script>
     <script>
+      // Meta pixel (2026-10-01). Missing until now, which is why the Fall 2026 ad campaign
+      // could only be optimised for page loads: Meta had no signal about what happened after
+      // the click. PageView fires here; the Lead event fires from the form's success handler
+      // with an eventID matching the server CAPI call so the two are counted once.
+      !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+      n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;
+      n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;
+      t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,
+      document,'script','https://connect.facebook.net/en_US/fbevents.js');
+      fbq('init', '931192302851307');
+      fbq('track', 'PageView');
+    </script>
+    <noscript><img height="1" width="1" style="display:none"
+      src="https://www.facebook.com/tr?id=931192302851307&ev=PageView&noscript=1" /></noscript>
+
+    <script>
       // Analytics, only when the endpoint is actually configured at build time. It was
       // previously a plain script tag, so when the variable was not set the browser
       // requested the literal "%VITE_ANALYTICS_ENDPOINT%/umami" on every single page load
