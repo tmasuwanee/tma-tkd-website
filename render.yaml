@@ -49,6 +49,10 @@ services:
         sync: false
       - key: FACEBOOK_PIXEL_ID
         sync: false
+      # FACEBOOK_CAPI_TOKEN is NOT declared here and MUST be set by hand in the Render
+      # dashboard (Environment). Without it server/meta-capi.ts logs "Skipping Lead event"
+      # and sends nothing, so Meta never receives server-side conversions. Found 2026-10-13:
+      # 845 pixel events, all BROWSER, zero SERVER. Value lives in Desktop/.env.
       # Retell / voice-agent + Facebook-ads keys if you use those on the live site:
       - key: RETELL_API_KEY
         sync: false
