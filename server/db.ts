@@ -626,13 +626,18 @@ export async function upsertLeadFromFacebook(input: {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  // Instant Forms normally prefill email, but a lead with none must still land. An empty
-  // email must NEVER be used as a dedupe key (it would merge unrelated people), so fall
-  // back to phone, and if there is neither, treat it as a new lead.
-  const email = (input.email ?? "").trim();
+  // Instant Forms normally prefill email, but a lead with none must still land. The email
+  // column is NOT NULL and UNIQUE, so an empty string would crash on the second such lead
+  // (found in testing 2026-10-13). Follow the existing convention (walkin-<phone>@walkin.tma,
+  // callback-<phone>@voice.tma): a stable placeholder keyed on the phone, so a repeat
+  // submission from the same person still dedupes. Phone is the fallback dedupe key.
+  const rawEmail = (input.email ?? "").trim().toLowerCase();
+  const phoneDigits = String(input.phone ?? "").replace(/\D/g, "");
+  const email = rawEmail || `fblead-${phoneDigits || input.fbLeadId || Date.now()}@meta.tma`;
+  const phone = String(input.phone ?? "").slice(0, 20); // column is varchar(20)
   const existing =
-    (email ? await getLeadByEmail(email) : null) ??
-    (input.phone ? await getLeadByPhone(input.phone) : null);
+    (await getLeadByEmail(email)) ??
+    (phone ? await getLeadByPhone(phone) : null);
 
   const consentFields = input.smsConsent
     ? {
@@ -649,7 +654,7 @@ export async function upsertLeadFromFacebook(input: {
     const mergedTags = Array.from(new Set([...existingTags, ...newTags]));
 
     await db.update(leads).set({
-      phone: existing.phone || input.phone || existing.phone,
+      phone: existing.phone || phone || existing.phone,
       utmSource: existing.utmSource || input.utmSource || "facebook",
       utmMedium: existing.utmMedium || input.utmMedium || "lead_ad",
       utmCampaign: existing.utmCampaign || input.utmCampaign,
@@ -665,10 +670,10 @@ export async function upsertLeadFromFacebook(input: {
   const id = await createLead({
     parentName: input.parentName,
     kidName: input.kidName || "",
-    kidAge: input.kidAge || "",
-    programInterest: input.programInterest || "summer_camp",
+    kidAge: (input.kidAge || "").slice(0, 50),
+    programInterest: (input.programInterest || "summer_camp").slice(0, 255),
     email,
-    phone: input.phone || "",
+    phone,
     utmSource: input.utmSource || "facebook",
     utmMedium: input.utmMedium || "lead_ad",
     utmCampaign: input.utmCampaign || null,
