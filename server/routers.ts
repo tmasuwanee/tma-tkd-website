@@ -799,13 +799,19 @@ export const appRouter = router({
         kidName: z.string().optional().default(""),
         kidAge: z.string().optional().default(""),
         programInterest: z.string().optional().default("summer_camp"),
-        email: z.string().email(),
+        // Optional on purpose: a lead with no email used to fail validation here and was
+        // silently dropped by the n8n sync (it ignores errors). See upsertLeadFromFacebook.
+        email: z.union([z.string().email(), z.literal("")]).optional().default(""),
         phone: z.string().optional().default(""),
         utmSource: z.string().optional(),
         utmMedium: z.string().optional(),
         utmCampaign: z.string().optional(),
         utmContent: z.string().optional(),
         tags: z.array(z.string()).optional(),
+        smsConsent: z.boolean().optional(),
+        smsConsentText: z.string().max(2000).optional(),
+        fbLeadId: z.string().max(64).optional(),
+        fbFormId: z.string().max(64).optional(),
       }))
       .mutation(async ({ input }) => {
         const result = await upsertLeadFromFacebook(input);

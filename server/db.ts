@@ -585,23 +585,63 @@ export async function submitWaiver(input: {
 // Upsert a lead from Facebook Lead Ads - matches by email.
 // Existing leads: merges tags, fills blank UTM fields. Never overwrites notes, stage, or existing tags.
 // New leads: inserts with utmSource=facebook and provided tags.
+/** Last 10 digits of a phone number, or "" if there are not 10. Used to match across +1 / dashes / spaces. */
+function phoneKey(phone?: string | null): string {
+  const d = String(phone ?? "").replace(/\D/g, "");
+  return d.length >= 10 ? d.slice(-10) : "";
+}
+
+export async function getLeadByPhone(phone: string): Promise<Lead | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const key = phoneKey(phone);
+  if (!key) return null;
+  const result = await db.select().from(leads)
+    .where(sql`RIGHT(REGEXP_REPLACE(${leads.phone}, '[^0-9]', ''), 10) = ${key}`)
+    .orderBy(desc(leads.createdAt))
+    .limit(1);
+  return result[0] ?? null;
+}
+
 export async function upsertLeadFromFacebook(input: {
   parentName: string;
   kidName?: string;
   kidAge?: string;
   programInterest?: string;
-  email: string;
+  email?: string;
   phone?: string;
   utmSource?: string | null;
   utmMedium?: string | null;
   utmCampaign?: string | null;
   utmContent?: string | null;
   tags?: string[];
+  // Written SMS consent captured INSIDE a Meta Instant Form (2026-10-13). The consent
+  // checkbox and its full CTIA language live on the form itself, so the lead arrives with
+  // proof of consent. smsConsentText is a snapshot of the exact wording shown.
+  smsConsent?: boolean;
+  smsConsentText?: string | null;
+  fbLeadId?: string | null;
+  fbFormId?: string | null;
 }): Promise<{ id: number; isNew: boolean }> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  const existing = await getLeadByEmail(input.email);
+  // Instant Forms normally prefill email, but a lead with none must still land. An empty
+  // email must NEVER be used as a dedupe key (it would merge unrelated people), so fall
+  // back to phone, and if there is neither, treat it as a new lead.
+  const email = (input.email ?? "").trim();
+  const existing =
+    (email ? await getLeadByEmail(email) : null) ??
+    (input.phone ? await getLeadByPhone(input.phone) : null);
+
+  const consentFields = input.smsConsent
+    ? {
+        smsConsent: 1,
+        smsConsentAt: new Date(),
+        smsConsentIp: `meta_instant_form:${input.fbLeadId ?? ""}`.slice(0, 64),
+        smsConsentText: input.smsConsentText ?? null,
+      }
+    : {};
 
   if (existing) {
     const existingTags: string[] = existing.tags ? JSON.parse(existing.tags) : [];
@@ -615,6 +655,8 @@ export async function upsertLeadFromFacebook(input: {
       utmCampaign: existing.utmCampaign || input.utmCampaign,
       utmContent: existing.utmContent || input.utmContent,
       tags: JSON.stringify(mergedTags),
+      // Only ever ADD consent here; never clear consent someone already gave.
+      ...(existing.smsConsent ? {} : consentFields),
     }).where(eq(leads.id, existing.id));
 
     return { id: existing.id, isNew: false };
@@ -625,13 +667,14 @@ export async function upsertLeadFromFacebook(input: {
     kidName: input.kidName || "",
     kidAge: input.kidAge || "",
     programInterest: input.programInterest || "summer_camp",
-    email: input.email,
+    email,
     phone: input.phone || "",
     utmSource: input.utmSource || "facebook",
     utmMedium: input.utmMedium || "lead_ad",
     utmCampaign: input.utmCampaign || null,
     utmContent: input.utmContent || null,
     tags: JSON.stringify(input.tags ?? ["facebook_lead"]),
+    ...consentFields,
   });
 
   return { id, isNew: true };
