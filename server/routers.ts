@@ -818,6 +818,18 @@ export const appRouter = router({
 
         // Only fire n8n intake sequence for brand-new leads (not updates)
         if (result.isNew) {
+          // Staff email, same as a website lead. Until 2026-10-14 this path sent NONE: website
+          // forms email staff from the server, but Facebook leads relied on the n8n intake
+          // webhook, which has had zero executions. Only for NEW leads, so a retry or a
+          // repeat submission cannot double-email.
+          void (async () => {
+            try {
+              const created = await getLeadById(result.id);
+              if (created) await sendEmailNotification(created);
+            } catch (err) {
+              console.error("[Facebook lead] staff email failed:", err);
+            }
+          })();
           void fireN8nWebhook({
             leadId: result.id,
             name: input.parentName,

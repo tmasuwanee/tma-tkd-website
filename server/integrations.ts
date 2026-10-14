@@ -96,6 +96,11 @@ export function leadSourceLabel(lead: Lead): { emoji: string; title: string } {
 
   // Orders (a purchase, not a person to chase)
   if (has("proshop_order") || prog.includes("pro shop")) return { emoji: "🛍️", title: "New Pro Shop Order" };
+  // Facebook / Instagram Instant Form leads. Checked BEFORE the program branches below,
+  // because those would otherwise label it "New Taekwondo Inquiry" and staff could not tell
+  // it came from an ad. instant_form is set by the Meta Instant Form sync; facebook_lead is
+  // set by the older Lead Ads sync.
+  if (has("instant_form") || has("facebook_lead")) return { emoji: "📣", title: "New Facebook Lead" };
   // Specials / promos
   if (has("christmas_july_2026") || prog.includes("christmas")) return { emoji: "🎁", title: "New Christmas in July Order" };
   if (has("back_to_school_2026") || prog.includes("back to school")) return { emoji: "🎒", title: "New Back-to-School Special" };
@@ -428,6 +433,9 @@ export async function sendAfterschoolIntake(params: {
 export async function sendEmailNotification(lead: Lead) {
   try {
     const { emoji, title } = leadSourceLabel(lead);
+    // Placeholder addresses (fblead-<phone>@meta.tma, walkin-..., callback-...) exist only to
+    // satisfy the unique email column. Do not show them to staff as if they were real.
+    const hasRealEmail = !!lead.email && !/@(meta|walkin|voice|no-email)\.tma$/i.test(lead.email);
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <div style="background: #1a2d5a; padding: 20px; text-align: center;">
@@ -439,8 +447,9 @@ export async function sendEmailNotification(lead: Lead) {
             <tr><td style="padding: 8px; font-weight: bold;">Child Name:</td><td style="padding: 8px;">${lead.kidName}</td></tr>
             <tr><td style="padding: 8px; font-weight: bold;">Child Age:</td><td style="padding: 8px;">${lead.kidAge}</td></tr>
             <tr><td style="padding: 8px; font-weight: bold;">Program Interest:</td><td style="padding: 8px;">${lead.programInterest}</td></tr>
-            <tr><td style="padding: 8px; font-weight: bold;">Email:</td><td style="padding: 8px;"><a href="mailto:${lead.email}">${lead.email}</a></td></tr>
+            <tr><td style="padding: 8px; font-weight: bold;">Email:</td><td style="padding: 8px;">${hasRealEmail ? `<a href="mailto:${lead.email}">${lead.email}</a>` : "None given"}</td></tr>
             <tr><td style="padding: 8px; font-weight: bold;">Phone:</td><td style="padding: 8px;"><a href="tel:${lead.phone}">${lead.phone}</a></td></tr>
+            <tr><td style="padding: 8px; font-weight: bold;">OK to text:</td><td style="padding: 8px;">${lead.smsConsent ? "Yes, ticked the text consent box" : "No"}</td></tr>
             <tr><td style="padding: 8px; font-weight: bold;">Motivation:</td><td style="padding: 8px;">${lead.motivation || 'Not specified'}</td></tr>
             <tr><td style="padding: 8px; font-weight: bold;">Additional Notes:</td><td style="padding: 8px;">${lead.additionalNotes || 'None'}</td></tr>
             <tr><td style="padding: 8px; font-weight: bold;">Submitted:</td><td style="padding: 8px;">${new Date(lead.createdAt).toLocaleString()}</td></tr>
@@ -452,7 +461,12 @@ export async function sendEmailNotification(lead: Lead) {
       </div>
     `;
 
-    await sendEmail(STAFF_NOTIFY_EMAIL, `${title} - ${lead.kidName}`, html);
+    // Instant Form leads have no child name ("N/A"), so lead with who they are and what they want.
+    const who = lead.kidName && lead.kidName !== "N/A" ? lead.kidName : lead.parentName;
+    const subject = title === "New Facebook Lead"
+      ? `${title}: ${lead.parentName} (${lead.programInterest})`
+      : `${title} - ${who}`;
+    await sendEmail(STAFF_NOTIFY_EMAIL, subject, html);
     console.log('[Email] Admin notification sent to:', STAFF_NOTIFY_EMAIL);
   } catch (error) {
     console.error('[Email] Error sending admin notification:', error);
