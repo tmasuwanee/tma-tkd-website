@@ -50,6 +50,23 @@ const TRIAL_WAIVER_DISCLAIMER =
   "the 3-week trial is a paid enrollment. As the parent or legal guardian of any minor named " +
   "above, I accept these terms on their behalf. I have read this waiver and sign it voluntarily.";
 
+// Event variant, shown with ?type=event (the QR code at the Trunk or Treat and Halloween event,
+// Oct 24 2026). Framed around attending a community event, not training, and it names the
+// event's real risks: a parking lot with cars, costumes, candy and food allergies, games and demos.
+const EVENT_WAIVER_DISCLAIMER =
+  "I am registering the child(ren) named above to attend the Top Martial Arts Trunk or Treat " +
+  "and Halloween event. I, for myself, my child(ren) named above, and our heirs, executors, and " +
+  "assigns, acknowledge and fully understand that this event involves inherent risks, including " +
+  "walking in and around a parking lot with vehicles present, wearing costumes and masks, games and " +
+  "physical activities, martial arts demonstrations, and candy and food that may contain allergens. " +
+  "I understand that I am responsible for supervising my child(ren) at all times during the event and " +
+  "for checking all candy and food before they eat it. I agree that the instructors, staff, volunteers, " +
+  "and owners of Top Martial Arts will not be held liable for any damages arising from personal injury " +
+  "and/or loss sustained in or about the premises during the event. I authorize Top Martial Arts staff " +
+  "to seek emergency medical care if it becomes necessary. I grant Top Martial Arts permission to use " +
+  "photos and videos taken at the event for promotional purposes. As the parent or legal guardian of any " +
+  "minor named above, I accept these terms on their behalf. I have read this waiver and sign it voluntarily.";
+
 const INTERESTS: { key: string; label: string }[] = [
   { key: "better_listening", label: "Better listening" },
   { key: "improved_behavior", label: "Improved behavior" },
@@ -72,7 +89,9 @@ export default function StudentWaiver() {
   const sp = useMemo(() => new URLSearchParams(window.location.search), []);
   // ?type=trial → the 3-week-trial waiver variant (opened from Add Trial Student).
   const isTrial = useMemo(() => sp.get("type") === "trial", [sp]);
-  const disclaimer = isTrial ? TRIAL_WAIVER_DISCLAIMER : WAIVER_DISCLAIMER;
+  // ?type=event → the Trunk or Treat event waiver (the event QR code).
+  const isEvent = useMemo(() => sp.get("type") === "event", [sp]);
+  const disclaimer = isEvent ? EVENT_WAIVER_DISCLAIMER : isTrial ? TRIAL_WAIVER_DISCLAIMER : WAIVER_DISCLAIMER;
 
   // Local date (they're signing in GA). Used as the signed date and shown on the form.
   const today = useMemo(() => {
@@ -136,7 +155,7 @@ export default function StudentWaiver() {
         signedName: (signedName.trim() || parentName.trim()),
         signedDate: today,
         disclaimerText: disclaimer,
-        source: isTrial ? "trial" : "walk_in",
+        source: isEvent ? "event" : isTrial ? "trial" : "walk_in",
         ...(smsConsent ? { smsConsent: true, smsConsentText: SMS_CONSENT_TEXT } : {}),
       });
       setSubmitted(true);
@@ -165,7 +184,7 @@ export default function StudentWaiver() {
           </div>
           <div>
             <h1 className="text-white font-bold text-lg leading-tight">Top Martial Arts Suwanee</h1>
-            <p className="text-white/70 text-xs">{isTrial ? "3-Week Trial Waiver" : "Waiver"}</p>
+            <p className="text-white/70 text-xs">{isEvent ? "Trunk or Treat Waiver" : isTrial ? "3-Week Trial Waiver" : "Waiver"}</p>
           </div>
         </div>
       </header>

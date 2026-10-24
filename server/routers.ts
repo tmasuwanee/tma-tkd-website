@@ -1825,7 +1825,7 @@ export const appRouter = router({
         signedName: z.string().max(255).nullable().optional(),
         signedDate: z.string().min(1).max(20),   // YYYY-MM-DD
         disclaimerText: z.string().max(8000).nullable().optional(),
-        source: z.enum(["walk_in", "online", "ipad", "trial"]).default("walk_in"),
+        source: z.enum(["walk_in", "online", "ipad", "trial", "event"]).default("walk_in"),
         smsConsent: z.boolean().optional(),
         smsConsentText: z.string().nullable().optional(),
       }))
@@ -1838,7 +1838,9 @@ export const appRouter = router({
           const result = await submitWaiver({ ...input, ip: ip ? String(ip) : null });
           const kids = input.students.map(s => s.name).filter(Boolean).join(", ");
           void sendTelegramMessage(
-            `📝 New in-person sign-up\n${input.parentName} signed the waiver` +
+            (input.source === "event"
+              ? `🎃 Trunk or Treat waiver\n${input.parentName} signed`
+              : `📝 New in-person sign-up\n${input.parentName} signed the waiver`) +
             (kids ? ` for ${kids}` : "") +
             (result.matchedExisting ? `\n(matched an existing lead)` : "") +
             `\n${adminLink("/admin/waivers")}`
@@ -1848,7 +1850,7 @@ export const appRouter = router({
             studentName: kids || input.parentName,
             phone: input.phone,
             email: input.email,
-            sourceLabel: "In-person sign-up",
+            sourceLabel: input.source === "event" ? "Trunk or Treat event waiver" : "In-person sign-up",
           });
           return { success: true, leadId: result.leadId, matchedExisting: result.matchedExisting };
         } catch (error) {

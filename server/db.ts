@@ -550,11 +550,12 @@ export async function submitWaiver(input: {
       parentName: input.parentName,
       kidName: primary?.name || input.parentName,
       kidAge: ageFromDob(primary?.dob),
-      programInterest: "In-person sign-up",
+      programInterest: input.source === "event" ? "Trunk or Treat event" : "In-person sign-up",
       email: input.email,
       phone: input.phone,
       additionalNotes: input.address ? `Address: ${input.address}` : undefined,
-      tags: JSON.stringify(["walk_in_waiver", ...interestTags]),
+      // Event guests are tagged apart from class sign-ups so they never count as walk-in enrollments.
+      tags: JSON.stringify(input.source === "event" ? ["event_waiver", "event_trunk_or_treat_2026"] : ["walk_in_waiver", ...interestTags]),
       recordType,
       ...(input.smsConsent
         ? { smsConsent: 1, smsConsentAt: new Date(), smsConsentText: input.smsConsentText ?? null, smsConsentIp: input.ip ? String(input.ip).slice(0, 64) : null }
