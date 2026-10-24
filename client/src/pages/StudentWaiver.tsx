@@ -125,13 +125,25 @@ export default function StudentWaiver() {
     e.preventDefault();
     const cleanStudents = students.map(s => ({ name: s.name.trim(), dob: s.dob })).filter(s => s.name);
 
-    if (!parentName.trim() || !address.trim() || !email.trim() || !phone.trim()) {
-      toast.error("Please fill in your name, address, email, and phone.");
-      return;
-    }
-    if (cleanStudents.length === 0 || !cleanStudents[0].dob) {
-      toast.error("Please add at least one student with a name and date of birth.");
-      return;
+    // The event form asks only name, phone and each child's name (Arfa, Oct 24): no address, email or birthday.
+    if (isEvent) {
+      if (!parentName.trim() || !phone.trim()) {
+        toast.error("Please fill in your name and phone.");
+        return;
+      }
+      if (cleanStudents.length === 0) {
+        toast.error("Please add at least one child's name.");
+        return;
+      }
+    } else {
+      if (!parentName.trim() || !address.trim() || !email.trim() || !phone.trim()) {
+        toast.error("Please fill in your name, address, email, and phone.");
+        return;
+      }
+      if (cleanStudents.length === 0 || !cleanStudents[0].dob) {
+        toast.error("Please add at least one student with a name and date of birth.");
+        return;
+      }
     }
     if (!agreed) {
       toast.error("Please read and agree to the waiver.");
@@ -146,17 +158,17 @@ export default function StudentWaiver() {
     try {
       await submit.mutateAsync({
         parentName: parentName.trim(),
-        address: address.trim(),
-        email: email.trim(),
+        address: isEvent ? null : address.trim(),
+        email: isEvent ? `walkin-${phone.replace(/\D/g, "")}@walkin.tma` : email.trim(),
         phone: phone.trim(),
         students: cleanStudents,
-        interests,
+        interests: isEvent ? [] : interests,
         signatureData,
         signedName: (signedName.trim() || parentName.trim()),
         signedDate: today,
         disclaimerText: disclaimer,
         source: isEvent ? "event" : isTrial ? "trial" : "walk_in",
-        ...(smsConsent ? { smsConsent: true, smsConsentText: SMS_CONSENT_TEXT } : {}),
+        ...(smsConsent && !isEvent ? { smsConsent: true, smsConsentText: SMS_CONSENT_TEXT } : {}),
       });
       setSubmitted(true);
     } catch (err) {
@@ -214,15 +226,19 @@ export default function StudentWaiver() {
                   <Label className="text-gray-700 font-medium mb-1.5 block">Full name *</Label>
                   <Input value={parentName} onChange={e => setParentName(e.target.value)} placeholder="Your full name" />
                 </div>
-                <div>
-                  <Label className="text-gray-700 font-medium mb-1.5 block">Address *</Label>
-                  <Input value={address} onChange={e => setAddress(e.target.value)} placeholder="Street, city, state, ZIP" />
-                </div>
-                <div className="grid sm:grid-cols-2 gap-4">
+                {isEvent ? null : (
                   <div>
-                    <Label className="text-gray-700 font-medium mb-1.5 block">Email *</Label>
-                    <Input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@email.com" />
+                    <Label className="text-gray-700 font-medium mb-1.5 block">Address *</Label>
+                    <Input value={address} onChange={e => setAddress(e.target.value)} placeholder="Street, city, state, ZIP" />
                   </div>
+                )}
+                <div className={isEvent ? "" : "grid sm:grid-cols-2 gap-4"}>
+                  {isEvent ? null : (
+                    <div>
+                      <Label className="text-gray-700 font-medium mb-1.5 block">Email *</Label>
+                      <Input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@email.com" />
+                    </div>
+                  )}
                   <div>
                     <Label className="text-gray-700 font-medium mb-1.5 block">Phone *</Label>
                     <Input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="(770) 277-3009" />
@@ -232,27 +248,29 @@ export default function StudentWaiver() {
 
               {/* Students */}
               <section className="space-y-4">
-                <h2 className="text-sm font-bold uppercase tracking-wider text-[#1a2d5a]">Student(s)</h2>
+                <h2 className="text-sm font-bold uppercase tracking-wider text-[#1a2d5a]">{isEvent ? "Child(ren)" : "Student(s)"}</h2>
                 {students.map((s, i) => (
-                  <div key={i} className="grid sm:grid-cols-[1fr_auto_auto] gap-3 items-end bg-gray-50 rounded-lg p-3">
+                  <div key={i} className={`grid ${isEvent ? "grid-cols-[1fr_auto]" : "sm:grid-cols-[1fr_auto_auto]"} gap-3 items-end bg-gray-50 rounded-lg p-3`}>
                     <div>
                       <Label className="text-gray-700 font-medium mb-1.5 block">
-                        Student {i + 1} full name{i === 0 ? " *" : ""}
+                        {isEvent ? "Child" : "Student"} {i + 1} full name{i === 0 ? " *" : ""}
                       </Label>
                       <Input value={s.name} onChange={e => setStudent(i, { name: e.target.value })} placeholder="Child's full name" />
                     </div>
-                    <div>
-                      <Label className="text-gray-700 font-medium mb-1.5 block">
-                        Date of birth{i === 0 ? " *" : ""}
-                      </Label>
-                      <Input type="date" value={s.dob} onChange={e => setStudent(i, { dob: e.target.value })} className="w-full" />
-                    </div>
+                    {isEvent ? null : (
+                      <div>
+                        <Label className="text-gray-700 font-medium mb-1.5 block">
+                          Date of birth{i === 0 ? " *" : ""}
+                        </Label>
+                        <Input type="date" value={s.dob} onChange={e => setStudent(i, { dob: e.target.value })} className="w-full" />
+                      </div>
+                    )}
                     {i > 0 ? (
                       <Button type="button" variant="ghost" size="icon" onClick={() => removeStudent(i)}
                         className="text-gray-400 hover:text-red-500 mb-0.5" title="Remove">
                         <X className="w-4 h-4" />
                       </Button>
-                    ) : <div className="hidden sm:block w-9" />}
+                    ) : isEvent ? <div className="w-9" /> : <div className="hidden sm:block w-9" />}
                   </div>
                 ))}
                 {students.length < 3 ? (
@@ -263,8 +281,8 @@ export default function StudentWaiver() {
                 ) : null}
               </section>
 
-              {/* Interests */}
-              <section className="space-y-3">
+              {/* Interests (not on the event form) */}
+              {isEvent ? null : <section className="space-y-3">
                 <h2 className="text-sm font-bold uppercase tracking-wider text-[#1a2d5a]">
                   What are you hoping to gain?
                 </h2>
@@ -285,7 +303,7 @@ export default function StudentWaiver() {
                     );
                   })}
                 </div>
-              </section>
+              </section>}
 
               {/* Waiver + signature */}
               <section className="space-y-4">
@@ -317,7 +335,7 @@ export default function StudentWaiver() {
               </section>
 
               {/* Optional SMS consent, made prominent so it actually gets checked */}
-              <label htmlFor="smsConsent" className="flex items-start gap-3.5 p-4 bg-[#1a2d5a]/5 border-2 border-[#1a2d5a]/30 rounded-lg cursor-pointer hover:bg-[#1a2d5a]/10 transition-colors">
+              {isEvent ? null : <label htmlFor="smsConsent" className="flex items-start gap-3.5 p-4 bg-[#1a2d5a]/5 border-2 border-[#1a2d5a]/30 rounded-lg cursor-pointer hover:bg-[#1a2d5a]/10 transition-colors">
                 <Checkbox id="smsConsent" checked={smsConsent} onCheckedChange={v => setSmsConsent(v === true)}
                   className="mt-0.5 h-6 w-6 border-2 border-[#1a2d5a]/60 data-[state=checked]:bg-[#1a2d5a] data-[state=checked]:border-[#1a2d5a]" />
                 <span className="text-sm text-gray-700 leading-relaxed">
@@ -328,7 +346,7 @@ export default function StudentWaiver() {
                   of purchase. See <a href="/sms-terms" target="_blank" className="underline">SMS Terms</a> and{" "}
                   <a href="/privacy-policy" target="_blank" className="underline">Privacy Policy</a>.
                 </span>
-              </label>
+              </label>}
 
               <Button type="submit" disabled={isSubmitting} size="lg"
                 className="w-full bg-[#c41e3a] hover:bg-[#a81830] text-white text-base font-semibold">
