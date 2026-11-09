@@ -116,13 +116,18 @@ export function getUpcomingDates(slot: ClassSlot, count = 4, from?: Date): strin
   const start = new Date(base);
   start.setDate(start.getDate() + 1); // start from tomorrow
   const startDay = start.getDay();
-  let diff = (targetDay - startDay + 7) % 7;
-  if (diff === 0) diff = 7; // same weekday → next week
+  // diff 0 means tomorrow IS the class day, which is allowed (book a day ahead).
+  // Same-day booking stays blocked because the search starts from tomorrow.
+  const diff = (targetDay - startDay + 7) % 7;
   start.setDate(start.getDate() + diff); // move to the target weekday
   for (let i = 0; i < count; i++) {
     const d = new Date(start);
     d.setDate(d.getDate() + i * 7);
-    dates.push(d.toISOString().split("T")[0]);
+    // Local date parts, not toISOString(), so a late-night UTC offset can't shift the day.
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    dates.push(`${y}-${m}-${day}`);
   }
   return dates;
 }

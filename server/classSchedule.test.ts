@@ -74,6 +74,17 @@ describe("Class Schedule Eligibility", () => {
     }
   });
 
+  it("offers tomorrow when tomorrow is the class day, never today", () => {
+    const slots = getEligibleSlots("kickboxing", 20);
+    const satSlot = slots.find(s => s.day === "Saturday")!;
+    // Friday Nov 6 2026 -> tomorrow is Saturday Nov 7
+    const fromFriday = getUpcomingDates(satSlot, 2, new Date(2026, 10, 6, 15, 0));
+    expect(fromFriday).toEqual(["2026-11-07", "2026-11-14"]);
+    // Saturday itself -> same-day blocked, next Saturday offered
+    const fromSaturday = getUpcomingDates(satSlot, 1, new Date(2026, 10, 7, 9, 0));
+    expect(fromSaturday).toEqual(["2026-11-14"]);
+  });
+
   it("formatDate produces readable string", () => {
     const result = formatDate("2026-06-01");
     expect(result).toMatch(/Mon/);
