@@ -1,5 +1,6 @@
 import { ENV } from './_core/env';
 import { Lead } from '../drizzle/schema';
+import { isFacebookLead, isPlaceholderEmail, returningLeadTitle } from './leadMerge';
 
 // Where staff notifications go. Falls back to the studio Gmail so a missing
 // LEAD_NOTIFICATION_EMAIL env var never silently drops staff alerts (a likely
@@ -470,6 +471,58 @@ export async function sendEmailNotification(lead: Lead) {
     console.log('[Email] Admin notification sent to:', STAFF_NOTIFY_EMAIL);
   } catch (error) {
     console.error('[Email] Error sending admin notification:', error);
+  }
+}
+
+/**
+ * Staff email for someone who was ALREADY in the system and just submitted the website form
+ * again (typically a Facebook lead who then books a trial class). It replaces the generic
+ * "New Inquiry" email so staff do not read it as a brand-new person. Names the original
+ * source, when they first came in, and exactly what this submission added.
+ */
+export async function sendReturningLeadNotification(
+  lead: Lead,
+  info: { matchedBy: "email" | "phone"; changes: string[]; firstSeen: Date; bookedTrial: boolean },
+) {
+  try {
+    const { emoji, title } = returningLeadTitle(lead, info.bookedTrial);
+    const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const hasRealEmail = !!lead.email && !isPlaceholderEmail(lead.email);
+    const first = info.firstSeen.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/New_York" });
+    const camp = lead.utmCampaign ? ` (campaign: ${esc(lead.utmCampaign)})` : "";
+    const origin = isFacebookLead(lead) ? `a Facebook ad${camp}` : (lead.utmSource ? esc(lead.utmSource) : "an earlier inquiry");
+    const changes = info.changes.map(c => `<li style="margin: 4px 0;">${esc(c)}</li>`).join("");
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: #1a2d5a; padding: 20px; text-align: center;">
+          <h1 style="color: white; margin: 0;">${emoji} ${title}</h1>
+        </div>
+        <div style="padding: 16px 24px; background: #fff7d6; border-bottom: 1px solid #e6d98a;">
+          <strong>Not a new person.</strong> Already in the system as lead #${lead.id}. First came in <strong>${first}</strong> from ${origin}.
+        </div>
+        <div style="padding: 20px 24px; background: #f9f9f9;">
+          <p style="margin: 0 0 6px; font-weight: bold;">What this form added:</p>
+          <ul style="margin: 0 0 16px; padding-left: 20px;">${changes || "<li>No new details.</li>"}</ul>
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr><td style="padding: 8px; font-weight: bold;">Parent Name:</td><td style="padding: 8px;">${esc(lead.parentName)}</td></tr>
+            <tr><td style="padding: 8px; font-weight: bold;">Child Name:</td><td style="padding: 8px;">${esc(lead.kidName || "")}</td></tr>
+            <tr><td style="padding: 8px; font-weight: bold;">Child Age:</td><td style="padding: 8px;">${esc(lead.kidAge || "")}</td></tr>
+            <tr><td style="padding: 8px; font-weight: bold;">Program Interest:</td><td style="padding: 8px;">${esc(lead.programInterest || "")}</td></tr>
+            <tr><td style="padding: 8px; font-weight: bold;">Trial class:</td><td style="padding: 8px;">${[lead.trialClassDay, lead.trialClassDate, lead.trialClassTime].filter(Boolean).map(x => esc(String(x))).join(" ") || "Not booked"}</td></tr>
+            <tr><td style="padding: 8px; font-weight: bold;">Email:</td><td style="padding: 8px;">${hasRealEmail ? `<a href="mailto:${esc(lead.email)}">${esc(lead.email)}</a>` : "None given"}</td></tr>
+            <tr><td style="padding: 8px; font-weight: bold;">Phone:</td><td style="padding: 8px;"><a href="tel:${esc(lead.phone)}">${esc(lead.phone)}</a></td></tr>
+            <tr><td style="padding: 8px; font-weight: bold;">OK to text:</td><td style="padding: 8px;">${lead.smsConsent ? "Yes, ticked the text consent box" : "No"}</td></tr>
+          </table>
+        </div>
+        <div style="background: #1a2d5a; padding: 16px; text-align: center;">
+          <p style="color: white; margin: 0; font-size: 12px;">Top Martial Arts Suwanee &bull; (770) 277-3009</p>
+        </div>
+      </div>`;
+    const who = lead.kidName && lead.kidName !== "N/A" ? lead.kidName : lead.parentName;
+    await sendEmail(STAFF_NOTIFY_EMAIL, `${title}: ${who} (${lead.programInterest})`, html);
+    console.log('[Email] Returning-lead notification sent to:', STAFF_NOTIFY_EMAIL);
+  } catch (error) {
+    console.error('[Email] Error sending returning-lead notification:', error);
   }
 }
 

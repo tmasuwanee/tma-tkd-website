@@ -23,6 +23,7 @@ import {
   trialEnrollments, InsertTrialEnrollment, TrialEnrollment,
 } from "../drizzle/schema";
 import { lte } from "drizzle-orm";
+import { planLeadMerge, type MatchedBy, type TrialSubmission } from "./leadMerge";
 import { ENV } from './_core/env';
 import { getNextRank, getPreviousRank, promotionThreshold, BELT_SEQUENCE } from "../shared/beltRanks";
 import { beltPromotions, type BeltPromotion } from "../drizzle/schema";
@@ -684,6 +685,58 @@ export async function upsertLeadFromFacebook(input: {
   });
 
   return { id, isNew: true };
+}
+
+/**
+ * Find the ONE existing lead a form submission belongs to. Email is checked first (exact,
+ * case-insensitive), then phone (last 10 digits, so dashes / spaces / +1 do not matter).
+ * Names are deliberately NOT used: two parents can share a name and one name has many spellings.
+ * Pass email = null when the person did not type a real email.
+ */
+export async function findExistingLead(
+  email: string | null,
+  phone: string,
+): Promise<{ lead: Lead; matchedBy: MatchedBy } | null> {
+  if (email) {
+    const byEmail = await getLeadByEmail(email);
+    if (byEmail) return { lead: byEmail, matchedBy: "email" };
+  }
+  const byPhone = phone ? await getLeadByPhone(phone) : null;
+  return byPhone ? { lead: byPhone, matchedBy: "phone" } : null;
+}
+
+/**
+ * Fold a website form submission into the lead it belongs to (same row, same id), keeping the
+ * original source. Rules live in leadMerge.ts. Also writes a note to the lead's activity log so
+ * the timeline shows the second form arrived. Returns the refreshed row and the change list.
+ */
+export async function mergeSubmissionIntoLead(
+  existing: Lead,
+  input: TrialSubmission,
+  matchedBy: MatchedBy,
+): Promise<{ lead: Lead; changes: string[] }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const plan = planLeadMerge(existing, input, matchedBy);
+
+  const set: Record<string, unknown> = { ...plan.patch, tags: mergeProgramTag(JSON.stringify(plan.tags), plan.patch.programInterest ?? existing.programInterest) };
+  // The email column is UNIQUE: only swap a placeholder for a real address nobody else owns.
+  if (plan.upgradeEmailTo && !(await getLeadByEmail(plan.upgradeEmailTo))) set.email = plan.upgradeEmailTo;
+
+  await db.update(leads).set(set).where(eq(leads.id, existing.id));
+
+  await db.insert(leadActivities).values({
+    leadId: existing.id,
+    type: "note",
+    direction: "inbound",
+    subject: `Website form submitted again${matchedBy === "phone" ? " (matched by phone)" : ""}`,
+    body: plan.changes.join("\n") || "No new details.",
+    sentBy: "website_form",
+    status: "sent",
+  });
+
+  const fresh = await getLeadById(existing.id);
+  return { lead: fresh ?? existing, changes: plan.changes };
 }
 
 // ─── Lead Activity Log ───────────────────────────────────────────────────────

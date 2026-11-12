@@ -4,7 +4,7 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import {
-  createLead, getLeadById, getLeadByEmail, getAllLeads, updateLeadStage, updateLeadProgram, updateLeadNotes, updateLeadTags, deleteLead,
+  createLead, getLeadById, getLeadByEmail, findExistingLead, mergeSubmissionIntoLead, getAllLeads, updateLeadStage, updateLeadProgram, updateLeadNotes, updateLeadTags, deleteLead,
   searchLeads,
   getAfterschoolRegistrations,
   upsertLeadFromFacebook, createLeadActivity, getLeadActivities,
@@ -70,6 +70,7 @@ import { tuitionConfiguredFor, ensureStripeCustomer, createAfterschoolSubscripti
 import { proposeAction, confirmAction, rejectAction, undoAction } from "./action-flow";
 import { createMembership, changeMembership, setMembershipDiscount, pauseMembership, resumeMembership, cancelMembership, adjustCharge, firstChargeInfo } from "./membership-ops";
 import { memberList, memberOverview, memberWaivers, resolveStudentIdForMembership } from "./members";
+import type { Lead } from "../drizzle/schema";
 import { createWaiver } from "./db";
 import { listSpecials, insertSpecial, updateSpecial } from "./db";
 import { createImportBatch, completeImportBatch, insertMembershipPayment, bumpMembershipPaidThrough, listMembershipPayments, getMembershipPayment, setStudentPhoto, getStudentPhoto } from "./db";
@@ -77,7 +78,7 @@ import { createFallFestVolunteer, listFallFestVolunteers, deleteFallFestVoluntee
 import { listHeartbeatJobs, createHeartbeatJob } from "./_core/heartbeat";
 import { createCardSetupSession, chargeDueMemberships, listPayerCards, setPayerPrimaryCard, detachPayerCard } from "./membership-billing";
 import { storagePut, storageGet } from "./storage";
-import { sendEmailNotification, sendProShopOrderNotification, sendCampRegistrationConfirmation, sendCampWaiverEmail, sendFieldTripConfirmation, sendTransportationForm, sendTrialReceipt, sendAfterschoolConfirmation, sendAfterschoolIntake, sendWaiverNotification, sendReviewedEmail, sendPaymentReceipt } from "./integrations";
+import { sendEmailNotification, sendReturningLeadNotification, sendProShopOrderNotification, sendCampRegistrationConfirmation, sendCampWaiverEmail, sendFieldTripConfirmation, sendTransportationForm, sendTrialReceipt, sendAfterschoolConfirmation, sendAfterschoolIntake, sendWaiverNotification, sendReviewedEmail, sendPaymentReceipt } from "./integrations";
 import { fillTransportationPdf } from "./transportation-pdf";
 import { buildAfterschoolIntakePdf } from "./afterschool-intake-pdf";
 import { buildInvoicePdf } from "./invoice-pdf";
@@ -602,12 +603,40 @@ export const appRouter = router({
           const initialStage = input.trialClassDate ? 'trial_scheduled' as const : undefined;
           const email = input.email?.trim() || `no-email-${input.phone.replace(/\D/g, "") || "unknown"}-${Date.now()}@no-email.tma`;
 
-          // Dedupe: a real email that already exists reuses that lead instead of
-          // inserting a second row (the leads.email UNIQUE index would otherwise
-          // reject the insert, failing the submission). Existing fields are left
-          // intact so we never clobber pipeline progress or staff notes.
-          const existingByEmail = input.email?.trim() ? await getLeadByEmail(email) : null;
-          const newLeadId = existingByEmail ? existingByEmail.id : await createLead({
+          // One row per person. A second submission (for example the trial form after a
+          // Facebook Instant Form) must land on the SAME lead, matched by email first and then
+          // by phone, and add what is new (the trial booking) instead of being dropped or
+          // creating a duplicate row. Pro shop orders keep the old email-only reuse so an order
+          // never rewrites a prospect's record.
+          const isProShopOrder = (input.tags ?? []).includes("proshop_order");
+          const hasRealEmail = !!input.email?.trim();
+          const match = isProShopOrder
+            ? (hasRealEmail ? await getLeadByEmail(email).then(l => (l ? { lead: l, matchedBy: "email" as const } : null)) : null)
+            : await findExistingLead(hasRealEmail ? email : null, input.phone);
+          let merged: { lead: Lead; changes: string[]; matchedBy: "email" | "phone" } | null = null;
+          if (match && !isProShopOrder) {
+            const r = await mergeSubmissionIntoLead(match.lead, {
+              parentName: input.parentName,
+              kidName: input.kidName,
+              kidAge: input.kidAge,
+              programInterest: input.programInterest,
+              motivation: input.motivation,
+              email: hasRealEmail ? email : null,
+              phone: input.phone,
+              additionalNotes: input.additionalNotes,
+              utmSource: input.utmSource,
+              utmMedium: input.utmMedium,
+              utmCampaign: input.utmCampaign,
+              utmContent: input.utmContent,
+              trialClassDate: input.trialClassDate,
+              trialClassTime: input.trialClassTime,
+              trialClassDay: input.trialClassDay,
+              tags: input.tags,
+              smsConsentText: input.smsConsentText,
+            }, match.matchedBy);
+            merged = { ...r, matchedBy: match.matchedBy };
+          }
+          const newLeadId = match ? match.lead.id : await createLead({
             parentName: input.parentName,
             kidName: input.kidName,
             kidAge: input.kidAge,
@@ -699,7 +728,6 @@ export const appRouter = router({
           });
           // Pro shop / sale orders get their own email template (order summary,
           // fulfillment framing) instead of the "New Free Class Inquiry" email.
-          const isProShopOrder = (input.tags ?? []).includes("proshop_order");
           // Slack + Google Sheets retired 2026-08-05: Slack duplicated the staff
           // email for a single Telegram-based team, and the Sheets export never
           // worked (unsigned JWT stub). Staff alert = email (Telegram covers
@@ -707,7 +735,15 @@ export const appRouter = router({
           await Promise.all([
             isProShopOrder
               ? sendProShopOrderNotification(leadForIntegrations)
-              : sendEmailNotification(leadForIntegrations),
+              : merged
+                // Already in the system: say so, name the original source, list what changed.
+                ? sendReturningLeadNotification(merged.lead, {
+                    matchedBy: merged.matchedBy,
+                    changes: merged.changes,
+                    firstSeen: new Date(merged.lead.createdAt),
+                    bookedTrial: !!input.trialClassDate,
+                  })
+                : sendEmailNotification(leadForIntegrations),
           ]);
 
           return {
