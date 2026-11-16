@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRoute } from "wouter";
 
 /**
@@ -64,7 +64,6 @@ export default function CallConsole() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
-  const dialed = useRef(false);
 
   const load = () =>
     fetch(`/api/call/${leadId}${q}`)
@@ -87,23 +86,10 @@ export default function CallConsole() {
       return j;
     });
 
-  // Dial once per page-open. A call can send the browser back to this page, so remember (for 10
-  // minutes) that we already dialed and never re-dial on a reload. "Call again" is always there.
-  const dial = (d: CallData) => {
-    post("start", {}).catch(() => {});
-    window.location.href = d.tel;
-  };
-  useEffect(() => {
-    if (!data || dialed.current) return;
-    dialed.current = true;
-    const key = `tma_dialed_${leadId}`;
-    try {
-      const last = Number(sessionStorage.getItem(key) || 0);
-      if (Date.now() - last < 10 * 60 * 1000) return;
-      sessionStorage.setItem(key, String(Date.now()));
-    } catch { /* private mode: dial anyway */ }
-    dial(data);
-  }, [data]);
+  // No auto-dial on purpose. Dialing the instant the page opened meant the call screen covered
+  // this page, and when the call ended the iPhone returned to the app that launched it (Gmail),
+  // so the notes screen was never seen. Staff now tap Call themselves, so this page is already
+  // open in the browser when the call starts and is where the iPhone returns to.
 
   const save = async () => {
     if (!outcome) return;
@@ -168,7 +154,10 @@ export default function CallConsole() {
          className="block rounded-xl bg-[#c41e3a] px-4 py-4 text-center text-lg font-bold text-white active:opacity-80">
         Call {lead.phone}
       </a>
-      <p className="-mt-3 text-center text-xs text-gray-500">Calls go out from the TMA iPhone, {data.fromNumber}</p>
+      <p className="-mt-3 text-center text-xs text-gray-500">
+        Calls go out from the TMA iPhone, {data.fromNumber}. After you hang up, come back to this page
+        (tap the back link at the top left of the call screen, or reopen the email button) to save notes.
+      </p>
 
       <Section title="How did it go?">
         <div className="flex flex-wrap gap-2">
