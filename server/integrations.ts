@@ -1,7 +1,7 @@
 import { ENV } from './_core/env';
 import { Lead } from '../drizzle/schema';
 import { isFacebookLead, isPlaceholderEmail, returningLeadTitle } from './leadMerge';
-import { buildCallLink } from './callConsole';
+import { buildCallLink, resolveCallSecret } from './callConsole';
 
 /**
  * Phone cell for staff lead emails. With a signing secret it is a one-tap button that opens the
@@ -11,8 +11,11 @@ import { buildCallLink } from './callConsole';
 function phoneCellHtml(lead: Lead): string {
   const raw = lead.phone ?? '';
   const safe = raw.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
-  const secret = ENV.cookieSecret;
-  if (!secret) return `<a href="tel:${safe}">${safe}</a>`;
+  const secret = resolveCallSecret();
+  if (!secret) {
+    console.warn('[Email] No call-link secret set (CALL_LINK_SECRET, JWT_SECRET or ADMIN_MAGIC_KEY): staff emails fall back to a plain dial link');
+    return `<a href="tel:${safe}">${safe}</a>`;
+  }
   const link = buildCallLink(lead.id, secret);
   return `<a href="${link}" style="display:inline-block;background:#c41e3a;color:#ffffff;padding:8px 14px;border-radius:6px;text-decoration:none;font-weight:bold">&#128222; Call ${safe} and take notes</a> <a href="tel:${safe}" style="font-size:12px;color:#666666">(dial only)</a>`;
 }

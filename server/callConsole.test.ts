@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  signCallToken, verifyCallToken, buildCallLink, telHref, stageAfterCall, callTemplates, friendlyDate,
+  signCallToken, verifyCallToken, resolveCallSecret, buildCallLink, telHref, stageAfterCall, callTemplates, friendlyDate,
   CALL_TOKEN_TTL_MS, TRIAL_FORM_URL,
 } from "./callConsole";
 
@@ -43,6 +43,23 @@ describe("call link token", () => {
   it("builds a link on the site with the lead id and token", () => {
     const link = buildCallLink(41, SECRET);
     expect(link).toMatch(/^https:\/\/tmatkd\.com\/call\/41\?t=[\w-]+\.[\w-]+$/);
+  });
+});
+
+describe("resolveCallSecret", () => {
+  it("prefers a dedicated secret, then JWT_SECRET", () => {
+    expect(resolveCallSecret({ callLinkSecret: "a", jwtSecret: "b", adminMagicKey: "c" })).toBe("a");
+    expect(resolveCallSecret({ jwtSecret: "b", adminMagicKey: "c" })).toBe("b");
+  });
+  it("derives a key from the magic key without using it directly", () => {
+    const s = resolveCallSecret({ adminMagicKey: "magic-key-123" });
+    expect(s).toMatch(/^[0-9a-f]{64}$/);
+    expect(s).not.toContain("magic-key-123");
+    expect(resolveCallSecret({ adminMagicKey: "magic-key-123" })).toBe(s);
+    expect(resolveCallSecret({ adminMagicKey: "other" })).not.toBe(s);
+  });
+  it("returns empty (links fail closed) when nothing is set, never a built-in default", () => {
+    expect(resolveCallSecret({})).toBe("");
   });
 });
 

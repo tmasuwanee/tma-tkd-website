@@ -18,6 +18,22 @@ export const TMA_ADDRESS = "2005 Lawrenceville Suwanee Rd, Suwanee, GA 30024";
 export type CallOutcome = "answered" | "voicemail" | "no_answer" | "wrong_number" | "not_interested";
 export const CALL_OUTCOMES: readonly CallOutcome[] = ["answered", "voicemail", "no_answer", "wrong_number", "not_interested"];
 
+/**
+ * Which secret signs the call links. Order: a dedicated CALL_LINK_SECRET, then JWT_SECRET, then a
+ * key derived from ADMIN_MAGIC_KEY (already set wherever the Telegram one-tap links work; derived
+ * through HMAC so the magic key itself is never used as the signing key and cannot be recovered
+ * from a link). Returns "" when none is set, which makes links fail closed. Never a built-in
+ * constant: a guessable default would let anyone forge a link.
+ */
+export function resolveCallSecret(env: { callLinkSecret?: string; jwtSecret?: string; adminMagicKey?: string } = {
+  callLinkSecret: process.env.CALL_LINK_SECRET, jwtSecret: process.env.JWT_SECRET, adminMagicKey: process.env.ADMIN_MAGIC_KEY,
+}): string {
+  if (env.callLinkSecret) return env.callLinkSecret;
+  if (env.jwtSecret) return env.jwtSecret;
+  if (env.adminMagicKey) return crypto.createHmac("sha256", env.adminMagicKey).update("tma-call-link-v1").digest("hex");
+  return "";
+}
+
 function sign(b64: string, secret: string): string {
   return crypto.createHmac("sha256", secret).update(b64).digest("base64url");
 }

@@ -15,7 +15,7 @@
 import type { Express, Request, Response } from "express";
 import { getLeadById, getLeadsByStages, updateLeadStage, getAutomationControls, isAutomationEnabled, createLeadActivity, getLeadActivities, setLeadFollowUp } from "./db";
 import {
-  verifyCallToken, callTemplates, telHref, stageAfterCall, CALL_OUTCOMES, TMA_PHONE_DISPLAY, type CallOutcome,
+  verifyCallToken, resolveCallSecret, callTemplates, telHref, stageAfterCall, CALL_OUTCOMES, TMA_PHONE_DISPLAY, type CallOutcome,
 } from "./callConsole";
 import { isFacebookLead } from "./leadMerge";
 import { getAdInsights, syncAdInsights } from "./facebook-ads";
@@ -129,7 +129,7 @@ export function registerApiRoutes(app: Express): void {
   async function callAuth(req: Request, res: Response) {
     const leadId = parseInt(req.params.leadId, 10);
     const token = String(req.query.t ?? "");
-    if (isNaN(leadId) || !verifyCallToken(token, leadId, ENV.cookieSecret)) {
+    if (isNaN(leadId) || !verifyCallToken(token, leadId, resolveCallSecret())) {
       res.status(401).json({ error: "This link has expired. Open the lead from the CRM instead." });
       return null;
     }
