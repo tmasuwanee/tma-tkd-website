@@ -1,6 +1,21 @@
 import { ENV } from './_core/env';
 import { Lead } from '../drizzle/schema';
 import { isFacebookLead, isPlaceholderEmail, returningLeadTitle } from './leadMerge';
+import { buildCallLink } from './callConsole';
+
+/**
+ * Phone cell for staff lead emails. With a signing secret it is a one-tap button that opens the
+ * call console (dials, then lets staff log notes and copy texts). Without one it falls back to a
+ * plain tel: link so the email still works. A small "dial only" link is always kept as a backup.
+ */
+function phoneCellHtml(lead: Lead): string {
+  const raw = lead.phone ?? '';
+  const safe = raw.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
+  const secret = ENV.cookieSecret;
+  if (!secret) return `<a href="tel:${safe}">${safe}</a>`;
+  const link = buildCallLink(lead.id, secret);
+  return `<a href="${link}" style="display:inline-block;background:#c41e3a;color:#ffffff;padding:8px 14px;border-radius:6px;text-decoration:none;font-weight:bold">&#128222; Call ${safe} and take notes</a> <a href="tel:${safe}" style="font-size:12px;color:#666666">(dial only)</a>`;
+}
 
 // Where staff notifications go. Falls back to the studio Gmail so a missing
 // LEAD_NOTIFICATION_EMAIL env var never silently drops staff alerts (a likely
@@ -449,7 +464,7 @@ export async function sendEmailNotification(lead: Lead) {
             <tr><td style="padding: 8px; font-weight: bold;">Child Age:</td><td style="padding: 8px;">${lead.kidAge}</td></tr>
             <tr><td style="padding: 8px; font-weight: bold;">Program Interest:</td><td style="padding: 8px;">${lead.programInterest}</td></tr>
             <tr><td style="padding: 8px; font-weight: bold;">Email:</td><td style="padding: 8px;">${hasRealEmail ? `<a href="mailto:${lead.email}">${lead.email}</a>` : "None given"}</td></tr>
-            <tr><td style="padding: 8px; font-weight: bold;">Phone:</td><td style="padding: 8px;"><a href="tel:${lead.phone}">${lead.phone}</a></td></tr>
+            <tr><td style="padding: 8px; font-weight: bold;">Phone:</td><td style="padding: 8px;">${phoneCellHtml(lead)}</td></tr>
             <tr><td style="padding: 8px; font-weight: bold;">OK to text:</td><td style="padding: 8px;">${lead.smsConsent ? "Yes, ticked the text consent box" : "No"}</td></tr>
             <tr><td style="padding: 8px; font-weight: bold;">Motivation:</td><td style="padding: 8px;">${lead.motivation || 'Not specified'}</td></tr>
             <tr><td style="padding: 8px; font-weight: bold;">Additional Notes:</td><td style="padding: 8px;">${lead.additionalNotes || 'None'}</td></tr>
@@ -510,7 +525,7 @@ export async function sendReturningLeadNotification(
             <tr><td style="padding: 8px; font-weight: bold;">Program Interest:</td><td style="padding: 8px;">${esc(lead.programInterest || "")}</td></tr>
             <tr><td style="padding: 8px; font-weight: bold;">Trial class:</td><td style="padding: 8px;">${[lead.trialClassDay, lead.trialClassDate, lead.trialClassTime].filter(Boolean).map(x => esc(String(x))).join(" ") || "Not booked"}</td></tr>
             <tr><td style="padding: 8px; font-weight: bold;">Email:</td><td style="padding: 8px;">${hasRealEmail ? `<a href="mailto:${esc(lead.email)}">${esc(lead.email)}</a>` : "None given"}</td></tr>
-            <tr><td style="padding: 8px; font-weight: bold;">Phone:</td><td style="padding: 8px;"><a href="tel:${esc(lead.phone)}">${esc(lead.phone)}</a></td></tr>
+            <tr><td style="padding: 8px; font-weight: bold;">Phone:</td><td style="padding: 8px;">${phoneCellHtml(lead)}</td></tr>
             <tr><td style="padding: 8px; font-weight: bold;">OK to text:</td><td style="padding: 8px;">${lead.smsConsent ? "Yes, ticked the text consent box" : "No"}</td></tr>
           </table>
         </div>

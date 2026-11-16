@@ -38,6 +38,7 @@ import AdminShell from "./components/admin/AdminShell";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import Terms from "./pages/Terms";
 import SmsTerms from "./pages/SmsTerms";
+import CallConsole from "./pages/CallConsole";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -95,6 +96,7 @@ function Router() {
       {/* Consolidated admin: one shell hosts every view at /admin/<view>.
           Old URLs (/admin/calls, /admin/checkin, /admin/call-log,
           /admin/voice-test, /admin/controls) still resolve here. */}
+      <Route path={"/call/:id"} component={CallConsole} />
       <Route path={"/admin"} component={AdminShell} />
       <Route path={"/admin/:view"} component={AdminShell} />
       <Route path={"/privacy-policy"} component={PrivacyPolicy} />
