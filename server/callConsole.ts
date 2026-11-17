@@ -25,12 +25,18 @@ export const CALL_OUTCOMES: readonly CallOutcome[] = ["answered", "voicemail", "
  * from a link). Returns "" when none is set, which makes links fail closed. Never a built-in
  * constant: a guessable default would let anyone forge a link.
  */
-export function resolveCallSecret(env: { callLinkSecret?: string; jwtSecret?: string; adminMagicKey?: string } = {
-  callLinkSecret: process.env.CALL_LINK_SECRET, jwtSecret: process.env.JWT_SECRET, adminMagicKey: process.env.ADMIN_MAGIC_KEY,
+export function resolveCallSecret(env: { callLinkSecret?: string; jwtSecret?: string; adminMagicKey?: string; resendApiKey?: string } = {
+  callLinkSecret: process.env.CALL_LINK_SECRET, jwtSecret: process.env.JWT_SECRET,
+  adminMagicKey: process.env.ADMIN_MAGIC_KEY, resendApiKey: process.env.RESEND_API_KEY,
 }): string {
   if (env.callLinkSecret) return env.callLinkSecret;
   if (env.jwtSecret) return env.jwtSecret;
+  // Derived keys: HMAC with a fixed label, so the original secret is never used as the signing key
+  // and cannot be recovered from a link. The Resend key is the last resort because staff emails
+  // cannot be sent without it, so wherever this code runs it is set. (Rotating it only retires
+  // links already sent.) Setting CALL_LINK_SECRET is cleaner and takes priority.
   if (env.adminMagicKey) return crypto.createHmac("sha256", env.adminMagicKey).update("tma-call-link-v1").digest("hex");
+  if (env.resendApiKey) return crypto.createHmac("sha256", env.resendApiKey).update("tma-call-link-v1").digest("hex");
   return "";
 }
 
@@ -59,8 +65,8 @@ export function verifyCallToken(token: string | undefined | null, leadId: number
 }
 
 /** The link staff tap in the email. */
-export function buildCallLink(leadId: number, secret: string, origin = SITE_ORIGIN): string {
-  return `${origin}/call/${leadId}?t=${signCallToken(leadId, secret)}`;
+export function buildCallLink(leadId: number, secret: string, origin = SITE_ORIGIN, outcome?: CallOutcome): string {
+  return `${origin}/call/${leadId}?t=${signCallToken(leadId, secret)}${outcome ? `&o=${outcome}` : ""}`;
 }
 
 /** "770-277-3009" / "(770) 277-3009" / "17702773009" -> "+17702773009". Anything odd is returned digits-only. */

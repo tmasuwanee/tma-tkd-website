@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRoute } from "wouter";
 
 /**
@@ -63,6 +63,7 @@ export default function CallConsole() {
   const [followUp, setFollowUp] = useState("none");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState<string | null>(null);
+  const [loggedLabel, setLoggedLabel] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
 
   const load = () =>
@@ -90,6 +91,43 @@ export default function CallConsole() {
   // this page, and when the call ended the iPhone returned to the app that launched it (Gmail),
   // so the notes screen was never seen. Staff now tap Call themselves, so this page is already
   // open in the browser when the call starts and is where the iPhone returns to.
+
+  // Email buttons open this page with ?o=<outcome>. Log that outcome once as soon as the lead
+  // loads (a refresh in the same tab will not log it again), then offer a note box.
+  const presetOutcome = useMemo(() => new URLSearchParams(window.location.search).get("o"), []);
+  const autoLogged = useRef(false);
+  useEffect(() => {
+    if (!data || !presetOutcome || autoLogged.current) return;
+    const match = data.outcomes.find(o => o.id === presetOutcome);
+    if (!match) return;
+    autoLogged.current = true;
+    const key = `tma_logged_${leadId}_${presetOutcome}_${token.slice(-8)}`;
+    let already = false;
+    try { already = !!sessionStorage.getItem(key); } catch { /* private mode: rely on the server's 60s guard */ }
+    if (already) { setLoggedLabel(match.label); return; }
+    post("finish", { outcome: presetOutcome, notes: "" })
+      .then(r => {
+        try { sessionStorage.setItem(key, "1"); } catch { /* ignore */ }
+        setLoggedLabel(match.label);
+        setSaved(r.stageChangedTo ? "Moved to Contacted." : null);
+        load();
+      })
+      .catch(e => setError(e.message));
+  }, [data]);
+
+  const saveNote = async () => {
+    if (!notes.trim() && followUp === "none") return;
+    setSaving(true);
+    try {
+      const fu = FOLLOW_UPS.find(f => f.id === followUp)?.value ?? null;
+      await post("note", { notes, followUp: fu });
+      setSaved("Note saved to the CRM.");
+      setNotes(""); setFollowUp("none");
+      load();
+    } catch (e: any) {
+      setError(e.message);
+    } finally { setSaving(false); }
+  };
 
   const save = async () => {
     if (!outcome) return;
@@ -159,15 +197,21 @@ export default function CallConsole() {
         (tap the back link at the top left of the call screen, or reopen the email button) to save notes.
       </p>
 
-      <Section title="How did it go?">
-        <div className="flex flex-wrap gap-2">
-          {data.outcomes.map(o => (
-            <button key={o.id} onClick={() => setOutcome(o.id)}
-              className={`rounded-full border px-4 py-2.5 text-sm font-medium ${outcome === o.id ? "border-[#1a2d5a] bg-[#1a2d5a] text-white" : "border-gray-300 bg-white text-gray-800"}`}>
-              {o.label}
-            </button>
-          ))}
-        </div>
+      <Section title={loggedLabel ? "Add a note" : "How did it go?"}>
+        {loggedLabel ? (
+          <p className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm font-semibold text-green-800">
+            Logged on this lead: {loggedLabel}
+          </p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {data.outcomes.map(o => (
+              <button key={o.id} onClick={() => setOutcome(o.id)}
+                className={`rounded-full border px-4 py-2.5 text-sm font-medium ${outcome === o.id ? "border-[#1a2d5a] bg-[#1a2d5a] text-white" : "border-gray-300 bg-white text-gray-800"}`}>
+                {o.label}
+              </button>
+            ))}
+          </div>
+        )}
         <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={4} maxLength={2000}
           placeholder="Notes from the call (what they said, kid's experience, best time to reach them)"
           className="mt-3 w-full rounded-lg border border-gray-300 p-3 text-base" />
@@ -179,9 +223,10 @@ export default function CallConsole() {
             </button>
           ))}
         </div>
-        <button onClick={save} disabled={!outcome || saving}
+        <button onClick={loggedLabel ? saveNote : save}
+          disabled={saving || (loggedLabel ? (!notes.trim() && followUp === "none") : !outcome)}
           className="mt-3 w-full rounded-lg bg-[#1a2d5a] px-4 py-3 font-semibold text-white disabled:opacity-40">
-          {saving ? "Saving..." : "Save call notes"}
+          {saving ? "Saving..." : loggedLabel ? "Save note" : "Save call notes"}
         </button>
         {saved && <p className="mt-2 text-sm font-medium text-green-700">{saved}</p>}
         {error && <p className="mt-2 text-sm text-red-700">{error}</p>}

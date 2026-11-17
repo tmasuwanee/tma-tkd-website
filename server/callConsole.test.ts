@@ -40,6 +40,9 @@ describe("call link token", () => {
   it("refuses to verify with an empty secret", () => {
     expect(verifyCallToken(signCallToken(41, "", NOW), 41, "", NOW)).toBe(false);
   });
+  it("can carry the outcome a button stands for", () => {
+    expect(buildCallLink(41, SECRET, undefined, "voicemail")).toMatch(/\/call\/41\?t=[\w.-]+&o=voicemail$/);
+  });
   it("builds a link on the site with the lead id and token", () => {
     const link = buildCallLink(41, SECRET);
     expect(link).toMatch(/^https:\/\/tmatkd\.com\/call\/41\?t=[\w-]+\.[\w-]+$/);
@@ -57,6 +60,13 @@ describe("resolveCallSecret", () => {
     expect(s).not.toContain("magic-key-123");
     expect(resolveCallSecret({ adminMagicKey: "magic-key-123" })).toBe(s);
     expect(resolveCallSecret({ adminMagicKey: "other" })).not.toBe(s);
+  });
+  it("falls back to a key derived from the Resend key, which differs from the magic-key one", () => {
+    const r = resolveCallSecret({ resendApiKey: "re_test_123" });
+    expect(r).toMatch(/^[0-9a-f]{64}$/);
+    expect(r).not.toContain("re_test_123");
+    expect(r).not.toBe(resolveCallSecret({ adminMagicKey: "re_test_123" }) + "x");
+    expect(resolveCallSecret({ adminMagicKey: "m", resendApiKey: "re_test_123" })).not.toBe(r);
   });
   it("returns empty (links fail closed) when nothing is set, never a built-in default", () => {
     expect(resolveCallSecret({})).toBe("");

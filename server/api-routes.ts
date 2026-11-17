@@ -182,6 +182,13 @@ export function registerApiRoutes(app: Express): void {
     const followUp = req.body?.followUp ? String(req.body.followUp) : null;
     if (followUp && !/^\d{4}-\d{2}-\d{2}$/.test(followUp)) { res.status(400).json({ error: "Bad follow-up date." }); return; }
 
+    // Email buttons open this page and log on load, so a refresh or a second tap must not log twice.
+    if (!notes) {
+      const recent = await getLeadActivities(lead.id, 5);
+      const dup = recent.some(a => a.type === "call" && a.status === outcome && !a.body && Date.now() - new Date(a.createdAt).getTime() < 60 * 1000);
+      if (dup) { res.json({ ok: true, deduped: true, stageChangedTo: null, followUp: null }); return; }
+    }
+
     await createLeadActivity({
       leadId: lead.id, type: "call", direction: "outbound",
       subject: `Call: ${CALL_LABEL[outcome]}`, body: notes || null,
@@ -191,6 +198,23 @@ export function registerApiRoutes(app: Express): void {
     if (next) await updateLeadStage(lead.id, next);
     if (followUp) await setLeadFollowUp(lead.id, followUp, notes || null);
     res.json({ ok: true, stageChangedTo: next, followUp });
+  });
+
+  // A note added after the outcome was already logged (the email buttons log the outcome first).
+  app.post("/api/call/:leadId/note", async (req: Request, res: Response) => {
+    const lead = await callAuth(req, res); if (!lead) return;
+    const notes = String(req.body?.notes ?? "").trim().slice(0, 2000);
+    const followUp = req.body?.followUp ? String(req.body.followUp) : null;
+    if (followUp && !/^\d{4}-\d{2}-\d{2}$/.test(followUp)) { res.status(400).json({ error: "Bad follow-up date." }); return; }
+    if (!notes && !followUp) { res.status(400).json({ error: "Write a note or pick a reminder." }); return; }
+    if (notes) {
+      await createLeadActivity({
+        leadId: lead.id, type: "note", direction: "outbound",
+        subject: "Note after call", body: notes, sentBy: "staff:call_link", status: "sent",
+      });
+    }
+    if (followUp) await setLeadFollowUp(lead.id, followUp, notes || null);
+    res.json({ ok: true, followUp });
   });
 
   // "I sent this text" so the timeline shows who we texted and which message.

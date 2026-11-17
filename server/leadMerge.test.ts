@@ -52,6 +52,10 @@ describe("planLeadMerge: Facebook lead then website trial form", () => {
     expect(planLeadMerge(fbLead(), form(), "phone", NOW).changes[0]).toMatch(/Matched by phone/);
     expect(planLeadMerge(fbLead(), form(), "email", NOW).changes[0]).not.toMatch(/Matched by phone/);
   });
+  it("only mentions a different email when one was actually typed", () => {
+    expect(planLeadMerge(fbLead(), form({ email: null }), "phone", NOW).changes[0]).toBe("Matched by phone number");
+    expect(planLeadMerge(fbLead(), form(), "phone", NOW).changes[0]).toMatch(/email on the form was different/);
+  });
   it("records text consent only when it was not already given", () => {
     expect(planLeadMerge(fbLead(), form(), "phone", NOW).patch.smsConsent).toBe(1);
     const had = planLeadMerge(fbLead({ smsConsent: 1 } as Partial<Lead>), form(), "phone", NOW);

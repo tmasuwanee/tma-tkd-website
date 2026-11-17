@@ -1,23 +1,31 @@
 import { ENV } from './_core/env';
 import { Lead } from '../drizzle/schema';
 import { isFacebookLead, isPlaceholderEmail, returningLeadTitle } from './leadMerge';
-import { buildCallLink, resolveCallSecret } from './callConsole';
+import { buildCallLink, resolveCallSecret, telHref, type CallOutcome } from './callConsole';
 
 /**
- * Phone cell for staff lead emails. With a signing secret it is a one-tap button that opens the
- * call console (dials, then lets staff log notes and copy texts). Without one it falls back to a
- * plain tel: link so the email still works. A small "dial only" link is always kept as a backup.
+ * Phone cell for staff lead emails. The number is a plain tap-to-call link (calling from the email
+ * keeps the iPhone's "return to Gmail" behavior, so staff land back on this email). Under it are
+ * one-tap buttons for how the call went: each opens the call page, which logs that outcome to the
+ * CRM and offers a note box and ready-to-send texts. Gmail strips forms and scripts, so a real
+ * text box cannot live inside the email itself. Without a signing secret it is just the plain
+ * number, so the email still works.
  */
-function phoneCellHtml(lead: Lead): string {
+export function phoneCellHtml(lead: Lead): string {
   const raw = lead.phone ?? '';
   const safe = raw.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
+  const dial = `<a href="${telHref(raw)}" style="font-weight:bold;font-size:18px">${safe}</a>`;
   const secret = resolveCallSecret();
   if (!secret) {
-    console.warn('[Email] No call-link secret set (CALL_LINK_SECRET, JWT_SECRET or ADMIN_MAGIC_KEY): staff emails fall back to a plain dial link');
-    return `<a href="tel:${safe}">${safe}</a>`;
+    console.warn('[Email] No call-link secret set (CALL_LINK_SECRET, JWT_SECRET, ADMIN_MAGIC_KEY or RESEND_API_KEY): staff emails fall back to a plain dial link');
+    return dial;
   }
-  const link = buildCallLink(lead.id, secret);
-  return `<a href="${link}" style="display:inline-block;background:#c41e3a;color:#ffffff;padding:8px 14px;border-radius:6px;text-decoration:none;font-weight:bold">&#128222; Call ${safe} and take notes</a> <a href="tel:${safe}" style="font-size:12px;color:#666666">(dial only)</a>`;
+  const btn = (outcome: CallOutcome, label: string, bg: string) =>
+    `<a href="${buildCallLink(lead.id, secret, undefined, outcome)}" style="display:inline-block;background:${bg};color:#ffffff;padding:9px 12px;border-radius:6px;text-decoration:none;font-size:13px;font-weight:bold;margin:0 6px 6px 0">${label}</a>`;
+  return `${dial}
+    <div style="margin-top:10px;font-size:12px;color:#888888">After the call, tap how it went (saves to the CRM):</div>
+    <div style="margin-top:6px">${btn('answered', 'Spoke with them', '#2e7d32')}${btn('voicemail', 'Left a voicemail', '#1a2d5a')}${btn('no_answer', 'No answer', '#6b7280')}${btn('not_interested', 'Not interested', '#c41e3a')}</div>
+    <div style="margin-top:4px"><a href="${buildCallLink(lead.id, secret)}" style="font-size:13px">Open call page: notes and ready-to-send texts</a></div>`;
 }
 
 // Where staff notifications go. Falls back to the studio Gmail so a missing

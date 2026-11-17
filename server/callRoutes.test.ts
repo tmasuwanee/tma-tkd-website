@@ -135,10 +135,39 @@ describe("call routes: finish (notes after hang up)", () => {
     expect((await post(41, "finish", tok(), { outcome: "answered", followUp: "tomorrow" })).status).toBe(400);
     expect(db.createLeadActivity).not.toHaveBeenCalled();
   });
+  it("a repeat outcome with no notes within a minute is not logged twice (refresh or double tap)", async () => {
+    db.getLeadActivities.mockResolvedValue([{ type: "call", status: "voicemail", body: null, createdAt: new Date() }]);
+    const j = await (await post(41, "finish", tok(), { outcome: "voicemail", notes: "" })).json();
+    expect(j.deduped).toBe(true);
+    expect(db.createLeadActivity).not.toHaveBeenCalled();
+  });
+  it("the same outcome WITH notes is always logged", async () => {
+    db.getLeadActivities.mockResolvedValue([{ type: "call", status: "voicemail", body: null, createdAt: new Date() }]);
+    await post(41, "finish", tok(), { outcome: "voicemail", notes: "Left details" });
+    expect(db.createLeadActivity).toHaveBeenCalledTimes(1);
+  });
   it("caps very long notes", async () => {
     await post(41, "finish", tok(), { outcome: "answered", notes: "x".repeat(5000) });
     const body = db.createLeadActivity.mock.calls[0][0].body as string;
     expect(body.length).toBe(2000);
+  });
+});
+
+describe("call routes: note (after the email button logged the outcome)", () => {
+  it("saves a note on the timeline and a reminder", async () => {
+    const r = await post(41, "note", tok(), { notes: "Prefers evenings", followUp: "2026-11-20" });
+    expect(r.status).toBe(200);
+    expect(db.createLeadActivity).toHaveBeenCalledWith(expect.objectContaining({ type: "note", body: "Prefers evenings", sentBy: "staff:call_link" }));
+    expect(db.setLeadFollowUp).toHaveBeenCalledWith(41, "2026-11-20", "Prefers evenings");
+  });
+  it("a reminder alone is fine, an empty request is rejected", async () => {
+    expect((await post(41, "note", tok(), { followUp: "2026-11-20" })).status).toBe(200);
+    expect(db.createLeadActivity).not.toHaveBeenCalled();
+    expect((await post(41, "note", tok(), { notes: "  " })).status).toBe(400);
+  });
+  it("needs a valid token and a valid date", async () => {
+    expect((await post(41, "note", "bad", { notes: "x" })).status).toBe(401);
+    expect((await post(41, "note", tok(), { notes: "x", followUp: "soon" })).status).toBe(400);
   });
 });
 

@@ -147,7 +147,7 @@ export function planLeadMerge(existing: Lead, input: TrialSubmission, matchedBy:
 
   const tags = Array.from(new Set([...parseTags(existing.tags), ...(input.tags ?? [])]));
 
-  if (matchedBy === "phone") changes.unshift("Matched by phone number (the email on the form was different)");
+  if (matchedBy === "phone") changes.unshift(typedEmail ? "Matched by phone number (the email on the form was different)" : "Matched by phone number");
   return { patch, upgradeEmailTo, tags, changes };
 }
 
