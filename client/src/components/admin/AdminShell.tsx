@@ -6,7 +6,7 @@ import {
   Kanban, ClipboardCheck, Phone, PhoneOutgoing, Mail, Route as RouteIcon,
   BarChart2, GraduationCap, CalendarCheck, ShieldAlert, Camera, LogOut,
   Menu, PhoneCall, CalendarDays, CheckSquare, FileSignature, Link2, BookOpen,
-  ShoppingBag, Users, ClipboardList, FileText, Home, ChevronDown, ChevronRight, Search, Sparkles, ShieldCheck, Leaf,
+  ShoppingBag, Users, ClipboardList, FileText, Home, ChevronDown, ChevronRight, Search, Sparkles, ShieldCheck, Leaf, Award,
 } from "lucide-react";
 import { CallsApp } from "@/pages/AdminTodaysCalls";
 import { CallLogApp } from "@/pages/AdminCallLog";
@@ -39,6 +39,7 @@ import TrialsView from "@/components/admin/TrialsView";
 import CampsView from "@/components/admin/CampsView";
 import DayCampView from "@/components/admin/DayCampView";
 import VolunteersView from "@/components/admin/VolunteersView";
+import TestingCertificates from "@/components/admin/TestingCertificates";
 import { MemberDockProvider } from "@/components/admin/MemberDock";
 
 // Keys double as URL segments (/admin/<key>). They match the old standalone
@@ -47,7 +48,7 @@ import { MemberDockProvider } from "@/components/admin/MemberDock";
 type ViewKey =
   | "today" | "calls" | "calendar" | "leads" | "checkin" | "waivers" | "call-log" | "voice-test"
   | "sequences" | "rules" | "ads" | "students" | "camp" | "controls" | "studio" | "tasks" | "links" | "playbook"
-  | "orders" | "enrolled" | "afterschool-roster" | "invoices" | "approvals" | "memberships" | "members" | "trials" | "camps" | "day-camp" | "volunteers";
+  | "orders" | "enrolled" | "afterschool-roster" | "invoices" | "approvals" | "memberships" | "members" | "trials" | "camps" | "day-camp" | "volunteers" | "certificates";
 
 type NavItem = { key: ViewKey; label: string; icon: any };
 type NavGroup = { group: string; items: NavItem[]; collapsible?: boolean };
@@ -87,6 +88,7 @@ const NAV: NavGroup[] = [
   ]},
   { group: "Admin", items: [
     { key: "waivers", label: "Forms & Waivers", icon: FileSignature },
+    { key: "certificates", label: "Testing Certificates", icon: Award },
     { key: "approvals", label: "Approvals", icon: ShieldCheck },
     { key: "playbook", label: "Front Desk Playbook", icon: BookOpen },
     { key: "links", label: "Links", icon: Link2 },
@@ -148,6 +150,7 @@ function renderView(key: ViewKey, email: string) {
     case "studio": return <StudioApp email={email} embedded />;
     case "tasks": return <MyTasks />;
     case "links": return <LinksView />;
+    case "certificates": return <TestingCertificates />;
     case "playbook": return <PlaybookView />;
     case "afterschool-roster": return <AfterschoolRosterView />;
     case "approvals": return <PendingActionsView />;
