@@ -1,33 +1,57 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { Award, Download, Eye, Plus, Printer, Trash2, ClipboardPaste, Ruler } from "lucide-react";
 import {
-  buildCertificatesPdf, dateParts, parseRoster, STYLES, DEFAULT_STYLE, styleById,
-  type CertRow, type FontBytes, type Orientation, type StyleId,
+  Award, ArrowLeft, ChevronLeft, ChevronRight, Download, ListPlus, PenLine, Plus, Printer, Trash2, TriangleAlert,
+} from "lucide-react";
+import blankScan from "@/assets/belt-certificate-blank.jpg";
+import {
+  buildCertificatesPdf, createLayouter, dateParts, normalizeRank, parseRoster, sortForPrint, styleById, STYLES, DEFAULT_STYLE,
+  COLOR_BELTS, GUIDE_LINES,
+  type CertRow, type FontBytes, type Layouter, type Orientation, type PlacedText, type StyleId,
 } from "@/lib/certificatePdf";
 
 /**
- * Belt-testing certificates: list each student, the rank they are testing for and the date, then
- * make one PDF (one certificate per page, in this order) to print on the pre-printed certificate paper.
- * Everything is built in this browser tab. Student names are never sent to the server. The list is
- * remembered on this computer only (localStorage) so a refresh does not lose 50 names.
+ * Belt-testing certificates.
+ *  Left:  pick a belt, then list the students testing for it (one table per belt), or paste a list.
+ *  Right: a live preview on the real blank certificate, plus the different looks to choose from.
+ * "Print all" opens a print preview with every certificate's words in the right place on a blank page
+ * (sorted by belt), then prints the PDF.
+ *
+ * Everything is built in this browser tab, so student names (mostly children) never reach the server. The
+ * list is remembered on this computer only (localStorage) so a refresh does not lose 50 names.
  */
 
-const STORE = "tma_testing_certificates_v1";
+const STORE = "tma_testing_certificates_v2";
 
-// Typical Taekwondo ranks, offered as suggestions only. The Rank box accepts anything you type.
-const RANKS = [
-  "White Belt", "Yellow Belt", "Orange Belt", "Green Belt", "Blue Belt", "Purple Belt", "Brown Belt", "Red Belt",
-  "1st Degree Black Belt", "2nd Degree Black Belt", "3rd Degree Black Belt", "4th Degree Black Belt",
+type BeltKey = (typeof COLOR_BELTS)[number] | "Black" | "Other";
+
+// Swatch colors for the belt buttons. Order of COLOR_BELTS is TMA's belt order.
+const SWATCH: Record<string, string> = {
+  White: "#ffffff", Yellow: "#facc15", Orange: "#fb923c", Green: "#22c55e", Purple: "#8b5cf6", Blue: "#3b82f6",
+  Brown: "#92400e", Red: "#ef4444", "High-Red": "#b91c1c",
+  "Pre-Black": "linear-gradient(90deg,#ef4444 0 50%,#111827 50% 100%)", Black: "#111827", Other: "#e5e7eb",
+};
+const BELT_KEYS: BeltKey[] = [...COLOR_BELTS, "Black", "Other"];
+const DANS = ["1st", "2nd"];
+const LEVELS = ["1", "2", "3", "4", "5"];
+
+const LAYOUTS: { value: Orientation; label: string }[] = [
+  { value: "portrait-a", label: "Sideways, top on the right (usual)" },
+  { value: "portrait-b", label: "Sideways, top on the left (if it prints upside down)" },
+  { value: "landscape", label: "Landscape page" },
 ];
 
-const LAYOUTS: { value: Orientation; label: string; help: string }[] = [
-  { value: "portrait-a", label: "Sideways, top on the right (recommended)", help: "Matches how the certificate paper sits in the printer." },
-  { value: "portrait-b", label: "Sideways, top on the left", help: "Use this if the first one comes out upside down." },
-  { value: "landscape", label: "Landscape page", help: "Only if the printer turns the page for you." },
-];
+const EXAMPLE_NAME = "Student Name";
+
+/** Which belt table a rank belongs to. Colors are checked first so "Pre-Black Belt" is not mistaken for a black belt. */
+function beltOf(rank: string): BeltKey {
+  const n = normalizeRank(rank);
+  const color = COLOR_BELTS.find(c => n === `${c} Belt`);
+  if (color) return color;
+  return /black belt/i.test(n) ? "Black" : "Other";
+}
 
 function todayISO() {
   const d = new Date();
@@ -41,12 +65,15 @@ function load(): Saved {
     const raw = localStorage.getItem(STORE);
     if (raw) {
       const j = JSON.parse(raw);
-      if (Array.isArray(j.rows)) return { rows: j.rows, testDate: j.testDate || todayISO(), layout: j.layout || "portrait-a", style: styleById(j.style).id };
+      if (Array.isArray(j.rows)) {
+        return { rows: j.rows, testDate: j.testDate || todayISO(), layout: j.layout || "portrait-a", style: styleById(j.style).id };
+      }
     }
   } catch { /* private window or bad data: start fresh */ }
   return { rows: [], testDate: todayISO(), layout: "portrait-a", style: DEFAULT_STYLE };
 }
 
+// ─── fonts ────────────────────────────────────────────────────────────────────────────────────────
 const fontFiles = new Map<string, Promise<Uint8Array>>();
 function fetchFont(file: string): Promise<Uint8Array> {
   let p = fontFiles.get(file);
@@ -65,10 +92,52 @@ async function loadFonts(style: StyleId): Promise<FontBytes> {
   const [name, rank] = await Promise.all([fetchFont(st.nameFont), fetchFont(st.rankFont)]);
   return { name, rank };
 }
+const family = (file: string) => `tma-cert-${file.replace(/\.woff$/, "")}`;
+const FONT_FACE_CSS = Array.from(new Set(STYLES.flatMap(s => [s.nameFont, s.rankFont])))
+  .map(f => `@font-face{font-family:"${family(f)}";src:url(/fonts/${f}) format("woff");font-display:block}`)
+  .join("\n");
 
-function blobUrl(bytes: Uint8Array) {
-  return URL.createObjectURL(new Blob([bytes as BlobPart], { type: "application/pdf" }));
+/** Works out where every word goes for each look, so previews match the PDF exactly. */
+function useLayouters() {
+  const [layouters, setLayouters] = useState<Partial<Record<StyleId, Layouter>>>({});
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        for (const st of STYLES) {
+          const l = await createLayouter(await loadFonts(st.id), st.id);
+          if (!alive) return;
+          setLayouters(prev => ({ ...prev, [st.id]: l }));
+        }
+      } catch (e: any) {
+        if (alive) setError(e?.message || "Could not load the certificate fonts.");
+      }
+    })();
+    return () => { alive = false; };
+  }, []);
+  return { layouters, error };
 }
+
+// ─── drawing ──────────────────────────────────────────────────────────────────────────────────────
+function CertSvg({ items, style, withScan, guides, label }: { items: PlacedText[]; style: StyleId; withScan: boolean; guides?: boolean; label: string }) {
+  const st = styleById(style);
+  return (
+    <svg viewBox="0 0 792 612" role="img" aria-label={label} className="block h-auto w-full bg-white" style={{ aspectRatio: "792 / 612" }}>
+      {withScan && <image href={blankScan} x="0" y="0" width="792" height="612" preserveAspectRatio="none" />}
+      {guides && [GUIDE_LINES.name, GUIDE_LINES.rank, ...GUIDE_LINES.date].map((g, i) => (
+        <line key={i} x1={g.x0} x2={g.x1} y1={g.y} y2={g.y} stroke="#9ca3af" strokeWidth="0.6" />
+      ))}
+      {items.map((it, i) => (
+        <text key={i} x={it.x} y={it.baseline} fontSize={it.size} fill="#000"
+          fontFamily={`"${family(it.role === "name" ? st.nameFont : st.rankFont)}", serif`}>{it.text}</text>
+      ))}
+    </svg>
+  );
+}
+
+// ─── the page ─────────────────────────────────────────────────────────────────────────────────────
+type Tab = "one" | "paste";
 
 export default function TestingCertificates() {
   const initial = useMemo(load, []);
@@ -76,188 +145,397 @@ export default function TestingCertificates() {
   const [testDate, setTestDate] = useState(initial.testDate);
   const [layout, setLayout] = useState<Orientation>(initial.layout);
   const [style, setStyle] = useState<StyleId>(initial.style);
+
+  const [view, setView] = useState<"make" | "print">("make");
+  const [tab, setTab] = useState<Tab>("one");
+  // Open the first belt that already has students (after a refresh), otherwise start at White.
+  const [belt, setBelt] = useState<BeltKey>(() => BELT_KEYS.find(b => initial.rows.some(r => beltOf(r.rank) === b)) ?? "White");
+  const [dan, setDan] = useState("1st");
+  const [level, setLevel] = useState("1");
+  const [otherRank, setOtherRank] = useState("");
+  const [fName, setFName] = useState("");
   const [paste, setPaste] = useState("");
-  const [showPaste, setShowPaste] = useState(false);
+  const [peek, setPeek] = useState(0);              // which saved student the preview shows
   const [busy, setBusy] = useState<string | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
-  const tableEnd = useRef<HTMLDivElement>(null);
+  const nameInput = useRef<HTMLInputElement>(null);
+
+  const { layouters, error: fontError } = useLayouters();
+  const layouter = layouters[style];
 
   useEffect(() => {
     try { localStorage.setItem(STORE, JSON.stringify({ rows, testDate, layout, style })); } catch { /* ignore */ }
   }, [rows, testDate, layout, style]);
-  useEffect(() => () => { if (preview) URL.revokeObjectURL(preview); }, [preview]);
+  // One date for everyone: changing it updates every student.
+  useEffect(() => {
+    setRows(rs => (rs.some(r => r.date !== testDate) ? rs.map(r => ({ ...r, date: testDate })) : rs));
+  }, [testDate]);
 
-  const issues = useMemo(() => rows.map((r, i) => {
-    if (!r.name.trim() && !r.rank.trim()) return null;           // an untouched blank row is not an error
-    if (!r.name.trim()) return "Needs a name";
-    if (!r.rank.trim()) return "Needs a rank";
-    if (!dateParts(r.date)) return "Needs a date";
-    return null;
-  }), [rows]);
-  const ready = rows.filter((r, i) => r.name.trim() && r.rank.trim() && dateParts(r.date));
-  const problemCount = issues.filter(Boolean).length;
+  /** The rank a new student gets from whatever is picked on the left. */
+  const currentRank =
+    belt === "Black" ? `${dan} Dan Black Belt Lvl ${level}` :
+    belt === "Other" ? otherRank.trim() :
+    `${belt} Belt`;
 
-  const update = (i: number, patch: Partial<CertRow>) => setRows(rs => rs.map((r, j) => (j === i ? { ...r, ...patch } : r)));
-  const addRow = (focus = true) => {
-    setRows(rs => [...rs, { name: "", rank: rs.length ? rs[rs.length - 1].rank : "", date: testDate }]);
-    if (focus) setTimeout(() => {
-      const el = document.querySelector<HTMLInputElement>(`[data-cert-name="${rows.length}"]`);
-      el?.focus();
-      tableEnd.current?.scrollIntoView({ block: "nearest" });
-    }, 30);
+  const counts = useMemo(() => {
+    const c: Record<string, number> = {};
+    rows.forEach(r => { const k = beltOf(r.rank); c[k] = (c[k] ?? 0) + 1; });
+    return c;
+  }, [rows]);
+  /** Positions in `rows` of the students on the open belt table. */
+  const tableIdx = useMemo(() => rows.map((_, i) => i).filter(i => beltOf(rows[i].rank) === belt), [rows, belt]);
+  const activeIdx = tableIdx.includes(peek) ? peek : tableIdx[0];
+
+  const status = useCallback((r: CertRow): string | null => {
+    if (!layouter) return null;
+    const res = layouter.layout(r);
+    return res.ok ? null : res.reason;
+  }, [layouter]);
+  const ready = useMemo(() => (layouter ? sortForPrint(rows.filter(r => status(r) === null)) : []), [rows, status, layouter]);
+  const skipped = useMemo(() => rows.map((r, i) => ({ r, i, why: status(r) })).filter(x => x.why), [rows, status]);
+
+  // What the big preview shows: the name being typed, else the student picked in the table, else an example.
+  const typing = fName.trim() !== "";
+  const previewRow: CertRow = typing
+    ? { name: fName.trim(), rank: currentRank || "Yellow Belt", date: testDate }
+    : activeIdx !== undefined
+      ? rows[activeIdx]
+      : { name: EXAMPLE_NAME, rank: currentRank || "Yellow Belt", date: testDate };
+  const isExample = !typing && activeIdx === undefined;
+
+  const previewFor = (id: StyleId, row: CertRow) => {
+    const l = layouters[id];
+    if (!l) return null;
+    const res = l.layout(row);
+    return res.ok ? res : null;
   };
-  const remove = (i: number) => setRows(rs => rs.filter((_, j) => j !== i));
 
-  const importPaste = () => {
-    const added = parseRoster(paste, testDate);
-    if (!added.length) { toast.error("Nothing to add. Type one student per line, like: Tyler Le, Yellow Belt"); return; }
+  // ── students ──
+  function addStudent() {
+    const name = fName.trim();
+    if (!name) { toast.error("Type the student's name first."); nameInput.current?.focus(); return; }
+    if (!currentRank) { toast.error("Type the rank first."); return; }
+    setRows(rs => [...rs, { name, rank: currentRank, date: testDate }]);
+    setPeek(rows.length);
+    setFName("");
+    nameInput.current?.focus();
+  }
+  const rename = (i: number, name: string) => setRows(rs => rs.map((r, j) => (j === i ? { ...r, name } : r)));
+  const removeStudent = (i: number) => setRows(rs => rs.filter((_, j) => j !== i));
+  function addPasted() {
+    if (belt === "Other" && !otherRank.trim() && !paste.includes(",")) { toast.error("Type the rank, or write each line like: Sam Ng, Blue Belt"); return; }
+    const added = parseRoster(paste, testDate, currentRank);
+    if (!added.length) { toast.error("Type one student per line, like: Tyler Le"); return; }
     setRows(rs => [...rs, ...added]);
-    setPaste(""); setShowPaste(false);
+    setPaste("");
+    setTab("one");
     toast.success(`Added ${added.length} student${added.length === 1 ? "" : "s"}.`);
+  }
+  function pickBelt(b: BeltKey) {
+    setBelt(b);
+    const first = rows.findIndex(r => beltOf(r.rank) === b);
+    if (first >= 0) setPeek(first);
+    setTimeout(() => nameInput.current?.focus(), 30);
+  }
+  const stepPreview = (dir: 1 | -1) => {
+    if (!tableIdx.length) return;
+    const pos = Math.max(0, tableIdx.indexOf(activeIdx ?? tableIdx[0]));
+    setPeek(tableIdx[(pos + dir + tableIdx.length) % tableIdx.length]);
   };
 
-  async function make(kind: "download" | "open" | "preview" | "test") {
-    const list = kind === "preview" || kind === "test" ? ready.slice(0, 1) : ready;
-    if (!list.length) { toast.error("Add at least one student with a name, rank and date first."); return; }
+  // ── printing ──
+  async function makePdf(kind: "print" | "download" | "test") {
+    const list = kind === "test" ? ready.slice(0, 1) : ready;
+    if (!list.length) { toast.error("Add at least one student first."); return; }
     setBusy(kind);
     try {
-      const fonts = await loadFonts(style);
-      const res = await buildCertificatesPdf(list, fonts, { orientation: layout, style, guides: kind === "preview" || kind === "test" });
+      const res = await buildCertificatesPdf(list, await loadFonts(style), { orientation: layout, style, guides: kind === "test" });
       if (!res.pages) { toast.error(res.problems[0]?.reason ?? "Nothing to print."); return; }
-      if (res.problems.length) toast.error(`${res.problems.length} skipped: ${res.problems.map(p => `${p.name} (${p.reason})`).join("; ")}`);
-      const url = blobUrl(res.bytes);
-      if (kind === "preview") { setPreview(url); return; }
-      if (kind === "open") { window.open(url, "_blank"); return; }
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = kind === "test" ? "alignment-test-with-guide-lines.pdf" : `testing-certificates-${testDate}-${res.pages}-pages.pdf`;
-      document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 10000);
-      toast.success(kind === "test" ? "Test sheet downloaded. Print it on plain paper." : `Downloaded ${res.pages} certificate${res.pages === 1 ? "" : "s"}.`);
+      const url = URL.createObjectURL(new Blob([res.bytes as BlobPart], { type: "application/pdf" }));
+      if (kind === "print") {
+        window.open(url, "_blank");
+        toast.success("Opened in a new tab. Press the Print button there.");
+      } else {
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = kind === "test" ? "alignment-test-with-guide-lines.pdf" : `testing-certificates-${res.pages}-pages.pdf`;
+        document.body.appendChild(a); a.click(); a.remove();
+        toast.success(kind === "test" ? "Test sheet downloaded. Print it on plain paper." : `Downloaded ${res.pages} certificate${res.pages === 1 ? "" : "s"}.`);
+      }
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
     } catch (e: any) {
-      toast.error(e?.message || "Could not build the PDF.");
+      toast.error(e?.message || "Could not make the PDF.");
     } finally { setBusy(null); }
   }
 
+  // ───────────────────────── print preview ─────────────────────────
+  if (view === "print") {
+    return (
+      <div className="mx-auto max-w-5xl space-y-5 p-4">
+        <style>{FONT_FACE_CSS}</style>
+        <header className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold text-[#1a2d5a]">Print preview</h1>
+            <p className="text-gray-600">
+              {ready.length} certificate{ready.length === 1 ? "" : "s"}, {ready.length} page{ready.length === 1 ? "" : "s"}, in belt order (White first, Black last).
+              Only the words print. The certificate paper already has everything else.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" size="lg" onClick={() => setView("make")}><ArrowLeft className="mr-2 h-5 w-5" /> Back</Button>
+            <Button variant="outline" size="lg" onClick={() => makePdf("download")} disabled={!!busy || !ready.length}><Download className="mr-2 h-5 w-5" /> Save PDF</Button>
+            <Button size="lg" onClick={() => makePdf("print")} disabled={!!busy || !ready.length} className="bg-[#c41e3a] hover:bg-[#a51830]">
+              <Printer className="mr-2 h-5 w-5" /> {busy === "print" ? "Opening..." : "Print"}
+            </Button>
+          </div>
+        </header>
+
+        <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
+          <p className="font-semibold">Before you print on the real certificates</p>
+          <ol className="mt-1 list-decimal space-y-0.5 pl-5">
+            <li>Press <b>Print</b>. It opens in a new tab. In the print window choose <b>Portrait, Letter, Actual size (100%)</b>. Do not pick "Fit to page."</li>
+            <li>The pages turn sideways on their own to match how the certificate paper sits in the printer.</li>
+            <li>Test on <b>plain paper</b> first and hold it against a blank certificate in the light.</li>
+          </ol>
+          <details className="mt-2">
+            <summary className="cursor-pointer font-medium">Printer problems? (upside down, or off a little)</summary>
+            <div className="mt-2 flex flex-wrap items-end gap-3">
+              <label className="text-sm">
+                <span className="mb-1 block font-medium">Page direction</span>
+                <select value={layout} onChange={e => setLayout(e.target.value as Orientation)} className="h-10 rounded-md border border-gray-300 bg-white px-2 text-sm text-gray-900">
+                  {LAYOUTS.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
+                </select>
+              </label>
+              <Button variant="outline" onClick={() => makePdf("test")} disabled={!!busy || !ready.length}>Save a test sheet with guide lines</Button>
+            </div>
+          </details>
+        </div>
+
+        {skipped.length > 0 && (
+          <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+            <p className="flex items-center gap-2 font-semibold"><TriangleAlert className="h-4 w-4" /> {skipped.length} not included</p>
+            <ul className="mt-1 list-disc pl-5">{skipped.map(x => <li key={x.i}>{x.r.name || `Row ${x.i + 1}`}: {x.why}</li>)}</ul>
+          </div>
+        )}
+
+        <div className="space-y-6">
+          {ready.map((r, i) => {
+            const res = layouter!.layout(r);
+            if (!res.ok) return null;
+            return (
+              <figure key={i} className="mx-auto max-w-3xl">
+                <div className="overflow-hidden rounded-sm border border-gray-300 bg-white shadow-sm">
+                  <CertSvg items={res.items} style={style} withScan={false} label={`Page ${i + 1}: ${r.name}`} />
+                </div>
+                <figcaption className="mt-1 text-center text-sm text-gray-500">Page {i + 1} of {ready.length}: {r.name}, {r.rank}</figcaption>
+              </figure>
+            );
+          })}
+          {ready.length === 0 && <p className="py-10 text-center text-gray-500">Nothing to print yet. Go back and add students.</p>}
+        </div>
+      </div>
+    );
+  }
+
+  // ───────────────────────── make view ─────────────────────────
+  const prevRes = layouter ? layouter.layout(previewRow) : null;
+  const prevItems = prevRes && prevRes.ok ? prevRes.items : null;
+  const beltLabel = belt === "Black" ? "Black belt" : belt === "Other" ? "Other rank" : `${belt} belt`;
+
   return (
-    <div className="mx-auto max-w-5xl space-y-5 p-4">
+    <div className="mx-auto max-w-6xl space-y-5 p-4">
+      <style>{FONT_FACE_CSS}</style>
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="flex items-center gap-2 text-2xl font-bold text-[#1a2d5a]"><Award className="h-6 w-6" /> Testing Certificates</h1>
-          <p className="mt-1 max-w-2xl text-sm text-gray-600">
-            List each student, the rank they are testing for, and the date. This makes one PDF with one certificate per page, in this order,
-            ready to print on the pre-printed belt certificate paper. Master Jo's signature lines are left blank for him to sign.
-          </p>
+          <h1 className="flex items-center gap-2 text-3xl font-bold text-[#1a2d5a]"><Award className="h-8 w-8" /> Testing Certificates</h1>
+          <p className="mt-1 text-lg text-gray-600">Pick a look, add the students for each belt, then print.</p>
         </div>
-        <div className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-right">
-          <p className="text-2xl font-bold text-[#1a2d5a]">{ready.length}</p>
-          <p className="text-xs text-gray-500">certificate{ready.length === 1 ? "" : "s"} = {ready.length} page{ready.length === 1 ? "" : "s"}</p>
+        <div className="rounded-xl border border-gray-200 bg-white px-5 py-2 text-right">
+          <p className="text-3xl font-bold text-[#1a2d5a]">{rows.length}</p>
+          <p className="text-sm text-gray-500">student{rows.length === 1 ? "" : "s"} added</p>
         </div>
       </header>
 
-      <section className="flex flex-wrap items-end gap-4 rounded-lg border border-gray-200 bg-white p-4">
-        <label className="text-sm">
-          <span className="mb-1 block font-medium text-gray-700">Testing date</span>
-          <Input type="date" value={testDate} onChange={e => setTestDate(e.target.value)} className="w-44" />
-        </label>
-        <Button variant="outline" onClick={() => { setRows(rs => rs.map(r => ({ ...r, date: testDate }))); toast.success("Every row now uses this date."); }}
-          disabled={!rows.length}>Use this date for every row</Button>
-        <label className="text-sm">
-          <span className="mb-1 block font-medium text-gray-700">Font style</span>
-          <select value={style} onChange={e => setStyle(e.target.value as StyleId)}
-            className="h-9 rounded-md border border-gray-300 bg-white px-2 text-sm">
-            {STYLES.map(st => <option key={st.id} value={st.id}>{st.label}</option>)}
-          </select>
-        </label>
-        <label className="text-sm">
-          <span className="mb-1 block font-medium text-gray-700">Page layout</span>
-          <select value={layout} onChange={e => setLayout(e.target.value as Orientation)}
-            className="h-9 rounded-md border border-gray-300 bg-white px-2 text-sm">
-            {LAYOUTS.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
-          </select>
-        </label>
-        <p className="basis-full text-xs text-gray-500">{styleById(style).description} {LAYOUTS.find(l => l.value === layout)?.help}</p>
-      </section>
-
-      <section className="rounded-lg border border-gray-200 bg-white">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 p-3">
-          <h2 className="font-semibold text-gray-800">Students ({rows.length})</h2>
-          <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant="outline" onClick={() => setShowPaste(s => !s)}><ClipboardPaste className="mr-1 h-4 w-4" /> Paste a list</Button>
-            <Button size="sm" onClick={() => addRow()} className="bg-[#1a2d5a] hover:bg-[#142347]"><Plus className="mr-1 h-4 w-4" /> Add student</Button>
-            <Button size="sm" variant="ghost" className="text-red-600" disabled={!rows.length}
-              onClick={() => { if (window.confirm(`Clear all ${rows.length} students?`)) setRows([]); }}>Clear all</Button>
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
+        {/* ─── LEFT: add students ─── */}
+        <section className="space-y-4 rounded-xl border border-gray-200 bg-white p-4">
+          <div role="tablist" aria-label="How to add students" className="grid grid-cols-2 gap-1 rounded-lg bg-gray-100 p-1">
+            {([["one", "One by one", PenLine], ["paste", "Paste a list", ListPlus]] as const).map(([key, label, Icon]) => (
+              <button key={key} role="tab" aria-selected={tab === key} onClick={() => setTab(key)}
+                className={`flex items-center justify-center gap-2 rounded-md px-3 py-3 text-base font-semibold ${tab === key ? "bg-white text-[#1a2d5a] shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>
+                <Icon className="h-5 w-5" /> {label}
+              </button>
+            ))}
           </div>
-        </div>
 
-        {showPaste && (
-          <div className="space-y-2 border-b border-gray-200 bg-gray-50 p-3">
-            <p className="text-sm text-gray-700">One student per line: name, then rank. Each uses the testing date above, and you can fix any of them in the table afterward.</p>
-            <textarea value={paste} onChange={e => setPaste(e.target.value)} rows={6}
-              placeholder={"Tyler Le, Yellow Belt\nAlex Coronado Luna, 1st Degree Black Belt\nSam Ng, Green Belt"}
-              className="w-full rounded-md border border-gray-300 p-2 font-mono text-sm" />
-            <div className="flex gap-2">
-              <Button size="sm" onClick={importPaste} className="bg-[#1a2d5a] hover:bg-[#142347]">Add these students</Button>
-              <Button size="sm" variant="ghost" onClick={() => { setShowPaste(false); setPaste(""); }}>Cancel</Button>
+          <label className="block">
+            <span className="mb-1 block text-base font-semibold text-gray-800">Date on the certificates (for everyone)</span>
+            <Input type="date" value={testDate} onChange={e => setTestDate(e.target.value)} className="h-12 max-w-xs text-lg" />
+          </label>
+
+          {/* belts */}
+          <div>
+            <span className="mb-2 block text-base font-semibold text-gray-800">1. Tap a belt</span>
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4" role="group" aria-label="Belt">
+              {BELT_KEYS.map(b => {
+                const active = belt === b;
+                const n = counts[b] ?? 0;
+                return (
+                  <button type="button" key={b} onClick={() => pickBelt(b)} aria-pressed={active}
+                    className={`relative flex flex-col items-center gap-1 rounded-lg border-2 px-1 py-2 text-sm font-semibold ${active ? "border-[#1a2d5a] bg-blue-50 text-[#1a2d5a]" : "border-gray-200 text-gray-700 hover:border-gray-300"}`}>
+                    <span className="h-3 w-12 rounded-full border border-gray-400" style={{ background: SWATCH[b] }} />
+                    {b}
+                    {n > 0 && <span className="absolute right-1 top-1 min-w-5 rounded-full bg-[#1a2d5a] px-1.5 text-center text-xs font-bold text-white" aria-label={`${n} students`}>{n}</span>}
+                  </button>
+                );
+              })}
             </div>
           </div>
-        )}
 
-        {rows.length === 0 ? (
-          <p className="p-6 text-center text-sm text-gray-500">No students yet. Add one, or paste a whole list.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px] text-sm">
-              <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
-                <tr><th className="w-12 px-3 py-2">#</th><th className="px-2 py-2">Student</th><th className="px-2 py-2">Rank testing for</th><th className="px-2 py-2">Date</th><th className="w-10" /></tr>
-              </thead>
-              <tbody>
-                {rows.map((r, i) => (
-                  <tr key={i} className="border-t border-gray-100 align-top">
-                    <td className="px-3 py-2 font-semibold text-gray-500">{i + 1}</td>
-                    <td className="px-2 py-1.5">
-                      <Input data-cert-name={i} value={r.name} onChange={e => update(i, { name: e.target.value })} placeholder="Student name" />
-                      {issues[i] && <p className="mt-0.5 text-xs text-red-600">{issues[i]}</p>}
-                    </td>
-                    <td className="px-2 py-1.5">
-                      <Input list="cert-ranks" value={r.rank} onChange={e => update(i, { rank: e.target.value })} placeholder="Yellow Belt"
-                        onKeyDown={e => { if (e.key === "Enter" && i === rows.length - 1) { e.preventDefault(); addRow(); } }} />
-                    </td>
-                    <td className="px-2 py-1.5"><Input type="date" value={r.date} onChange={e => update(i, { date: e.target.value })} className="w-40" /></td>
-                    <td className="px-1 py-1.5"><button aria-label={`Remove ${r.name || `row ${i + 1}`}`} onClick={() => remove(i)} className="rounded p-2 text-gray-400 hover:bg-red-50 hover:text-red-600"><Trash2 className="h-4 w-4" /></button></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <datalist id="cert-ranks">{RANKS.map(r => <option key={r} value={r} />)}</datalist>
-            <div ref={tableEnd} />
-          </div>
-        )}
-        {problemCount > 0 && <p className="border-t border-gray-100 p-3 text-sm text-amber-700">{problemCount} row{problemCount === 1 ? "" : "s"} still {problemCount === 1 ? "needs" : "need"} something and will be left out of the PDF.</p>}
-      </section>
+          {belt === "Black" && (
+            <div className="grid grid-cols-2 gap-3 rounded-lg bg-gray-50 p-3">
+              <label className="text-sm font-medium text-gray-700">Dan
+                <select value={dan} onChange={e => setDan(e.target.value)} className="mt-1 h-11 w-full rounded-md border border-gray-300 bg-white px-2 text-base text-gray-900">
+                  {DANS.map(d => <option key={d} value={d}>{d} Dan</option>)}
+                </select>
+              </label>
+              <label className="text-sm font-medium text-gray-700">Level
+                <select value={level} onChange={e => setLevel(e.target.value)} className="mt-1 h-11 w-full rounded-md border border-gray-300 bg-white px-2 text-base text-gray-900">
+                  {LEVELS.map(l => <option key={l} value={l}>Level {l}</option>)}
+                </select>
+              </label>
+              <p className="col-span-2 text-sm text-gray-600">Certificate will say: <b>{currentRank}</b></p>
+            </div>
+          )}
+          {belt === "Other" && (
+            <label className="block rounded-lg bg-gray-50 p-3 text-sm font-medium text-gray-700">
+              Type the rank exactly as it should print
+              <Input value={otherRank} onChange={e => setOtherRank(e.target.value)} placeholder="Yellow Stripe" className="mt-1 h-11 bg-white text-base" />
+            </label>
+          )}
 
-      <section className="space-y-3 rounded-lg border border-gray-200 bg-white p-4">
-        <h2 className="font-semibold text-gray-800">Make the PDF</h2>
-        <div className="flex flex-wrap gap-2">
-          <Button onClick={() => make("download")} disabled={!!busy || !ready.length} className="bg-[#c41e3a] hover:bg-[#a51830]">
-            <Download className="mr-1 h-4 w-4" /> {busy === "download" ? "Building..." : `Download all ${ready.length} certificate${ready.length === 1 ? "" : "s"}`}
-          </Button>
-          <Button variant="outline" onClick={() => make("open")} disabled={!!busy || !ready.length}><Printer className="mr-1 h-4 w-4" /> Open to print</Button>
-          <Button variant="outline" onClick={() => make("preview")} disabled={!!busy || !ready.length}><Eye className="mr-1 h-4 w-4" /> Preview the first one</Button>
-          <Button variant="outline" onClick={() => make("test")} disabled={!!busy || !ready.length}><Ruler className="mr-1 h-4 w-4" /> Alignment test sheet</Button>
-        </div>
-        <ol className="list-decimal space-y-1 pl-5 text-sm text-gray-600">
-          <li>Download the <b>Alignment test sheet</b> and print it on <b>plain paper</b>. It has light guide lines.</li>
-          <li>Hold it against a blank certificate in the light. The guide lines should sit on the printed lines. If it is upside down, switch the page layout above.</li>
-          <li>When it lines up, print the real PDF on the certificate paper. In the print window choose <b>Portrait, Letter, Actual size (100%)</b>. Do not pick "Fit to page."</li>
-        </ol>
-        {preview && (
-          <div className="space-y-1">
-            <p className="text-xs text-gray-500">Preview. The gray lines are guides and do not print on the real certificates.</p>
-            <iframe title="Certificate preview" src={`${preview}#toolbar=0&navpanes=0`} className="h-[520px] w-full rounded-md border border-gray-200" />
+          {tab === "one" ? (
+            <form onSubmit={e => { e.preventDefault(); addStudent(); }} className="space-y-3">
+              <label className="block">
+                <span className="mb-1 block text-base font-semibold text-gray-800">2. Type a {beltLabel} student's name</span>
+                <div className="flex gap-2">
+                  <Input ref={nameInput} value={fName} onChange={e => setFName(e.target.value)} placeholder="Type the name, press Enter" autoComplete="off" className="h-14 flex-1 text-xl" />
+                  <Button type="submit" size="lg" className="h-14 bg-[#1a2d5a] px-5 text-lg hover:bg-[#142347]"><Plus className="mr-1 h-5 w-5" /> Add</Button>
+                </div>
+              </label>
+
+              <div className="rounded-lg border border-gray-200">
+                <div className="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-3 py-2">
+                  <h2 className="flex items-center gap-2 text-base font-semibold text-gray-800">
+                    <span className="h-3 w-8 rounded-full border border-gray-400" style={{ background: SWATCH[belt] }} />
+                    {beltLabel} students ({tableIdx.length})
+                  </h2>
+                </div>
+                {tableIdx.length === 0 ? (
+                  <p className="p-4 text-center text-gray-500">No {beltLabel} students yet. Type a name above.</p>
+                ) : (
+                  <ol className="max-h-72 divide-y divide-gray-100 overflow-y-auto">
+                    {tableIdx.map((i, n) => {
+                      const r = rows[i];
+                      const why = status(r);
+                      return (
+                        <li key={i} className={`flex items-center gap-2 px-3 py-1.5 ${activeIdx === i && !typing ? "bg-blue-50" : ""}`}>
+                          <span className="w-6 text-right text-sm font-semibold text-gray-400">{n + 1}</span>
+                          <div className="min-w-0 flex-1">
+                            <Input value={r.name} onChange={e => rename(i, e.target.value)} onFocus={() => setPeek(i)} aria-label={`Name for student ${n + 1}`} className="h-10 text-base" />
+                            {(belt === "Black" || belt === "Other") && <span className="block px-1 text-xs text-gray-500">{r.rank}</span>}
+                            {why && <span className="block px-1 text-xs text-red-600">{why}</span>}
+                          </div>
+                          <button onClick={() => removeStudent(i)} aria-label={`Remove ${r.name || `student ${n + 1}`}`} className="rounded p-2 text-gray-400 hover:bg-red-50 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>
+                        </li>
+                      );
+                    })}
+                  </ol>
+                )}
+              </div>
+            </form>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-base text-gray-700">
+                2. Type or paste one name per line. They all go on the <b>{beltLabel}</b> list. To put one on a different belt, write it like <b>Sam Ng, Blue Belt</b>.
+              </p>
+              <textarea value={paste} onChange={e => setPaste(e.target.value)} rows={9}
+                placeholder={"Tyler Le\nAlex Coronado Luna\nSam Ng, Blue Belt"}
+                className="w-full rounded-lg border border-gray-300 p-3 font-mono text-base" />
+              <Button size="lg" onClick={addPasted} disabled={!paste.trim()} className="h-14 w-full bg-[#1a2d5a] text-lg hover:bg-[#142347]">
+                <ListPlus className="mr-2 h-5 w-5" /> Add these students
+              </Button>
+            </div>
+          )}
+
+          <div className="border-t border-gray-200 pt-3">
+            {rows.length > 0 && (
+              <div className="mb-2 flex items-center justify-between text-sm text-gray-600">
+                <span>
+                  {BELT_KEYS.filter(b => counts[b]).map(b => `${b} ${counts[b]}`).join(", ")}
+                </span>
+                <button className="text-red-600 hover:underline"
+                  onClick={() => { if (window.confirm(`Remove all ${rows.length} students from every belt?`)) setRows([]); }}>Remove all</button>
+              </div>
+            )}
+            <Button size="lg" disabled={!ready.length} onClick={() => setView("print")}
+              className="h-16 w-full bg-[#c41e3a] text-xl hover:bg-[#a51830]">
+              <Printer className="mr-2 h-6 w-6" /> Print all {ready.length} certificate{ready.length === 1 ? "" : "s"}
+            </Button>
+            {skipped.length > 0 && <p className="mt-2 text-center text-sm text-amber-700">{skipped.length} student{skipped.length === 1 ? "" : "s"} can't print yet and will be left out.</p>}
           </div>
-        )}
-      </section>
+        </section>
+
+        {/* ─── RIGHT: preview + looks ─── */}
+        <section className="space-y-4 lg:sticky lg:top-4 lg:self-start">
+          <div className="rounded-xl border border-gray-200 bg-white p-4">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <h2 className="text-base font-semibold text-gray-800">
+                {isExample ? "Example. Add a student to see theirs." : typing ? "Preview: what you're typing" : `Preview: ${previewRow.name}`}
+              </h2>
+              {!typing && tableIdx.length > 1 && (
+                <div className="flex items-center gap-1 text-sm text-gray-600">
+                  <button aria-label="Previous student" onClick={() => stepPreview(-1)} className="rounded p-1.5 hover:bg-gray-100"><ChevronLeft className="h-5 w-5" /></button>
+                  <span>{tableIdx.indexOf(activeIdx ?? tableIdx[0]) + 1} of {tableIdx.length}</span>
+                  <button aria-label="Next student" onClick={() => stepPreview(1)} className="rounded p-1.5 hover:bg-gray-100"><ChevronRight className="h-5 w-5" /></button>
+                </div>
+              )}
+            </div>
+            <div className="overflow-hidden rounded-md border border-gray-200">
+              {prevItems ? (
+                <CertSvg items={prevItems} style={style} withScan label={`Preview of ${previewRow.name}'s certificate`} />
+              ) : (
+                <div className="flex aspect-[792/612] items-center justify-center bg-gray-50 px-6 text-center text-gray-500">
+                  {fontError ? fontError : prevRes && !prevRes.ok ? `Can't show this one: ${prevRes.reason}` : "Loading the fonts..."}
+                </div>
+              )}
+            </div>
+            {prevRes && !prevRes.ok && <p className="mt-2 text-sm text-red-600">{prevRes.reason}</p>}
+          </div>
+
+          <div className="rounded-xl border border-gray-200 bg-white p-4">
+            <h2 className="mb-1 text-base font-semibold text-gray-800">Pick a look</h2>
+            <p className="mb-3 text-sm text-gray-500">{styleById(style).description}</p>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3" role="radiogroup" aria-label="Look">
+              {STYLES.map(st => {
+                const res = previewFor(st.id, previewRow);
+                const active = st.id === style;
+                const short = st.label.replace(/ \(.*\)$/, "");
+                return (
+                  <button key={st.id} role="radio" aria-checked={active} aria-label={`${short} look`} onClick={() => setStyle(st.id)}
+                    className={`overflow-hidden rounded-lg border-2 text-left ${active ? "border-[#c41e3a] ring-2 ring-[#c41e3a]/20" : "border-gray-200 hover:border-gray-400"}`}>
+                    {res
+                      ? <CertSvg items={res.items} style={st.id} withScan label={`${short} look`} />
+                      : <div className="flex aspect-[792/612] items-center justify-center bg-gray-50 text-xs text-gray-400">Loading...</div>}
+                    <span className={`block px-2 py-1.5 text-sm font-semibold ${active ? "text-[#c41e3a]" : "text-gray-700"}`}>
+                      {short}{active ? " (picked)" : ""}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+      </div>
     </div>
   );
 }

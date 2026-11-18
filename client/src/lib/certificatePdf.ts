@@ -118,20 +118,49 @@ export function dateParts(iso: string): { day: string; month: string; year: stri
   return { day: ordinal(d), month: MONTHS[mo - 1], year: m[1] };
 }
 
+/** TMA's belts below black, in order. The last two are "High-Red Belt" and "Pre-Black Belt". */
+export const COLOR_BELTS = ["White", "Yellow", "Orange", "Green", "Purple", "Blue", "Brown", "Red", "High-Red", "Pre-Black"] as const;
+
+/** "yellow" -> "Yellow Belt", "pre black" -> "Pre-Black Belt". Anything else is left as typed. */
+export function normalizeRank(rank: string): string {
+  const r = rank.trim();
+  // Compare ignoring case, spaces and hyphens, so "high red", "High-Red" and "highred" all match.
+  const squash = (x: string) => x.toLowerCase().replace(/[\s-]+/g, "");
+  const hit = COLOR_BELTS.find(c => squash(c) === squash(r) || `${squash(c)}belt` === squash(r));
+  return hit ? `${hit} Belt` : r;
+}
+
 /**
- * Turn pasted text into rows. One student per line: "Name, Rank" (comma, tab or " - " between).
- * Lines that are blank are skipped. A line with no rank keeps the rank empty so it is visible in the table.
+ * Turn pasted text into rows. One student per line: "Name, Rank" (comma, tab or " - " between), or just "Name",
+ * which gets `defaultRank` (the belt that is open on screen). Blank lines are skipped. A line with no rank and no
+ * default keeps the rank empty so it is visible in the list.
  */
-export function parseRoster(text: string, defaultDate: string): CertRow[] {
+export function parseRoster(text: string, defaultDate: string, defaultRank = ""): CertRow[] {
   return text
     .split(/\r?\n/)
     .map(l => l.trim())
     .filter(Boolean)
     .map(line => {
       const parts = line.split(/\t|,| - /).map(s => s.trim());
-      return { name: parts[0] ?? "", rank: parts.slice(1).join(", "), date: defaultDate };
+      const rank = parts.slice(1).join(", ");
+      return { name: parts[0] ?? "", rank: rank ? normalizeRank(rank) : defaultRank, date: defaultDate };
     });
 }
+
+/**
+ * Print order: by belt (White first, Black last), black belts by Dan then Level, anything else at the end.
+ * Students on the same belt stay in the order they were added. (Array.prototype.sort is stable.)
+ */
+export function rankOrder(rank: string): number {
+  const r = rank.trim().toLowerCase();
+  const color = COLOR_BELTS.findIndex(c => normalizeRank(r) === `${c} Belt`);
+  if (color >= 0) return color;
+  const black = /^(\d+)(?:st|nd|rd|th)\s+dan\s+black belt(?:\s+lvl\s+(\d+))?$/.exec(r);
+  if (black) return 100 + Number(black[1]) * 10 + Number(black[2] ?? 0);
+  if (/black belt/.test(r)) return 100;
+  return 1000;
+}
+export const sortForPrint = (rows: CertRow[]): CertRow[] => [...rows].sort((a, b) => rankOrder(a.rank) - rankOrder(b.rank));
 
 type Mapper = (x: number, yTop: number) => { x: number; y: number };
 
@@ -169,83 +198,123 @@ export interface BuildResult {
   problems: { index: number; name: string; reason: string }[];
 }
 
-export async function buildCertificatesPdf(rows: CertRow[], fonts: FontBytes, opts: BuildOptions = {}): Promise<BuildResult> {
-  const orientation = opts.orientation ?? "portrait-a";
-  const preset = styleById(opts.style);
-  const { map, rotate, size } = makeMapper(orientation);
+/** One piece of text on the certificate. Landscape coordinates in points: x is the LEFT of the text, baseline is measured from the TOP. */
+export interface PlacedText {
+  text: string;
+  role: "name" | "rank" | "date";
+  size: number;
+  x: number;
+  baseline: number;
+}
 
-  const doc = await PDFDocument.create();
+export type LayoutResult = { ok: true; items: PlacedText[] } | { ok: false; reason: string };
+
+export interface Layouter {
+  layout(row: CertRow): LayoutResult;
+  nameFont: PDFFont;
+  rankFont: PDFFont;
+}
+
+/**
+ * Works out where every word goes and how big it is. The PDF and the on-screen previews both use this,
+ * so what staff see is what prints. Pass the real PDF document when building a PDF so the fonts are embedded once.
+ */
+export async function createLayouter(fonts: FontBytes, styleId?: StyleId, existingDoc?: PDFDocument): Promise<Layouter> {
+  const preset = styleById(styleId);
+  const doc = existingDoc ?? (await PDFDocument.create());
   doc.registerFontkit(fontkit);
-  const script = await doc.embedFont(fonts.name, { subset: true });
-  const serif = await doc.embedFont(fonts.rank, { subset: true });
-  const problems: BuildResult["problems"] = [];
-  let pages = 0;
-  const scriptChars = new Set(script.getCharacterSet());
-  const serifChars = new Set(serif.getCharacterSet());
+  const nameFont = await doc.embedFont(fonts.name, { subset: true });
+  const rankFont = await doc.embedFont(fonts.rank, { subset: true });
+  const nameChars = new Set(nameFont.getCharacterSet());
+  const rankChars = new Set(rankFont.getCharacterSet());
   const unprintable = (s: string, set: Set<number>) => Array.from(s).some(ch => !set.has(ch.codePointAt(0)!));
 
-  const text = (page: PDFPage, s: string, font: PDFFont, fontSize: number, xLeft: number, baselineTop: number) => {
-    const p = map(xLeft, baselineTop);
-    page.drawText(s, { x: p.x, y: p.y, size: fontSize, font, color: rgb(0, 0, 0), rotate: degrees(rotate) });
-  };
-  const line = (page: PDFPage, x0: number, x1: number, yTop: number) => {
-    const a = map(x0, yTop);
-    const b = map(x1, yTop);
-    page.drawLine({ start: a, end: b, thickness: 0.6, color: rgb(0.55, 0.55, 0.55) });
-  };
-
-  rows.forEach((row, index) => {
+  const layout = (row: CertRow): LayoutResult => {
     const name = (row.name || "").trim();
     const rank = (row.rank || "").trim();
     const d = dateParts(row.date);
-    if (!name) { problems.push({ index, name: "(blank)", reason: "No student name." }); return; }
-    if (!rank) { problems.push({ index, name, reason: "No rank." }); return; }
-    if (!d) { problems.push({ index, name, reason: "Pick a date." }); return; }
-
-    // Check every character exists in the fonts BEFORE adding a page, so a bad row never wastes a certificate.
-    if (unprintable(name, scriptChars) || unprintable(rank, serifChars)) {
-      problems.push({ index, name, reason: "This name or rank has a character the certificate font can't print." });
-      return;
+    if (!name) return { ok: false, reason: "No student name." };
+    if (!rank) return { ok: false, reason: "No rank." };
+    if (!d) return { ok: false, reason: "Pick a date." };
+    // Every character must exist in the fonts, so a bad row is caught before a certificate is wasted.
+    if (unprintable(name, nameChars) || unprintable(rank, rankChars)) {
+      return { ok: false, reason: "This name or rank has a character the certificate font can't print." };
     }
 
+    const items: PlacedText[] = [];
+
+    // Name, centered on its line
+    const nameSize = fit(nameFont, name, preset.name.size, preset.name.min, GEO.name.x1 - GEO.name.x0 - 12);
+    const nameW = nameFont.widthOfTextAtSize(name, nameSize);
+    items.push({ text: name, role: "name", size: nameSize, x: GEO.name.x0 + (GEO.name.x1 - GEO.name.x0 - nameW) / 2, baseline: GEO.name.y - preset.name.gap });
+
+    // Rank, centered on its line
+    const rankSize = fit(rankFont, rank, preset.rank.size, preset.rank.min, GEO.rank.x1 - GEO.rank.x0 - 12);
+    const rankW = rankFont.widthOfTextAtSize(rank, rankSize);
+    items.push({ text: rank, role: "rank", size: rankSize, x: GEO.rank.x0 + (GEO.rank.x1 - GEO.rank.x0 - rankW) / 2, baseline: GEO.rank.y - preset.rank.gap });
+
+    // Date: one size for all three words so "November" never looks smaller than "19th"
+    const words = [d.day, d.month, d.year];
+    let dateSize = preset.date.size;
+    words.forEach((w, i) => {
+      const [a, b] = GEO.blanks[i];
+      dateSize = Math.min(dateSize, fit(rankFont, w, preset.date.size, preset.date.min, b - a + 4));
+    });
+    words.forEach((w, i) => {
+      const [a, b] = GEO.blanks[i];
+      const ww = rankFont.widthOfTextAtSize(w, dateSize);
+      items.push({ text: w, role: "date", size: dateSize, x: a + (b - a - ww) / 2, baseline: GEO.dateY - preset.date.gap });
+    });
+    return { ok: true, items };
+  };
+
+  return { layout, nameFont, rankFont };
+}
+
+export async function buildCertificatesPdf(rows: CertRow[], fonts: FontBytes, opts: BuildOptions = {}): Promise<BuildResult> {
+  const orientation = opts.orientation ?? "portrait-a";
+  const { map, rotate, size } = makeMapper(orientation);
+
+  const doc = await PDFDocument.create();
+  const layouter = await createLayouter(fonts, opts.style, doc);
+  const problems: BuildResult["problems"] = [];
+  let pages = 0;
+
+  const line = (page: PDFPage, x0: number, x1: number, yTop: number) => {
+    page.drawLine({ start: map(x0, yTop), end: map(x1, yTop), thickness: 0.6, color: rgb(0.55, 0.55, 0.55) });
+  };
+
+  rows.forEach((row, index) => {
+    const res = layouter.layout(row);
+    if (!res.ok) { problems.push({ index, name: (row.name || "").trim() || "(blank)", reason: res.reason }); return; }
     try {
       const page = doc.addPage(size);
-
       if (opts.guides) {
         line(page, GEO.name.x0, GEO.name.x1, GEO.name.y);
         line(page, GEO.rank.x0, GEO.rank.x1, GEO.rank.y);
         for (const [a, b] of GEO.blanks) line(page, a, b, GEO.dateY);
       }
-
-      // Name (calligraphy), centered on its line
-      const nameSize = fit(script, name, preset.name.size, preset.name.min, GEO.name.x1 - GEO.name.x0 - 12);
-      const nameW = script.widthOfTextAtSize(name, nameSize);
-      text(page, name, script, nameSize, GEO.name.x0 + (GEO.name.x1 - GEO.name.x0 - nameW) / 2, GEO.name.y - preset.name.gap);
-
-      // Rank (inscription serif), centered on its line
-      const rankSize = fit(serif, rank, preset.rank.size, preset.rank.min, GEO.rank.x1 - GEO.rank.x0 - 12);
-      const rankW = serif.widthOfTextAtSize(rank, rankSize);
-      text(page, rank, serif, rankSize, GEO.rank.x0 + (GEO.rank.x1 - GEO.rank.x0 - rankW) / 2, GEO.rank.y - preset.rank.gap);
-
-      // Date: one size for all three words so "November" never looks smaller than "19th"
-      const words = [d.day, d.month, d.year];
-      let dateSize = preset.date.size;
-      words.forEach((w, i) => {
-        const [a, b] = GEO.blanks[i];
-        dateSize = Math.min(dateSize, fit(serif, w, preset.date.size, preset.date.min, b - a + 4));
-      });
-      words.forEach((w, i) => {
-        const [a, b] = GEO.blanks[i];
-        const ww = serif.widthOfTextAtSize(w, dateSize);
-        text(page, w, serif, dateSize, a + (b - a - ww) / 2, GEO.dateY - preset.date.gap);
-      });
+      for (const it of res.items) {
+        const p = map(it.x, it.baseline);
+        page.drawText(it.text, {
+          x: p.x, y: p.y, size: it.size, font: it.role === "name" ? layouter.nameFont : layouter.rankFont,
+          color: rgb(0, 0, 0), rotate: degrees(rotate),
+        });
+      }
       pages++;
     } catch {
       // Safety net: never leave a half-drawn page in the file.
       if (doc.getPageCount() > pages) doc.removePage(doc.getPageCount() - 1);
-      problems.push({ index, name, reason: "Could not draw this certificate." });
+      problems.push({ index, name: (row.name || "").trim(), reason: "Could not draw this certificate." });
     }
   });
 
   return { bytes: await doc.save(), pages, problems };
 }
+
+/** Where the printed lines sit, for drawing guides in the on-screen previews. */
+export const GUIDE_LINES = {
+  name: { x0: GEO.name.x0, x1: GEO.name.x1, y: GEO.name.y },
+  rank: { x0: GEO.rank.x0, x1: GEO.rank.x1, y: GEO.rank.y },
+  date: GEO.blanks.map(([a, b]) => ({ x0: a, x1: b, y: GEO.dateY })),
+};

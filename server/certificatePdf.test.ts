@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import path from "path";
 import { PDFDocument } from "pdf-lib";
-import { buildCertificatesPdf, dateParts, ordinal, parseRoster, STYLES, styleById, type CertRow } from "../client/src/lib/certificatePdf";
+import { buildCertificatesPdf, dateParts, normalizeRank, ordinal, parseRoster, rankOrder, sortForPrint, COLOR_BELTS, STYLES, styleById, type CertRow } from "../client/src/lib/certificatePdf";
 
 const fontDir = path.resolve(__dirname, "../client/public/fonts");
 const bytes = (f: string) => new Uint8Array(readFileSync(path.join(fontDir, f)));
@@ -100,5 +100,39 @@ describe("font styles", () => {
   });
   it("style ids are unique", () => {
     expect(new Set(STYLES.map(s => s.id)).size).toBe(STYLES.length);
+  });
+});
+
+describe("belts", () => {
+  it("are in TMA's order, ending High-Red, Pre-Black (then Black)", () => {
+    expect([...COLOR_BELTS]).toEqual(["White", "Yellow", "Orange", "Green", "Purple", "Blue", "Brown", "Red", "High-Red", "Pre-Black"]);
+  });
+  it("normalizeRank adds the word Belt to a bare color and tolerates spacing and hyphens", () => {
+    expect(normalizeRank("yellow")).toBe("Yellow Belt");
+    expect(normalizeRank(" Yellow Belt ")).toBe("Yellow Belt");
+    expect(normalizeRank("high red")).toBe("High-Red Belt");
+    expect(normalizeRank("pre-black")).toBe("Pre-Black Belt");
+    expect(normalizeRank("PreBlack belt")).toBe("Pre-Black Belt");
+    expect(normalizeRank("1st Dan Black Belt Lvl 3")).toBe("1st Dan Black Belt Lvl 3");
+    expect(normalizeRank("Yellow Stripe")).toBe("Yellow Stripe");
+  });
+  it("rankOrder puts the belts in order, black belts by Dan then Level, anything else last", () => {
+    const order = ["White Belt", "Yellow Belt", "Orange Belt", "Green Belt", "Purple Belt", "Blue Belt", "Brown Belt", "Red Belt",
+      "High-Red Belt", "Pre-Black Belt", "1st Dan Black Belt Lvl 1", "1st Dan Black Belt Lvl 5", "2nd Dan Black Belt Lvl 1", "2nd Dan Black Belt Lvl 5", "Yellow Stripe"];
+    const shuffled = [...order].reverse();
+    expect(shuffled.sort((a, b) => rankOrder(a) - rankOrder(b))).toEqual(order);
+  });
+  it("sortForPrint groups by belt and keeps the order students were added within a belt", () => {
+    const r = (name: string, rank: string): CertRow => ({ name, rank, date: "2026-11-19" });
+    const out = sortForPrint([r("a", "Blue Belt"), r("b", "Yellow Belt"), r("c", "Blue Belt"), r("d", "White Belt"), r("e", "Yellow Belt")]);
+    expect(out.map(x => x.name)).toEqual(["d", "b", "e", "a", "c"]);
+  });
+  it("parseRoster gives a bare name the open belt, and cleans up a bare color", () => {
+    const rows = parseRoster("Tyler Le\nSam Ng, blue\nMia Park, High Red", "2026-11-19", "Yellow Belt");
+    expect(rows.map(x => [x.name, x.rank])).toEqual([["Tyler Le", "Yellow Belt"], ["Sam Ng", "Blue Belt"], ["Mia Park", "High-Red Belt"]]);
+  });
+  it("long black belt rank still fits and prints", async () => {
+    const r = await buildCertificatesPdf([row({ rank: "2nd Dan Black Belt Lvl 5" })], fonts);
+    expect(r.pages).toBe(1);
   });
 });
