@@ -24,6 +24,45 @@ import {
  */
 
 const STORE = "tma_testing_certificates_v2";
+const NAMES_STORE = "tma_testing_certificates_names_v1";
+
+/** Every name ever added on this computer, newest first, so it can be finished with Tab next time. */
+function loadNames(rows: CertRow[]): string[] {
+  let saved: string[] = [];
+  try {
+    const j = JSON.parse(localStorage.getItem(NAMES_STORE) || "[]");
+    if (Array.isArray(j)) saved = j.filter((x): x is string => typeof x === "string");
+  } catch { /* ignore */ }
+  return mergeNames(saved, rows.map(r => r.name));
+}
+function mergeNames(old: string[], added: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of [...added.slice().reverse(), ...old]) {
+    const n = raw.replace(/\s+/g, " ").trim();
+    const k = n.toLowerCase();
+    if (n && !seen.has(k)) { seen.add(k); out.push(n); }
+  }
+  return out.slice(0, 2000);
+}
+/** Remembered names that fit what is typed so far: starts with it first, then every typed word starts a word in the name. */
+function suggestNames(known: string[], typed: string): string[] {
+  const q = typed.replace(/\s+/g, " ").trim().toLowerCase();
+  if (!q) return [];
+  const words = q.split(" ");
+  const starts: string[] = [];
+  const loose: string[] = [];
+  for (const n of known) {
+    const l = n.toLowerCase();
+    if (l === q) continue;
+    if (l.startsWith(q)) starts.push(n);
+    else {
+      const parts = l.split(" ");
+      if (words.every(w => parts.some(p => p.startsWith(w)))) loose.push(n);
+    }
+  }
+  return [...starts, ...loose].slice(0, 6);
+}
 
 type BeltKey = (typeof COLOR_BELTS)[number] | "Black" | "Other";
 
@@ -34,7 +73,7 @@ const SWATCH: Record<string, string> = {
   "Pre-Black": "linear-gradient(90deg,#ef4444 0 50%,#111827 50% 100%)", Black: "#111827", Other: "#e5e7eb",
 };
 const BELT_KEYS: BeltKey[] = [...COLOR_BELTS, "Black", "Other"];
-const DANS = ["1st", "2nd"];
+const DANS = ["1st", "2nd", "3rd"];
 const LEVELS = ["1", "2", "3", "4", "5"];
 
 const LAYOUTS: { value: Orientation; label: string }[] = [
@@ -157,6 +196,9 @@ export default function TestingCertificates() {
   const [level, setLevel] = useState("1");
   const [otherRank, setOtherRank] = useState("");
   const [fName, setFName] = useState("");
+  const [known, setKnown] = useState<string[]>(() => loadNames(initial.rows));
+  const [sugPick, setSugPick] = useState(0);
+  const [nameFocused, setNameFocused] = useState(false);
   const [paste, setPaste] = useState("");
   const [peek, setPeek] = useState(0);              // which saved student the preview shows
   const [busy, setBusy] = useState<string | null>(null);
@@ -168,6 +210,13 @@ export default function TestingCertificates() {
   useEffect(() => {
     try { localStorage.setItem(STORE, JSON.stringify({ rows, testDate, layout, style })); } catch { /* ignore */ }
   }, [rows, testDate, layout, style]);
+  useEffect(() => {
+    try { localStorage.setItem(NAMES_STORE, JSON.stringify(known)); } catch { /* ignore */ }
+  }, [known]);
+  const remember = (names: string[]) => setKnown(k => mergeNames(k, names));
+  const suggestions = useMemo(() => suggestNames(known, fName), [known, fName]);
+  const pick = Math.min(sugPick, Math.max(0, suggestions.length - 1));
+  function chooseSuggestion(n: string) { setFName(n); setSugPick(0); nameInput.current?.focus(); }
   // One date for everyone: changing it updates every student.
   useEffect(() => {
     setRows(rs => (rs.some(r => r.date !== testDate) ? rs.map(r => ({ ...r, date: testDate })) : rs));
@@ -225,6 +274,7 @@ export default function TestingCertificates() {
     if (!name) { toast.error("Type the student's name first."); nameInput.current?.focus(); return; }
     if (!currentRank) { toast.error("Type the rank first."); return; }
     setRows(rs => [...rs, { name, rank: currentRank, date: testDate }]);
+    remember([name]);
     setPeek(rows.length);
     setFName("");
     nameInput.current?.focus();
@@ -236,8 +286,8 @@ export default function TestingCertificates() {
     const names = parseNames(paste);
     if (!names.length) { toast.error("Type some names first, separated by commas or one per line."); return; }
     setRows(rs => [...rs, ...names.map(name => ({ name, rank: currentRank, date: testDate }))]);
+    remember(names);
     setPaste("");
-    setTab("one");
     toast.success(`Added ${names.length} student${names.length === 1 ? "" : "s"} to the ${beltLabel} list.`);
   }
   /** Change which belt an already-added student is on. The open belt follows them so they stay on screen. */
@@ -263,6 +313,7 @@ export default function TestingCertificates() {
     if (pendingNames.length) {
       if (!currentRank) { toast.error("Type the rank first."); return; }
       setRows(rs => [...rs, ...pendingNames.map(name => ({ name, rank: currentRank, date: testDate }))]);
+      remember(pendingNames);
       setFName(""); setPaste("");
       toast.success(`Added ${pendingNames.length === 1 ? pendingNames[0] : `${pendingNames.length} students`} to the ${beltLabel} list.`);
     }
@@ -425,7 +476,29 @@ export default function TestingCertificates() {
               <label className="block">
                 <span className="mb-1 block text-base font-semibold text-gray-800">1. Student's name <span className="font-normal text-gray-500">(goes on the belt you tap below)</span></span>
                 <div className="flex gap-2">
-                  <Input ref={nameInput} value={fName} onChange={e => setFName(e.target.value)} placeholder="Type the name, press Enter" autoComplete="off" className="h-14 flex-1 text-xl" />
+                  <div className="relative flex-1">
+                  <Input ref={nameInput} value={fName} onChange={e => { setFName(e.target.value); setSugPick(0); }}
+                    onFocus={() => setNameFocused(true)} onBlur={() => setTimeout(() => setNameFocused(false), 150)}
+                    onKeyDown={e => {
+                      if (!suggestions.length) return;
+                      if (e.key === "Tab" && !e.shiftKey) { e.preventDefault(); chooseSuggestion(suggestions[pick]); }
+                      else if (e.key === "ArrowDown") { e.preventDefault(); setSugPick((pick + 1) % suggestions.length); }
+                      else if (e.key === "ArrowUp") { e.preventDefault(); setSugPick((pick - 1 + suggestions.length) % suggestions.length); }
+                    }}
+                    placeholder="Type the name, press Enter" autoComplete="off" className="h-14 w-full text-xl" />
+                  {nameFocused && suggestions.length > 0 && (
+                    <ul role="listbox" aria-label="Names you have used before" className="absolute left-0 right-0 top-full z-20 mt-1 overflow-hidden rounded-lg border border-gray-300 bg-white shadow-md">
+                      {suggestions.map((n, k) => (
+                        <li key={n} role="option" aria-selected={k === pick}
+                          onMouseDown={e => { e.preventDefault(); chooseSuggestion(n); }}
+                          className={`flex cursor-pointer items-center justify-between px-3 py-2 text-lg ${k === pick ? "bg-[#1a2d5a] text-white" : "hover:bg-gray-100"}`}>
+                          <span>{n}</span>
+                          {k === pick && <span className="text-sm opacity-80">Tab</span>}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  </div>
                   <Button type="submit" size="lg" className="h-14 bg-[#1a2d5a] px-5 text-lg hover:bg-[#142347]"><Plus className="mr-1 h-5 w-5" /> Add</Button>
                 </div>
               </label>
