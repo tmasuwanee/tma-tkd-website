@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import path from "path";
 import { PDFDocument } from "pdf-lib";
-import { buildCertificatesPdf, dateParts, normalizeRank, ordinal, parseRoster, rankOrder, sortForPrint, COLOR_BELTS, STYLES, styleById, type CertRow } from "../client/src/lib/certificatePdf";
+import { buildCertificatesPdf, dateParts, normalizeRank, ordinal, parseNames, rankOrder, sortForPrint, COLOR_BELTS, STYLES, styleById, type CertRow } from "../client/src/lib/certificatePdf";
 
 const fontDir = path.resolve(__dirname, "../client/public/fonts");
 const bytes = (f: string) => new Uint8Array(readFileSync(path.join(fontDir, f)));
@@ -23,16 +23,19 @@ describe("dates", () => {
   });
 });
 
-describe("parseRoster", () => {
-  it("reads one student per line with a comma, tab or dash", () => {
-    const rows = parseRoster("Tyler Le, Yellow Belt\nAlex Luna\tGreen Belt\r\n\n Sam Ng - Blue Belt ", "2026-11-19");
-    expect(rows.map(r => [r.name, r.rank])).toEqual([["Tyler Le", "Yellow Belt"], ["Alex Luna", "Green Belt"], ["Sam Ng", "Blue Belt"]]);
-    expect(rows.every(r => r.date === "2026-11-19")).toBe(true);
+describe("parseNames", () => {
+  it("splits on commas, line breaks, semicolons, or a mix", () => {
+    expect(parseNames("Tyler Le, Mia Park, Sam Ng")).toEqual(["Tyler Le", "Mia Park", "Sam Ng"]);
+    expect(parseNames("Tyler Le\nMia Park\r\nSam Ng")).toEqual(["Tyler Le", "Mia Park", "Sam Ng"]);
+    expect(parseNames("Tyler Le, Mia Park\nSam Ng; Jo Kim")).toEqual(["Tyler Le", "Mia Park", "Sam Ng", "Jo Kim"]);
   });
-  it("keeps a missing rank empty so it shows in the table, and a rank with a comma intact", () => {
-    const rows = parseRoster("Pat Kim\nLee Park, 1st Degree, Black Belt", "2026-11-19");
-    expect(rows[0].rank).toBe("");
-    expect(rows[1].rank).toBe("1st Degree, Black Belt");
+  it("trims, squeezes extra spaces, and drops blanks and repeats", () => {
+    expect(parseNames("  Tyler   Le ,, \n\n Mia Park,tyler le,  ")).toEqual(["Tyler Le", "Mia Park"]);
+    expect(parseNames("")).toEqual([]);
+    expect(parseNames(" , ,\n")).toEqual([]);
+  });
+  it("keeps accented and hyphenated names whole", () => {
+    expect(parseNames("José Peña, Mary-Jane O'Neil")).toEqual(["José Peña", "Mary-Jane O'Neil"]);
   });
 });
 
@@ -126,10 +129,6 @@ describe("belts", () => {
     const r = (name: string, rank: string): CertRow => ({ name, rank, date: "2026-11-19" });
     const out = sortForPrint([r("a", "Blue Belt"), r("b", "Yellow Belt"), r("c", "Blue Belt"), r("d", "White Belt"), r("e", "Yellow Belt")]);
     expect(out.map(x => x.name)).toEqual(["d", "b", "e", "a", "c"]);
-  });
-  it("parseRoster gives a bare name the open belt, and cleans up a bare color", () => {
-    const rows = parseRoster("Tyler Le\nSam Ng, blue\nMia Park, High Red", "2026-11-19", "Yellow Belt");
-    expect(rows.map(x => [x.name, x.rank])).toEqual([["Tyler Le", "Yellow Belt"], ["Sam Ng", "Blue Belt"], ["Mia Park", "High-Red Belt"]]);
   });
   it("long black belt rank still fits and prints", async () => {
     const r = await buildCertificatesPdf([row({ rank: "2nd Dan Black Belt Lvl 5" })], fonts);

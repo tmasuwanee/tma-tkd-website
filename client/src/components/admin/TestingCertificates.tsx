@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import blankScan from "@/assets/belt-certificate-blank.jpg";
 import {
-  buildCertificatesPdf, createLayouter, dateParts, normalizeRank, parseRoster, sortForPrint, styleById, STYLES, DEFAULT_STYLE,
+  buildCertificatesPdf, createLayouter, dateParts, normalizeRank, parseNames, sortForPrint, styleById, STYLES, DEFAULT_STYLE,
   COLOR_BELTS, GUIDE_LINES,
   type CertRow, type FontBytes, type Layouter, type Orientation, type PlacedText, type StyleId,
 } from "@/lib/certificatePdf";
@@ -222,13 +222,13 @@ export default function TestingCertificates() {
   const rename = (i: number, name: string) => setRows(rs => rs.map((r, j) => (j === i ? { ...r, name } : r)));
   const removeStudent = (i: number) => setRows(rs => rs.filter((_, j) => j !== i));
   function addPasted() {
-    if (belt === "Other" && !otherRank.trim() && !paste.includes(",")) { toast.error("Type the rank, or write each line like: Sam Ng, Blue Belt"); return; }
-    const added = parseRoster(paste, testDate, currentRank);
-    if (!added.length) { toast.error("Type one student per line, like: Tyler Le"); return; }
-    setRows(rs => [...rs, ...added]);
+    if (!currentRank) { toast.error("Type the rank first."); return; }
+    const names = parseNames(paste);
+    if (!names.length) { toast.error("Type some names first, separated by commas or one per line."); return; }
+    setRows(rs => [...rs, ...names.map(name => ({ name, rank: currentRank, date: testDate }))]);
     setPaste("");
     setTab("one");
-    toast.success(`Added ${added.length} student${added.length === 1 ? "" : "s"}.`);
+    toast.success(`Added ${names.length} student${names.length === 1 ? "" : "s"} to the ${beltLabel} list.`);
   }
   function pickBelt(b: BeltKey) {
     setBelt(b);
@@ -456,10 +456,10 @@ export default function TestingCertificates() {
           ) : (
             <div className="space-y-3">
               <p className="text-base text-gray-700">
-                2. Type or paste one name per line. They all go on the <b>{beltLabel}</b> list. To put one on a different belt, write it like <b>Sam Ng, Blue Belt</b>.
+                2. Type or paste the names, separated by commas or one on each line. They all go on the <b>{beltLabel}</b> list.
               </p>
               <textarea value={paste} onChange={e => setPaste(e.target.value)} rows={9}
-                placeholder={"Tyler Le\nAlex Coronado Luna\nSam Ng, Blue Belt"}
+                placeholder={"Tyler Le, Mia Park, Sam Ng"}
                 className="w-full rounded-lg border border-gray-300 p-3 font-mono text-base" />
               <Button size="lg" onClick={addPasted} disabled={!paste.trim()} className="h-14 w-full bg-[#1a2d5a] text-lg hover:bg-[#142347]">
                 <ListPlus className="mr-2 h-5 w-5" /> Add these students

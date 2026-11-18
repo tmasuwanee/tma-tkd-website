@@ -131,20 +131,21 @@ export function normalizeRank(rank: string): string {
 }
 
 /**
- * Turn pasted text into rows. One student per line: "Name, Rank" (comma, tab or " - " between), or just "Name",
- * which gets `defaultRank` (the belt that is open on screen). Blank lines are skipped. A line with no rank and no
- * default keeps the rank empty so it is visible in the list.
+ * Pull names out of pasted text. Names can be separated by commas, semicolons or line breaks (or a mix),
+ * so "Tyler Le, Mia Park" and one name per line both work. Blank pieces are dropped, and a name repeated
+ * in the same paste is only kept once.
  */
-export function parseRoster(text: string, defaultDate: string, defaultRank = ""): CertRow[] {
-  return text
-    .split(/\r?\n/)
-    .map(l => l.trim())
-    .filter(Boolean)
-    .map(line => {
-      const parts = line.split(/\t|,| - /).map(s => s.trim());
-      const rank = parts.slice(1).join(", ");
-      return { name: parts[0] ?? "", rank: rank ? normalizeRank(rank) : defaultRank, date: defaultDate };
-    });
+export function parseNames(text: string): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const piece of text.split(/[\r\n,;]+/)) {
+    const name = piece.replace(/\s+/g, " ").trim();
+    const key = name.toLowerCase();
+    if (!name || seen.has(key)) continue;
+    seen.add(key);
+    out.push(name);
+  }
+  return out;
 }
 
 /**
