@@ -32,6 +32,7 @@ describe("Testing Certificates page (first render)", () => {
       at = next;
     }
     expect(html).toContain("No White belt students yet");
+    expect(html).toContain("be promoted to White Belt. Only demoted.");   // house joke, by request
     expect(html).toContain("Pick a look");
     for (const look of ["Calligraphy", "Copperplate", "Brush", "Old English", "Classic serif"]) expect(html).toContain(look);
     expect(html).toContain("Print all 0 certificates");

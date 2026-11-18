@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import path from "path";
 import { PDFDocument } from "pdf-lib";
-import { buildCertificatesPdf, dateParts, normalizeRank, ordinal, parseNames, rankOrder, sortForPrint, COLOR_BELTS, STYLES, styleById, type CertRow } from "../client/src/lib/certificatePdf";
+import { buildCertificatesPdf, createLayouter, isWhiteBelt, dateParts, normalizeRank, ordinal, parseNames, rankOrder, sortForPrint, COLOR_BELTS, STYLES, styleById, type CertRow } from "../client/src/lib/certificatePdf";
 
 const fontDir = path.resolve(__dirname, "../client/public/fonts");
 const bytes = (f: string) => new Uint8Array(readFileSync(path.join(fontDir, f)));
@@ -133,5 +133,39 @@ describe("belts", () => {
   it("long black belt rank still fits and prints", async () => {
     const r = await buildCertificatesPdf([row({ rank: "2nd Dan Black Belt Lvl 5" })], fonts);
     expect(r.pages).toBe(1);
+  });
+});
+
+describe("White Belt joke (nobody is promoted TO white belt, only demoted)", () => {
+  it("White Belt gets a red line through the printed word 'promotion' and a red 'demotion' under it", async () => {
+    const l = await createLayouter(fonts, "calligraphy");
+    const res = l.layout(row({ rank: "White Belt" }));
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.lines).toHaveLength(1);
+    expect(res.lines[0].color).toBe("red");
+    expect(res.lines[0].x0).toBeLessThan(371.1);      // reaches past both ends of the printed word
+    expect(res.lines[0].x1).toBeGreaterThan(444.6);
+    const joke = res.items.find(i => i.text === "demotion");
+    expect(joke?.color).toBe("red");
+    expect(joke!.baseline).toBeGreaterThan(res.lines[0].y);   // under the struck word
+  });
+  it("only White Belt gets it, and also when typed loosely", async () => {
+    const l = await createLayouter(fonts, "calligraphy");
+    for (const rank of ["Yellow Belt", "Pre-Black Belt", "1st Dan Black Belt Lvl 1", "White Stripe"]) {
+      const res = l.layout(row({ rank }));
+      expect(res.ok && res.lines.length, rank).toBe(0);
+      expect(res.ok && res.items.some(i => i.color === "red"), rank).toBe(false);
+    }
+    expect(isWhiteBelt("white")).toBe(true);
+    expect(isWhiteBelt(" White Belt ")).toBe(true);
+    expect(isWhiteBelt("Yellow Belt")).toBe(false);
+  });
+  it("it prints in every look and keeps the certificate's other words", async () => {
+    for (const st of STYLES) {
+      const r = await buildCertificatesPdf([row({ rank: "White Belt" })], fontsFor(st.id), { style: st.id });
+      expect(r.problems, st.id).toEqual([]);
+      expect(r.pages, st.id).toBe(1);
+    }
   });
 });

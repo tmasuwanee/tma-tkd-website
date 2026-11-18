@@ -9,7 +9,7 @@ import blankScan from "@/assets/belt-certificate-blank.jpg";
 import {
   buildCertificatesPdf, createLayouter, dateParts, normalizeRank, parseNames, rankOrder, styleById, STYLES, DEFAULT_STYLE,
   COLOR_BELTS, GUIDE_LINES,
-  type CertRow, type FontBytes, type Layouter, type Orientation, type PlacedText, type StyleId,
+  type CertRow, type FontBytes, type Layouter, type Orientation, type PlacedLine, type PlacedText, type StyleId, RED,
 } from "@/lib/certificatePdf";
 
 /**
@@ -120,7 +120,7 @@ function useLayouters() {
 }
 
 // ─── drawing ──────────────────────────────────────────────────────────────────────────────────────
-function CertSvg({ items, style, withScan, guides, label }: { items: PlacedText[]; style: StyleId; withScan: boolean; guides?: boolean; label: string }) {
+function CertSvg({ items, lines = [], style, withScan, guides, label }: { items: PlacedText[]; lines?: PlacedLine[]; style: StyleId; withScan: boolean; guides?: boolean; label: string }) {
   const st = styleById(style);
   return (
     <svg viewBox="0 0 792 612" role="img" aria-label={label} className="block h-auto w-full bg-white" style={{ aspectRatio: "792 / 612" }}>
@@ -128,8 +128,11 @@ function CertSvg({ items, style, withScan, guides, label }: { items: PlacedText[
       {guides && [GUIDE_LINES.name, GUIDE_LINES.rank, ...GUIDE_LINES.date].map((g, i) => (
         <line key={i} x1={g.x0} x2={g.x1} y1={g.y} y2={g.y} stroke="#9ca3af" strokeWidth="0.6" />
       ))}
+      {lines.map((ln, i) => (
+        <line key={`l${i}`} x1={ln.x0} x2={ln.x1} y1={ln.y} y2={ln.y} stroke={`rgb(${Math.round(RED.r * 255)},${Math.round(RED.g * 255)},${Math.round(RED.b * 255)})`} strokeWidth={ln.thickness} />
+      ))}
       {items.map((it, i) => (
-        <text key={i} x={it.x} y={it.baseline} fontSize={it.size} fill="#000"
+        <text key={i} x={it.x} y={it.baseline} fontSize={it.size} fill={it.color === "red" ? `rgb(${Math.round(RED.r * 255)},${Math.round(RED.g * 255)},${Math.round(RED.b * 255)})` : "#000"}
           fontFamily={`"${family(it.role === "name" ? st.nameFont : st.rankFont)}", serif`}>{it.text}</text>
       ))}
     </svg>
@@ -250,7 +253,9 @@ export default function TestingCertificates() {
     setRows(rs => rs.map((x, j) => (j === i ? { ...x, rank } : x)));
     setBelt(key);
     setPeek(i);
-    toast.success(`Moved ${r.name || "the student"} to the ${key} belt list.`);
+    toast.success(key === "White"
+      ? `${r.name || "The student"} was demoted to White Belt. (You can't be promoted to it, only demoted.)`
+      : `Moved ${r.name || "the student"} to the ${key} belt list.`);
   }
   /** Names typed (or pasted) but not added yet are added on the way to printing, so nothing is silently left out. */
   const pendingNames = tab === "paste" ? parseNames(paste) : fName.trim() ? [fName.trim()] : [];
@@ -362,7 +367,7 @@ export default function TestingCertificates() {
             return (
               <figure key={rowIdx} className="mx-auto max-w-3xl">
                 <div className="overflow-hidden rounded-sm border border-gray-300 bg-white shadow-sm">
-                  <CertSvg items={res.items} style={style} withScan={false} label={`Page ${i + 1}: ${r.name}`} />
+                  <CertSvg items={res.items} lines={res.lines} style={style} withScan={false} label={`Page ${i + 1}: ${r.name}`} />
                 </div>
                 <figcaption className="mt-1 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-sm text-gray-500">
                   <span>Page {i + 1} of {ready.length}: <b className="text-gray-700">{r.name}</b>, {r.rank}</span>
@@ -381,6 +386,7 @@ export default function TestingCertificates() {
   // ───────────────────────── make view ─────────────────────────
   const prevRes = layouter ? layouter.layout(previewRow) : null;
   const prevItems = prevRes && prevRes.ok ? prevRes.items : null;
+  const prevLines = prevRes && prevRes.ok ? prevRes.lines : [];
   const beltLabel = belt === "Black" ? "Black belt" : belt === "Other" ? "Other rank" : `${belt} belt`;
 
   return (
@@ -453,6 +459,7 @@ export default function TestingCertificates() {
                 const n = counts[b] ?? 0;
                 return (
                   <button type="button" key={b} onClick={() => pickBelt(b)} aria-pressed={active}
+                    title={b === "White" ? "You can't be promoted to White Belt. Only demoted." : undefined}
                     className={`relative flex flex-col items-center gap-1 rounded-lg border-2 px-1 py-2 text-sm font-semibold ${active ? "border-[#1a2d5a] bg-blue-50 text-[#1a2d5a]" : "border-gray-200 text-gray-700 hover:border-gray-300"}`}>
                     <span className="h-3 w-12 rounded-full border border-gray-400" style={{ background: SWATCH[b] }} />
                     {b}
@@ -494,7 +501,10 @@ export default function TestingCertificates() {
                   </h2>
                 </div>
                 {tableIdx.length === 0 ? (
-                  <p className="p-4 text-center text-gray-500">No {beltLabel} students yet. Type a name above.</p>
+                  <p className="p-4 text-center text-gray-500">
+                    No {beltLabel} students yet. Type a name above.
+                    {belt === "White" && <span className="mt-1 block text-sm italic text-gray-400">Fun fact: you can't be promoted to White Belt. Only demoted.</span>}
+                  </p>
                 ) : (
                   <ol className="max-h-72 divide-y divide-gray-100 overflow-y-auto">
                     {tableIdx.map((i, n) => {
@@ -561,7 +571,7 @@ export default function TestingCertificates() {
             </div>
             <div className="overflow-hidden rounded-md border border-gray-200">
               {prevItems ? (
-                <CertSvg items={prevItems} style={style} withScan label={`Preview of ${previewRow.name}'s certificate`} />
+                <CertSvg items={prevItems} lines={prevLines} style={style} withScan label={`Preview of ${previewRow.name}'s certificate`} />
               ) : (
                 <div className="flex aspect-[792/612] items-center justify-center bg-gray-50 px-6 text-center text-gray-500">
                   {fontError ? fontError : prevRes && !prevRes.ok ? `Can't show this one: ${prevRes.reason}` : "Loading the fonts..."}
@@ -583,7 +593,7 @@ export default function TestingCertificates() {
                   <button key={st.id} role="radio" aria-checked={active} aria-label={`${short} look`} onClick={() => setStyle(st.id)}
                     className={`overflow-hidden rounded-lg border-2 text-left ${active ? "border-[#c41e3a] ring-2 ring-[#c41e3a]/20" : "border-gray-200 hover:border-gray-400"}`}>
                     {res
-                      ? <CertSvg items={res.items} style={st.id} withScan label={`${short} look`} />
+                      ? <CertSvg items={res.items} lines={res.lines} style={st.id} withScan label={`${short} look`} />
                       : <div className="flex aspect-[792/612] items-center justify-center bg-gray-50 text-xs text-gray-400">Loading...</div>}
                     <span className={`block px-2 py-1.5 text-sm font-semibold ${active ? "text-[#c41e3a]" : "text-gray-700"}`}>
                       {short}{active ? " (picked)" : ""}

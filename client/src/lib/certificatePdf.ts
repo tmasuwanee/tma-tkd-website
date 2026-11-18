@@ -206,9 +206,25 @@ export interface PlacedText {
   size: number;
   x: number;
   baseline: number;
+  /** Ink color. Omitted means black. */
+  color?: "red";
 }
 
-export type LayoutResult = { ok: true; items: PlacedText[] } | { ok: false; reason: string };
+/** A line drawn on the certificate (used by the White Belt joke). Landscape coordinates, y from the TOP. */
+export interface PlacedLine { x0: number; x1: number; y: number; thickness: number; color: "red" }
+
+export type LayoutResult = { ok: true; items: PlacedText[]; lines: PlacedLine[] } | { ok: false; reason: string };
+
+/** Ink red for the joke. */
+export const RED = { r: 0.77, g: 0.12, b: 0.23 };
+
+/**
+ * House joke, by request: nobody is promoted TO White Belt, only demoted. So a White Belt certificate gets a
+ * red line through the printed word "promotion" and a red handwritten "demotion" under it. The word's
+ * position was measured from the scan of the blank certificate (it spans x 371.1..444.6, middle at y 324.4).
+ */
+const JOKE = { wordX0: 371.1, wordX1: 444.6, strikeY: 324.4, textBaseline: 343.5, textSize: 14 };
+export const isWhiteBelt = (rank: string) => normalizeRank(rank) === "White Belt";
 
 export interface Layouter {
   layout(row: CertRow): LayoutResult;
@@ -266,7 +282,16 @@ export async function createLayouter(fonts: FontBytes, styleId?: StyleId, existi
       const ww = rankFont.widthOfTextAtSize(w, dateSize);
       items.push({ text: w, role: "date", size: dateSize, x: a + (b - a - ww) / 2, baseline: GEO.dateY - preset.date.gap });
     });
-    return { ok: true, items };
+    const lines: PlacedLine[] = [];
+    if (isWhiteBelt(rank)) {
+      const word = "demotion";
+      const size = JOKE.textSize;
+      const w = nameFont.widthOfTextAtSize(word, size);
+      const centre = (JOKE.wordX0 + JOKE.wordX1) / 2;
+      lines.push({ x0: JOKE.wordX0 - 3, x1: JOKE.wordX1 + 3, y: JOKE.strikeY, thickness: 1.3, color: "red" });
+      if (!unprintable(word, nameChars)) items.push({ text: word, role: "name", size, x: centre - w / 2, baseline: JOKE.textBaseline, color: "red" });
+    }
+    return { ok: true, items, lines };
   };
 
   return { layout, nameFont, rankFont };
@@ -295,11 +320,14 @@ export async function buildCertificatesPdf(rows: CertRow[], fonts: FontBytes, op
         line(page, GEO.rank.x0, GEO.rank.x1, GEO.rank.y);
         for (const [a, b] of GEO.blanks) line(page, a, b, GEO.dateY);
       }
+      for (const ln of res.lines) {
+        page.drawLine({ start: map(ln.x0, ln.y), end: map(ln.x1, ln.y), thickness: ln.thickness, color: rgb(RED.r, RED.g, RED.b) });
+      }
       for (const it of res.items) {
         const p = map(it.x, it.baseline);
         page.drawText(it.text, {
           x: p.x, y: p.y, size: it.size, font: it.role === "name" ? layouter.nameFont : layouter.rankFont,
-          color: rgb(0, 0, 0), rotate: degrees(rotate),
+          color: it.color === "red" ? rgb(RED.r, RED.g, RED.b) : rgb(0, 0, 0), rotate: degrees(rotate),
         });
       }
       pages++;
