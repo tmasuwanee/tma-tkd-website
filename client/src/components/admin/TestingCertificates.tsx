@@ -3,11 +3,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import {
-  Award, ArrowLeft, ChevronLeft, ChevronRight, Download, ListPlus, PenLine, Plus, Printer, Trash2, TriangleAlert,
+  Award, ArrowLeft, ChevronLeft, ChevronRight, Download, ListPlus, PenLine, Pencil, Plus, Printer, Trash2, TriangleAlert,
 } from "lucide-react";
 import blankScan from "@/assets/belt-certificate-blank.jpg";
 import {
-  buildCertificatesPdf, createLayouter, dateParts, normalizeRank, parseNames, sortForPrint, styleById, STYLES, DEFAULT_STYLE,
+  buildCertificatesPdf, createLayouter, dateParts, normalizeRank, parseNames, rankOrder, styleById, STYLES, DEFAULT_STYLE,
   COLOR_BELTS, GUIDE_LINES,
   type CertRow, type FontBytes, type Layouter, type Orientation, type PlacedText, type StyleId,
 } from "@/lib/certificatePdf";
@@ -190,7 +190,14 @@ export default function TestingCertificates() {
     const res = layouter.layout(r);
     return res.ok ? null : res.reason;
   }, [layouter]);
-  const ready = useMemo(() => (layouter ? sortForPrint(rows.filter(r => status(r) === null)) : []), [rows, status, layouter]);
+  /** Printable students in print order (by belt, then the order added), each remembering its place in `rows`. */
+  const readyEntries = useMemo(
+    () => (layouter
+      ? rows.map((r, i) => ({ r, i })).filter(x => status(x.r) === null).sort((a, b) => rankOrder(a.r.rank) - rankOrder(b.r.rank))
+      : []),
+    [rows, status, layouter],
+  );
+  const ready = useMemo(() => readyEntries.map(e => e.r), [readyEntries]);
   const skipped = useMemo(() => rows.map((r, i) => ({ r, i, why: status(r) })).filter(x => x.why), [rows, status]);
 
   // What the big preview shows: the name being typed, else the student picked in the table, else an example.
@@ -229,6 +236,45 @@ export default function TestingCertificates() {
     setPaste("");
     setTab("one");
     toast.success(`Added ${names.length} student${names.length === 1 ? "" : "s"} to the ${beltLabel} list.`);
+  }
+  /** Change which belt an already-added student is on. The open belt follows them so they stay on screen. */
+  function changeBelt(i: number, key: BeltKey) {
+    const r = rows[i];
+    if (!r || beltOf(r.rank) === key) return;
+    let rank: string;
+    if (key === "Black") rank = `${dan} Dan Black Belt Lvl ${level}`;
+    else if (key === "Other") {
+      rank = otherRank.trim();
+      if (!rank) { toast.error("Tap Other and type the rank first."); return; }
+    } else rank = `${key} Belt`;
+    setRows(rs => rs.map((x, j) => (j === i ? { ...x, rank } : x)));
+    setBelt(key);
+    setPeek(i);
+    toast.success(`Moved ${r.name || "the student"} to the ${key} belt list.`);
+  }
+  /** Names typed (or pasted) but not added yet are added on the way to printing, so nothing is silently left out. */
+  const pendingNames = tab === "paste" ? parseNames(paste) : fName.trim() ? [fName.trim()] : [];
+  function goPrint() {
+    if (pendingNames.length) {
+      if (!currentRank) { toast.error("Type the rank first."); return; }
+      setRows(rs => [...rs, ...pendingNames.map(name => ({ name, rank: currentRank, date: testDate }))]);
+      setFName(""); setPaste("");
+      toast.success(`Added ${pendingNames.length === 1 ? pendingNames[0] : `${pendingNames.length} students`} to the ${beltLabel} list.`);
+    }
+    setView("print");
+  }
+  /** From a print-preview page: go back to that student's belt table with the cursor in their name. */
+  function editFromPrint(rowIdx: number) {
+    const r = rows[rowIdx];
+    if (!r) return;
+    setView("make");
+    setTab("one");
+    setBelt(beltOf(r.rank));
+    setPeek(rowIdx);
+    setTimeout(() => {
+      const el = document.querySelector<HTMLInputElement>(`[data-student-index="${rowIdx}"]`);
+      el?.focus(); el?.select();
+    }, 80);
   }
   function pickBelt(b: BeltKey) {
     setBelt(b);
@@ -277,7 +323,7 @@ export default function TestingCertificates() {
             <h1 className="text-2xl font-bold text-[#1a2d5a]">Print preview</h1>
             <p className="text-gray-600">
               {ready.length} certificate{ready.length === 1 ? "" : "s"}, {ready.length} page{ready.length === 1 ? "" : "s"}, in belt order (White first, Black last).
-              Only the words print. The certificate paper already has everything else.
+              Only the words print. When printing choose Portrait, Letter, Actual size (100%).
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -289,26 +335,18 @@ export default function TestingCertificates() {
           </div>
         </header>
 
-        <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
-          <p className="font-semibold">Before you print on the real certificates</p>
-          <ol className="mt-1 list-decimal space-y-0.5 pl-5">
-            <li>Press <b>Print</b>. It opens in a new tab. In the print window choose <b>Portrait, Letter, Actual size (100%)</b>. Do not pick "Fit to page."</li>
-            <li>The pages turn sideways on their own to match how the certificate paper sits in the printer.</li>
-            <li>Test on <b>plain paper</b> first and hold it against a blank certificate in the light.</li>
-          </ol>
-          <details className="mt-2">
-            <summary className="cursor-pointer font-medium">Printer problems? (upside down, or off a little)</summary>
-            <div className="mt-2 flex flex-wrap items-end gap-3">
-              <label className="text-sm">
-                <span className="mb-1 block font-medium">Page direction</span>
-                <select value={layout} onChange={e => setLayout(e.target.value as Orientation)} className="h-10 rounded-md border border-gray-300 bg-white px-2 text-sm text-gray-900">
-                  {LAYOUTS.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
-                </select>
-              </label>
-              <Button variant="outline" onClick={() => makePdf("test")} disabled={!!busy || !ready.length}>Save a test sheet with guide lines</Button>
-            </div>
-          </details>
-        </div>
+        <details className="text-sm text-gray-500">
+          <summary className="cursor-pointer">Printer problems? (upside down, or off a little)</summary>
+          <div className="mt-2 flex flex-wrap items-end gap-3">
+            <label className="text-sm">
+              <span className="mb-1 block font-medium text-gray-700">Page direction</span>
+              <select value={layout} onChange={e => setLayout(e.target.value as Orientation)} className="h-10 rounded-md border border-gray-300 bg-white px-2 text-sm text-gray-900">
+                {LAYOUTS.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
+              </select>
+            </label>
+            <Button variant="outline" onClick={() => makePdf("test")} disabled={!!busy || !ready.length}>Save a test sheet with guide lines</Button>
+          </div>
+        </details>
 
         {skipped.length > 0 && (
           <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
@@ -318,15 +356,19 @@ export default function TestingCertificates() {
         )}
 
         <div className="space-y-6">
-          {ready.map((r, i) => {
+          {readyEntries.map(({ r, i: rowIdx }, i) => {
             const res = layouter!.layout(r);
             if (!res.ok) return null;
             return (
-              <figure key={i} className="mx-auto max-w-3xl">
+              <figure key={rowIdx} className="mx-auto max-w-3xl">
                 <div className="overflow-hidden rounded-sm border border-gray-300 bg-white shadow-sm">
                   <CertSvg items={res.items} style={style} withScan={false} label={`Page ${i + 1}: ${r.name}`} />
                 </div>
-                <figcaption className="mt-1 text-center text-sm text-gray-500">Page {i + 1} of {ready.length}: {r.name}, {r.rank}</figcaption>
+                <figcaption className="mt-1 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-sm text-gray-500">
+                  <span>Page {i + 1} of {ready.length}: <b className="text-gray-700">{r.name}</b>, {r.rank}</span>
+                  <button onClick={() => editFromPrint(rowIdx)} className="inline-flex items-center gap-1 rounded px-2 py-1 font-medium text-[#1a2d5a] hover:bg-blue-50"><Pencil className="h-3.5 w-3.5" /> Edit</button>
+                  <button onClick={() => { removeStudent(rowIdx); toast.success(`Removed ${r.name}.`); }} className="inline-flex items-center gap-1 rounded px-2 py-1 font-medium text-red-600 hover:bg-red-50"><Trash2 className="h-3.5 w-3.5" /> Remove</button>
+                </figcaption>
               </figure>
             );
           })}
@@ -372,9 +414,39 @@ export default function TestingCertificates() {
             <Input type="date" value={testDate} onChange={e => setTestDate(e.target.value)} className="h-12 max-w-xs text-lg" />
           </label>
 
+          {tab === "one" ? (
+            <form onSubmit={e => { e.preventDefault(); addStudent(); }}>
+              <label className="block">
+                <span className="mb-1 block text-base font-semibold text-gray-800">1. Student's name <span className="font-normal text-gray-500">(goes on the belt you tap below)</span></span>
+                <div className="flex gap-2">
+                  <Input ref={nameInput} value={fName} onChange={e => setFName(e.target.value)} placeholder="Type the name, press Enter" autoComplete="off" className="h-14 flex-1 text-xl" />
+                  <Button type="submit" size="lg" className="h-14 bg-[#1a2d5a] px-5 text-lg hover:bg-[#142347]"><Plus className="mr-1 h-5 w-5" /> Add</Button>
+                </div>
+              </label>
+              {fName.trim() && (
+                <p className="mt-1 text-sm text-amber-700">Not added yet. Press Add (or Enter) to put {fName.trim()} on the {beltLabel} list. Printing adds it for you too.</p>
+              )}
+            </form>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-base text-gray-700">
+                1. Type or paste the names, separated by commas or one on each line. They all go on the belt you tap below (right now: <b>{beltLabel}</b>).
+              </p>
+              <textarea value={paste} onChange={e => setPaste(e.target.value)} rows={7}
+                placeholder={"Tyler Le, Mia Park, Sam Ng"}
+                className="w-full rounded-lg border border-gray-300 p-3 font-mono text-base" />
+              <Button size="lg" onClick={addPasted} disabled={!paste.trim()} className="h-14 w-full bg-[#1a2d5a] text-lg hover:bg-[#142347]">
+                <ListPlus className="mr-2 h-5 w-5" /> Add these students
+              </Button>
+              {parseNames(paste).length > 0 && (
+                <p className="text-sm text-amber-700">Not added yet. Press Add these students. Printing adds them for you too.</p>
+              )}
+            </div>
+          )}
+
           {/* belts */}
           <div>
-            <span className="mb-2 block text-base font-semibold text-gray-800">1. Tap a belt</span>
+            <span className="mb-2 block text-base font-semibold text-gray-800">2. Tap a belt</span>
             <div className="grid grid-cols-3 gap-2 sm:grid-cols-4" role="group" aria-label="Belt">
               {BELT_KEYS.map(b => {
                 const active = belt === b;
@@ -413,16 +485,7 @@ export default function TestingCertificates() {
             </label>
           )}
 
-          {tab === "one" ? (
-            <form onSubmit={e => { e.preventDefault(); addStudent(); }} className="space-y-3">
-              <label className="block">
-                <span className="mb-1 block text-base font-semibold text-gray-800">2. Type a {beltLabel} student's name</span>
-                <div className="flex gap-2">
-                  <Input ref={nameInput} value={fName} onChange={e => setFName(e.target.value)} placeholder="Type the name, press Enter" autoComplete="off" className="h-14 flex-1 text-xl" />
-                  <Button type="submit" size="lg" className="h-14 bg-[#1a2d5a] px-5 text-lg hover:bg-[#142347]"><Plus className="mr-1 h-5 w-5" /> Add</Button>
-                </div>
-              </label>
-
+          {tab === "one" && (
               <div className="rounded-lg border border-gray-200">
                 <div className="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-3 py-2">
                   <h2 className="flex items-center gap-2 text-base font-semibold text-gray-800">
@@ -441,10 +504,14 @@ export default function TestingCertificates() {
                         <li key={i} className={`flex items-center gap-2 px-3 py-1.5 ${activeIdx === i && !typing ? "bg-blue-50" : ""}`}>
                           <span className="w-6 text-right text-sm font-semibold text-gray-400">{n + 1}</span>
                           <div className="min-w-0 flex-1">
-                            <Input value={r.name} onChange={e => rename(i, e.target.value)} onFocus={() => setPeek(i)} aria-label={`Name for student ${n + 1}`} className="h-10 text-base" />
+                            <Input value={r.name} onChange={e => rename(i, e.target.value)} onFocus={() => setPeek(i)} aria-label={`Name for student ${n + 1}`} data-student-index={i} className="h-10 text-base" />
                             {(belt === "Black" || belt === "Other") && <span className="block px-1 text-xs text-gray-500">{r.rank}</span>}
                             {why && <span className="block px-1 text-xs text-red-600">{why}</span>}
                           </div>
+                          <select value={beltOf(r.rank)} onChange={e => changeBelt(i, e.target.value as BeltKey)} aria-label={`Belt for ${r.name || `student ${n + 1}`}`}
+                            className="h-10 w-28 shrink-0 rounded-md border border-gray-300 bg-white px-1.5 text-sm text-gray-900">
+                            {BELT_KEYS.map(b => <option key={b} value={b}>{b}</option>)}
+                          </select>
                           <button onClick={() => removeStudent(i)} aria-label={`Remove ${r.name || `student ${n + 1}`}`} className="rounded p-2 text-gray-400 hover:bg-red-50 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>
                         </li>
                       );
@@ -452,34 +519,26 @@ export default function TestingCertificates() {
                   </ol>
                 )}
               </div>
-            </form>
-          ) : (
-            <div className="space-y-3">
-              <p className="text-base text-gray-700">
-                2. Type or paste the names, separated by commas or one on each line. They all go on the <b>{beltLabel}</b> list.
-              </p>
-              <textarea value={paste} onChange={e => setPaste(e.target.value)} rows={9}
-                placeholder={"Tyler Le, Mia Park, Sam Ng"}
-                className="w-full rounded-lg border border-gray-300 p-3 font-mono text-base" />
-              <Button size="lg" onClick={addPasted} disabled={!paste.trim()} className="h-14 w-full bg-[#1a2d5a] text-lg hover:bg-[#142347]">
-                <ListPlus className="mr-2 h-5 w-5" /> Add these students
-              </Button>
-            </div>
           )}
 
           <div className="border-t border-gray-200 pt-3">
             {rows.length > 0 && (
               <div className="mb-2 flex items-center justify-between text-sm text-gray-600">
-                <span>
-                  {BELT_KEYS.filter(b => counts[b]).map(b => `${b} ${counts[b]}`).join(", ")}
+                <span className="flex flex-wrap items-center gap-1">
+                  <span>All belts:</span>
+                  {BELT_KEYS.filter(b => counts[b]).map(b => (
+                    <button key={b} onClick={() => pickBelt(b)} className={`rounded-full px-2 py-0.5 text-xs font-semibold ${belt === b ? "bg-[#1a2d5a] text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}>
+                      {b} {counts[b]}
+                    </button>
+                  ))}
                 </span>
                 <button className="text-red-600 hover:underline"
                   onClick={() => { if (window.confirm(`Remove all ${rows.length} students from every belt?`)) setRows([]); }}>Remove all</button>
               </div>
             )}
-            <Button size="lg" disabled={!ready.length} onClick={() => setView("print")}
+            <Button size="lg" disabled={!ready.length && !pendingNames.length} onClick={goPrint}
               className="h-16 w-full bg-[#c41e3a] text-xl hover:bg-[#a51830]">
-              <Printer className="mr-2 h-6 w-6" /> Print all {ready.length} certificate{ready.length === 1 ? "" : "s"}
+              <Printer className="mr-2 h-6 w-6" /> Print all {ready.length + pendingNames.length} certificate{ready.length + pendingNames.length === 1 ? "" : "s"}
             </Button>
             {skipped.length > 0 && <p className="mt-2 text-center text-sm text-amber-700">{skipped.length} student{skipped.length === 1 ? "" : "s"} can't print yet and will be left out.</p>}
           </div>

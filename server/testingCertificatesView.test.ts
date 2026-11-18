@@ -22,10 +22,10 @@ describe("Testing Certificates page (first render)", () => {
     expect(html).toContain("Testing Certificates");
     expect(html).toContain("One by one");
     expect(html).toContain("Paste a list");
-    expect(html).toContain("1. Tap a belt");
+    expect(html).toContain("2. Tap a belt");
     // belts appear in order
     const order = ["White", "Yellow", "Orange", "Green", "Purple", "Blue", "Brown", "Red", "High-Red", "Pre-Black", "Black", "Other"];
-    let at = html.indexOf("1. Tap a belt");
+    let at = html.indexOf("2. Tap a belt");
     for (const b of order) {
       const next = html.indexOf(`</span>${b}`, at);
       expect(next, b).toBeGreaterThan(-1);
@@ -52,7 +52,9 @@ describe("Testing Certificates page (first render)", () => {
     expect(html).toContain('value="Tyler Le"');
     expect(html).toContain('value="Mia Park"');
     expect(html).not.toContain('value="Alex Coronado Luna"');     // that is on the Black belt table
-    expect(html).toContain("Yellow 2, Black 1");                    // the summary line
+    expect(html).toContain("All belts:");
+    expect(html).toMatch(/Yellow\s*(<!-- -->)?\s*2/);
+    expect(html).toMatch(/Black\s*(<!-- -->)?\s*1/);                  // the clickable summary
     expect(html).toContain("3</p>");                                // the big "students added" number
     expect(html).toContain("Remove all");
     expect(html).toContain('value="2026-11-19"');
@@ -63,6 +65,7 @@ describe("Testing Certificates page (first render)", () => {
     withStorage({ testDate: "2026-11-19", rows: [{ name: "Alex Coronado Luna", rank: "2nd Dan Black Belt Lvl 4", date: "2026-11-19" }] });
     const html = renderToStaticMarkup(createElement(Page));
     expect(html).toContain("Black belt students (1)");
+    expect(html).toContain('aria-label="Belt for Alex Coronado Luna"');
     expect(html).toContain("2nd Dan Black Belt Lvl 4");
     expect(html).toContain("1st Dan");
     expect(html).toContain("Level 5");
@@ -71,8 +74,8 @@ describe("Testing Certificates page (first render)", () => {
   it("falls back cleanly when the saved data is garbage or from an unknown look", async () => {
     const Page = await load();
     g.localStorage = { getItem: () => "{not json", setItem() {}, removeItem() {} };
-    expect(renderToStaticMarkup(createElement(Page))).toContain("1. Tap a belt");
+    expect(renderToStaticMarkup(createElement(Page))).toContain("2. Tap a belt");
     withStorage({ rows: [], style: "does-not-exist", testDate: "" });
-    expect(renderToStaticMarkup(createElement(Page))).toContain("1. Tap a belt");
+    expect(renderToStaticMarkup(createElement(Page))).toContain("2. Tap a belt");
   });
 });
