@@ -609,6 +609,9 @@ export const appRouter = router({
           // creating a duplicate row. Pro shop orders keep the old email-only reuse so an order
           // never rewrites a prospect's record.
           const isProShopOrder = (input.tags ?? []).includes("proshop_order");
+          // YHALE school enrichment registrations (tmatkd.com/yhale) are enrolling parents, not
+          // free-class prospects, so they skip the Meta ad event and the free-class n8n follow-ups.
+          const isYhale = (input.tags ?? []).includes("yhale_enrichment_2026");
           const hasRealEmail = !!input.email?.trim();
           const match = isProShopOrder
             ? (hasRealEmail ? await getLeadByEmail(email).then(l => (l ? { lead: l, matchedBy: "email" as const } : null)) : null)
@@ -646,6 +649,8 @@ export const appRouter = router({
             phone: input.phone,
             additionalNotes: input.additionalNotes,
             ...(initialStage ? { pipelineStage: initialStage } : {}),
+            // School-flyer registrations are kept out of the call-these-leads pile and the prospect counts.
+            ...(isYhale ? { recordType: "form_only" as const } : {}),
             utmSource: input.utmSource,
             utmMedium: input.utmMedium,
             utmCampaign: input.utmCampaign,
@@ -699,7 +704,7 @@ export const appRouter = router({
           };
 
           // Fire Meta CAPI Lead event async (non-blocking)
-          void fireLeadEvent({
+          if (!isYhale) void fireLeadEvent({
             leadId: newLeadId,
             name: input.parentName,
             email,
@@ -711,7 +716,7 @@ export const appRouter = router({
             utmContent: input.utmContent,
           });
           // Fire n8n webhook async (non-blocking) -does not delay lead submission
-          void fireN8nWebhook({
+          if (!isYhale) void fireN8nWebhook({
             leadId: newLeadId,
             name: input.parentName,
             email,
@@ -753,6 +758,8 @@ export const appRouter = router({
             leadId: String(newLeadId),
             message: isProShopOrder
               ? "Thank you for your order! We will contact you within 24 hours to confirm and arrange payment."
+              : isYhale
+              ? "Thank you for registering! We will be in touch with the next steps."
               : "Thank you for your interest! We will contact you soon to schedule your free class.",
           };
         } catch (error) {

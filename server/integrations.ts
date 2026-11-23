@@ -123,6 +123,8 @@ export function leadSourceLabel(lead: Lead): { emoji: string; title: string } {
 
   // Orders (a purchase, not a person to chase)
   if (has("proshop_order") || prog.includes("pro shop")) return { emoji: "🛍️", title: "New Pro Shop Order" };
+  // YHALE school enrichment registrations (flyer QR to /yhale)
+  if (has("yhale_enrichment_2026") || prog.includes("yhale")) return { emoji: "🏫", title: "New YHALE Enrichment Registration" };
   // Facebook / Instagram Instant Form leads. Checked BEFORE the program branches below,
   // because those would otherwise label it "New Taekwondo Inquiry" and staff could not tell
   // it came from an ad. instant_form is set by the Meta Instant Form sync; facebook_lead is

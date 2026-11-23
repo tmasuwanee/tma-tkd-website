@@ -1,0 +1,254 @@
+import { useState } from "react";
+import { CheckCircle2, MapPin, Phone } from "lucide-react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { trpc } from "@/lib/trpc";
+import { SMS_CONSENT_TEXT } from "../../../shared/smsConsent";
+
+/**
+ * Spring 2027 Taekwondo enrichment at YHALE (Yi Hwang Academy of Language Excellence).
+ * The flyer QR points here (https://tmatkd.com/yhale). A submission becomes a lead tagged
+ * yhale_enrichment_2026 (see leads.submit), so it shows in the dashboard Leads list and
+ * emails staff as "New YHALE Enrichment Registration".
+ */
+
+const PROGRAM = "YHALE Taekwondo Enrichment";
+const TAG = "yhale_enrichment_2026";
+
+const GRADES = ["K", "1", "2", "3", "4", "5", "6", "7", "8"];
+const BELTS = [
+  "New student (no belt yet)",
+  "White",
+  "White with yellow stripe",
+  "Yellow",
+  "Orange",
+  "Green",
+  "Purple",
+  "Blue",
+  "Brown",
+  "Red",
+  "Other",
+];
+
+const SCHEDULE: { day: string; dates: string; rows: { who: string; time: string; belts: string }[] }[] = [
+  {
+    day: "Tuesdays",
+    dates: "Jan 13 to May 5 (no class Feb 10)",
+    rows: [
+      { who: "K-2nd", time: "4:00 to 4:50", belts: "White and White with yellow stripe" },
+      { who: "3rd-8th", time: "5:00 to 5:50", belts: "All belts, including new students" },
+    ],
+  },
+  {
+    day: "Thursdays",
+    dates: "Jan 15 to May 7 (no class Feb 12)",
+    rows: [
+      { who: "K-2nd", time: "Time to be confirmed", belts: "All Yellow and Green belt students" },
+      { who: "3rd-8th", time: "5:00 to 5:50", belts: "All belts" },
+    ],
+  },
+];
+
+export default function Yhale() {
+  const submitLead = trpc.leads.submit.useMutation();
+  const [done, setDone] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [smsConsent, setSmsConsent] = useState(false);
+  const [f, setF] = useState({
+    parentName: "", kidName: "", grade: "", belt: "", email: "", phone: "", notes: "",
+  });
+  const [days, setDays] = useState<{ Tuesday: boolean; Thursday: boolean }>({ Tuesday: false, Thursday: false });
+
+  const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+    setF(p => ({ ...p, [k]: e.target.value }));
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    const picked = (["Tuesday", "Thursday"] as const).filter(d => days[d]);
+    if (!f.parentName.trim() || !f.kidName.trim() || !f.grade || !f.belt || !f.email.trim() || !f.phone.trim()) {
+      toast.error("Please fill in every field marked with a star.");
+      return;
+    }
+    if (!picked.length) { toast.error("Pick Tuesday, Thursday, or both."); return; }
+    if (!smsConsent) { toast.error("Please check the text message box to continue."); return; }
+
+    const grade = f.grade === "K" ? "Kindergarten" : `Grade ${f.grade}`;
+    const notes = [
+      `YHALE enrichment, spring semester. ${grade}. Belt: ${f.belt}. Days: ${picked.join(" and ")}.`,
+      f.notes.trim(),
+    ].filter(Boolean).join(" ");
+
+    setBusy(true);
+    try {
+      await submitLead.mutateAsync({
+        parentName: f.parentName.trim(),
+        kidName: f.kidName.trim(),
+        kidAge: grade,
+        programInterest: PROGRAM,
+        email: f.email.trim(),
+        phone: f.phone.trim(),
+        additionalNotes: notes,
+        tags: [TAG],
+        smsConsent: true,
+        smsConsentText: SMS_CONSENT_TEXT,
+      });
+      setDone(true);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } catch {
+      toast.error("That did not go through. Please try again, or call (770) 277-3009.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <header className="bg-primary text-white">
+        <div className="mx-auto max-w-2xl px-4 py-10">
+          <p className="text-sm font-semibold uppercase tracking-widest text-white/70">Top Martial Arts Suwanee at YHALE</p>
+          <h1 className="mt-2 text-4xl font-bold leading-tight">Taekwondo after school</h1>
+          <p className="mt-3 text-lg text-white/85">
+            Spring semester enrichment for K-8th grade. Classes start the week of January 12.
+          </p>
+        </div>
+      </header>
+
+      <main className="mx-auto max-w-2xl space-y-6 px-4 py-8">
+        {done ? (
+          <Card className="border-2 border-accent bg-white p-8 text-center shadow-lg">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
+              <CheckCircle2 className="h-9 w-9 text-green-600" />
+            </div>
+            <h2 className="text-2xl font-bold text-primary">You're registered</h2>
+            <p className="mt-2 text-gray-700">
+              Thank you! We have {f.kidName.trim() || "your student"} down for YHALE Taekwondo. We'll be in touch
+              with the next steps before classes begin the week of January 12.
+            </p>
+            <p className="mt-4 text-sm text-gray-500">Questions? Call or text (770) 277-3009.</p>
+          </Card>
+        ) : (
+          <>
+            <Card className="bg-white p-5 shadow-sm">
+              <h2 className="text-xl font-bold text-primary">Class schedule</h2>
+              <div className="mt-4 space-y-5">
+                {SCHEDULE.map(d => (
+                  <div key={d.day}>
+                    <p className="font-semibold text-gray-900">{d.day}</p>
+                    <p className="text-sm text-gray-500">{d.dates}</p>
+                    <ul className="mt-2 divide-y divide-gray-100 rounded-lg border border-gray-200">
+                      {d.rows.map(r => (
+                        <li key={r.who} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-3 py-2">
+                          <span className="font-medium text-primary">{r.who}</span>
+                          <span className="text-sm text-gray-700">{r.time}</span>
+                          <span className="w-full text-sm text-gray-600">{r.belts}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-4 text-sm text-gray-600">
+                Green, Blue and Red belts are encouraged to come both Tuesday and Thursday.
+              </p>
+            </Card>
+
+            <Card className="bg-white p-5 shadow-sm sm:p-8">
+              <h2 className="text-xl font-bold text-primary">Register your student</h2>
+              <p className="mt-1 text-sm text-gray-600">There is a $25 registration fee this semester.</p>
+              <form onSubmit={submit} className="mt-5 space-y-5">
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <div>
+                    <Label htmlFor="parentName" className="mb-2 block font-semibold text-primary">Parent name *</Label>
+                    <Input id="parentName" value={f.parentName} onChange={set("parentName")} autoComplete="name" required />
+                  </div>
+                  <div>
+                    <Label htmlFor="kidName" className="mb-2 block font-semibold text-primary">Student name *</Label>
+                    <Input id="kidName" value={f.kidName} onChange={set("kidName")} required />
+                  </div>
+                </div>
+
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <div>
+                    <Label className="mb-2 block font-semibold text-primary">Grade this spring *</Label>
+                    <Select value={f.grade} onValueChange={v => setF(p => ({ ...p, grade: v }))}>
+                      <SelectTrigger className="w-full"><SelectValue placeholder="Pick a grade" /></SelectTrigger>
+                      <SelectContent>
+                        {GRADES.map(g => <SelectItem key={g} value={g}>{g === "K" ? "Kindergarten" : `Grade ${g}`}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="mb-2 block font-semibold text-primary">Current belt *</Label>
+                    <Select value={f.belt} onValueChange={v => setF(p => ({ ...p, belt: v }))}>
+                      <SelectTrigger className="w-full"><SelectValue placeholder="Pick a belt" /></SelectTrigger>
+                      <SelectContent>
+                        {BELTS.map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <fieldset>
+                  <legend className="mb-2 block text-sm font-semibold text-primary">Days *</legend>
+                  <div className="flex flex-wrap gap-3">
+                    {(["Tuesday", "Thursday"] as const).map(d => (
+                      <label key={d} className="flex cursor-pointer items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-3 text-base">
+                        <Checkbox checked={days[d]} onCheckedChange={v => setDays(p => ({ ...p, [d]: v === true }))} />
+                        {d}
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <div>
+                    <Label htmlFor="email" className="mb-2 block font-semibold text-primary">Email *</Label>
+                    <Input id="email" type="email" value={f.email} onChange={set("email")} autoComplete="email" required />
+                  </div>
+                  <div>
+                    <Label htmlFor="phone" className="mb-2 block font-semibold text-primary">Phone *</Label>
+                    <Input id="phone" type="tel" value={f.phone} onChange={set("phone")} autoComplete="tel" placeholder="(770) 277-3009" required />
+                  </div>
+                </div>
+
+                <div>
+                  <Label htmlFor="notes" className="mb-2 block font-semibold text-primary">Anything we should know? (optional)</Label>
+                  <Textarea id="notes" value={f.notes} onChange={set("notes")} rows={3} placeholder="Allergies, injuries, questions" />
+                </div>
+
+                <div className="flex items-start gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4">
+                  <Checkbox id="smsConsent" checked={smsConsent} onCheckedChange={v => setSmsConsent(v === true)} className="mt-0.5 shrink-0" />
+                  <Label htmlFor="smsConsent" className="min-w-0 cursor-pointer break-words text-xs font-normal leading-relaxed text-gray-700">
+                    <span className="block">
+                    I agree to receive recurring SMS text messages from Top Martial Arts Suwanee (TMA) at the phone
+                    number above, including inquiry replies, trial confirmations, class reminders, and program
+                    updates. Frequency: up to 10 messages per month. Message and data rates may apply. Reply <strong>STOP</strong> to unsubscribe or{" "}
+                    <strong>HELP</strong> for help. Consent is not a condition of purchase. See{" "}
+                    <a href="/sms-terms" target="_blank" className="text-primary underline">SMS Terms</a> and{" "}
+                    <a href="/privacy-policy" target="_blank" className="text-primary underline">Privacy Policy</a>.
+                  </span>
+                  </Label>
+                </div>
+
+                <Button type="submit" size="lg" disabled={busy || !smsConsent} className="w-full bg-accent text-lg font-semibold text-accent-foreground hover:bg-accent/90">
+                  {busy ? "Sending..." : "Register"}
+                </Button>
+              </form>
+            </Card>
+          </>
+        )}
+
+        <div className="flex flex-col items-center gap-2 pb-6 text-center text-sm text-gray-600">
+          <p className="flex items-center gap-2"><MapPin className="h-4 w-4" /> 2005 Lawrenceville Suwanee Rd, Suwanee, GA 30024</p>
+          <a href="tel:+17702773009" className="flex items-center gap-2 font-medium text-primary"><Phone className="h-4 w-4" /> (770) 277-3009</a>
+        </div>
+      </main>
+    </div>
+  );
+}

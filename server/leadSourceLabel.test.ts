@@ -26,6 +26,9 @@ describe("leadSourceLabel", () => {
   it("open house RSVP is labeled, not Free Class", () => {
     expect(leadSourceLabel(L("Open House", ["open_house_2026"])).title).toContain("Open House");
   });
+  it("YHALE enrichment registration is labeled, not a generic inquiry", () => {
+    expect(leadSourceLabel(L("YHALE Taekwondo Enrichment", ["yhale_enrichment_2026"])).title).toBe("New YHALE Enrichment Registration");
+  });
   it("afterschool -> After-School", () => {
     expect(leadSourceLabel(L("afterschool")).title).toBe("New After-School Inquiry");
   });
