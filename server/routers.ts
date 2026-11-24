@@ -78,7 +78,7 @@ import { createFallFestVolunteer, listFallFestVolunteers, deleteFallFestVoluntee
 import { listHeartbeatJobs, createHeartbeatJob } from "./_core/heartbeat";
 import { createCardSetupSession, chargeDueMemberships, listPayerCards, setPayerPrimaryCard, detachPayerCard } from "./membership-billing";
 import { storagePut, storageGet } from "./storage";
-import { sendEmailNotification, sendReturningLeadNotification, sendProShopOrderNotification, sendCampRegistrationConfirmation, sendCampWaiverEmail, sendFieldTripConfirmation, sendTransportationForm, sendTrialReceipt, sendAfterschoolConfirmation, sendAfterschoolIntake, sendWaiverNotification, sendReviewedEmail, sendPaymentReceipt } from "./integrations";
+import { sendEmailNotification, sendYhaleRegistration, sendReturningLeadNotification, sendProShopOrderNotification, sendCampRegistrationConfirmation, sendCampWaiverEmail, sendFieldTripConfirmation, sendTransportationForm, sendTrialReceipt, sendAfterschoolConfirmation, sendAfterschoolIntake, sendWaiverNotification, sendReviewedEmail, sendPaymentReceipt } from "./integrations";
 import { fillTransportationPdf } from "./transportation-pdf";
 import { buildAfterschoolIntakePdf } from "./afterschool-intake-pdf";
 import { buildInvoicePdf } from "./invoice-pdf";
@@ -588,10 +588,14 @@ export const appRouter = router({
         // Tags
         tags: z.array(z.string()).optional(),
         // 2026-06-08: Twilio CTIA-compliant SMS consent. Required true to submit.
-        smsConsent: z.literal(true),
-        smsConsentText: z.string().min(1),
+        // Required for every form except the YHALE school page (Master Jo's program, no TMA text opt-in).
+        smsConsent: z.literal(true).optional(),
+        smsConsentText: z.string().min(1).optional(),
       }))
       .mutation(async ({ input, ctx }) => {
+        if (!(input.tags ?? []).includes("yhale_enrichment_2026") && (!input.smsConsent || !input.smsConsentText)) {
+          throw new Error("SMS consent is required.");
+        }
         // Snapshot the IP for consent audit trail (Twilio may request)
         const ip = (ctx?.req as any)?.ip
           || (ctx?.req as any)?.headers?.["cf-connecting-ip"]
@@ -609,6 +613,9 @@ export const appRouter = router({
           // creating a duplicate row. Pro shop orders keep the old email-only reuse so an order
           // never rewrites a prospect's record.
           const isProShopOrder = (input.tags ?? []).includes("proshop_order");
+          // YHALE school enrichment registrations (tmatkd.com/yhale) are enrolling parents, not
+          // free-class prospects, so they skip the Meta ad event and the free-class n8n follow-ups.
+          const isYhale = (input.tags ?? []).includes("yhale_enrichment_2026");
           const hasRealEmail = !!input.email?.trim();
           const match = isProShopOrder
             ? (hasRealEmail ? await getLeadByEmail(email).then(l => (l ? { lead: l, matchedBy: "email" as const } : null)) : null)
@@ -646,6 +653,8 @@ export const appRouter = router({
             phone: input.phone,
             additionalNotes: input.additionalNotes,
             ...(initialStage ? { pipelineStage: initialStage } : {}),
+            // School-flyer registrations are kept out of the call-these-leads pile and the prospect counts.
+            ...(isYhale ? { recordType: "form_only" as const } : {}),
             utmSource: input.utmSource,
             utmMedium: input.utmMedium,
             utmCampaign: input.utmCampaign,
@@ -654,10 +663,14 @@ export const appRouter = router({
             trialClassTime: input.trialClassTime,
             trialClassDay: input.trialClassDay,
             tags: input.tags ? JSON.stringify(input.tags) : null,
-            smsConsent: 1,
-            smsConsentAt: new Date(),
-            smsConsentIp: ip ? String(ip).slice(0, 64) : null,
-            smsConsentText: input.smsConsentText,
+            ...(isYhale
+              ? { smsConsent: 0, smsConsentAt: null, smsConsentIp: null, smsConsentText: null }
+              : {
+                  smsConsent: 1,
+                  smsConsentAt: new Date(),
+                  smsConsentIp: ip ? String(ip).slice(0, 64) : null,
+                  smsConsentText: input.smsConsentText,
+                }),
           });
 
           const leadForIntegrations = {
@@ -688,10 +701,10 @@ export const appRouter = router({
             automationPausedAt: null,
             automationPausedBy: null,
             automationPauseReason: null,
-            smsConsent: 1,
-            smsConsentAt: new Date(),
-            smsConsentIp: ip ? String(ip).slice(0, 64) : null,
-            smsConsentText: input.smsConsentText,
+            smsConsent: isYhale ? 0 : 1,
+            smsConsentAt: isYhale ? null : new Date(),
+            smsConsentIp: isYhale ? null : ip ? String(ip).slice(0, 64) : null,
+            smsConsentText: isYhale ? null : (input.smsConsentText ?? null),
             noOutboundCalls: 0,
             noOutboundCallsAt: null,
             createdAt: new Date(),
@@ -699,7 +712,7 @@ export const appRouter = router({
           };
 
           // Fire Meta CAPI Lead event async (non-blocking)
-          void fireLeadEvent({
+          if (!isYhale) void fireLeadEvent({
             leadId: newLeadId,
             name: input.parentName,
             email,
@@ -711,7 +724,7 @@ export const appRouter = router({
             utmContent: input.utmContent,
           });
           // Fire n8n webhook async (non-blocking) -does not delay lead submission
-          void fireN8nWebhook({
+          if (!isYhale) void fireN8nWebhook({
             leadId: newLeadId,
             name: input.parentName,
             email,
@@ -733,7 +746,10 @@ export const appRouter = router({
           // worked (unsigned JWT stub). Staff alert = email (Telegram covers
           // real-time on paid/signed paths).
           await Promise.all([
-            isProShopOrder
+            isYhale
+              // Master Jo's program: his inbox only, nothing to the TMA staff address.
+              ? sendYhaleRegistration(merged ? merged.lead : leadForIntegrations)
+              : isProShopOrder
               ? sendProShopOrderNotification(leadForIntegrations)
               : merged
                 // Already in the system: say so, name the original source, list what changed.
@@ -753,6 +769,8 @@ export const appRouter = router({
             leadId: String(newLeadId),
             message: isProShopOrder
               ? "Thank you for your order! We will contact you within 24 hours to confirm and arrange payment."
+              : isYhale
+              ? "Thank you for registering! We will be in touch with the next steps."
               : "Thank you for your interest! We will contact you soon to schedule your free class.",
           };
         } catch (error) {
