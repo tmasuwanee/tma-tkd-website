@@ -78,7 +78,7 @@ import { createFallFestVolunteer, listFallFestVolunteers, deleteFallFestVoluntee
 import { listHeartbeatJobs, createHeartbeatJob } from "./_core/heartbeat";
 import { createCardSetupSession, chargeDueMemberships, listPayerCards, setPayerPrimaryCard, detachPayerCard } from "./membership-billing";
 import { storagePut, storageGet } from "./storage";
-import { sendEmailNotification, sendReturningLeadNotification, sendProShopOrderNotification, sendCampRegistrationConfirmation, sendCampWaiverEmail, sendFieldTripConfirmation, sendTransportationForm, sendTrialReceipt, sendAfterschoolConfirmation, sendAfterschoolIntake, sendWaiverNotification, sendReviewedEmail, sendPaymentReceipt } from "./integrations";
+import { sendEmailNotification, sendYhaleRegistration, sendReturningLeadNotification, sendProShopOrderNotification, sendCampRegistrationConfirmation, sendCampWaiverEmail, sendFieldTripConfirmation, sendTransportationForm, sendTrialReceipt, sendAfterschoolConfirmation, sendAfterschoolIntake, sendWaiverNotification, sendReviewedEmail, sendPaymentReceipt } from "./integrations";
 import { fillTransportationPdf } from "./transportation-pdf";
 import { buildAfterschoolIntakePdf } from "./afterschool-intake-pdf";
 import { buildInvoicePdf } from "./invoice-pdf";
@@ -738,7 +738,10 @@ export const appRouter = router({
           // worked (unsigned JWT stub). Staff alert = email (Telegram covers
           // real-time on paid/signed paths).
           await Promise.all([
-            isProShopOrder
+            isYhale
+              // Master Jo's program: his inbox only, nothing to the TMA staff address.
+              ? sendYhaleRegistration(merged ? merged.lead : leadForIntegrations)
+              : isProShopOrder
               ? sendProShopOrderNotification(leadForIntegrations)
               : merged
                 // Already in the system: say so, name the original source, list what changed.

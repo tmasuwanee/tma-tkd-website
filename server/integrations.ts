@@ -252,7 +252,8 @@ async function sendEmail(
   to: string | string[],
   subject: string,
   html: string,
-  attachments?: EmailAttachment[]
+  attachments?: EmailAttachment[],
+  replyTo?: string
 ) {
   if (!ENV.resendApiKey) {
     console.warn('[Email] Resend API key not configured, skipping');
@@ -270,6 +271,7 @@ async function sendEmail(
       subject,
       html,
       ...(attachments && attachments.length ? { attachments } : {}),
+      ...(replyTo ? { reply_to: replyTo } : {}),
     }),
   });
   if (!response.ok) {
@@ -453,6 +455,44 @@ export async function sendAfterschoolIntake(params: {
     }
   } catch (error) {
     console.error('[Email] Error sending afterschool intake to staff:', error);
+  }
+}
+
+// YHALE school enrichment is Master Jo's own program. Its registrations go ONLY to his inbox,
+// never to the TMA Suwanee staff address. Override with YHALE_NOTIFY_EMAIL on Render.
+const YHALE_NOTIFY_EMAIL = process.env.YHALE_NOTIFY_EMAIL || 'tkdtma@gmail.com';
+
+/**
+ * Registration email for the YHALE enrichment page. Goes to Master Jo only (not STAFF_NOTIFY_EMAIL),
+ * with Reply-To set to the parent so he can answer straight from his inbox.
+ */
+export async function sendYhaleRegistration(lead: Lead) {
+  try {
+    const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const hasRealEmail = !!lead.email && !isPlaceholderEmail(lead.email);
+    const notes = esc(lead.additionalNotes || "None").replace(/\n/g, "<br>");
+    const row = (k: string, v: string) => `<tr><td style="padding:8px;font-weight:bold;vertical-align:top;">${k}</td><td style="padding:8px;">${v}</td></tr>`;
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: #1a2d5a; padding: 20px; text-align: center;">
+          <h1 style="color: white; margin: 0;">New YHALE Taekwondo Registration</h1>
+        </div>
+        <div style="padding: 24px; background: #f9f9f9;">
+          <table style="width: 100%; border-collapse: collapse;">
+            ${row("Student:", esc(lead.kidName))}
+            ${row("Grade:", esc(lead.kidAge))}
+            ${row("Parent:", esc(lead.parentName))}
+            ${row("Email:", hasRealEmail ? `<a href="mailto:${esc(lead.email)}">${esc(lead.email)}</a>` : "None given")}
+            ${row("Phone:", esc(lead.phone))}
+            ${row("Details:", notes)}
+            ${row("Submitted:", new Date(lead.createdAt).toLocaleString("en-US", { timeZone: "America/New_York" }))}
+          </table>
+        </div>
+      </div>`;
+    await sendEmail(YHALE_NOTIFY_EMAIL, `New YHALE registration: ${lead.kidName}`, html, undefined, hasRealEmail ? lead.email : undefined);
+    console.log('[Email] YHALE registration sent to Master Jo');
+  } catch (error) {
+    console.error('[Email] Error sending YHALE registration:', error);
   }
 }
 

@@ -14,12 +14,19 @@ import { SMS_CONSENT_TEXT } from "../../../shared/smsConsent";
 /**
  * Spring 2027 Taekwondo enrichment at YHALE (Yi Hwang Academy of Language Excellence).
  * The flyer QR points here (https://tmatkd.com/yhale). A submission becomes a lead tagged
- * yhale_enrichment_2026 (see leads.submit), so it shows in the dashboard Leads list and
- * emails staff as "New YHALE Enrichment Registration".
+ * yhale_enrichment_2026 (see leads.submit), so it shows in the dashboard Leads list.
+ * The registration email goes ONLY to Master Jo (see sendYhaleRegistration), not to TMA staff.
  */
 
 const PROGRAM = "YHALE Taekwondo Enrichment";
 const TAG = "yhale_enrichment_2026";
+
+const WAIVER =
+  "I recognize and understand that martial arts training is an activity that may involve physical contact. " +
+  "I grant permission in case of injury to have medical personnel provide assistance or treatment. " +
+  "I release, waive, discharge and covenant not to sue Master Jo, Top Martial Arts Suwanee, their affiliated " +
+  "organizations, and the property lessee or owner, from any and all liability and legal claims, on account of " +
+  "any illness or injury during my child's participation in taekwondo class.";
 
 const GRADES = ["K", "1", "2", "3", "4", "5", "6", "7", "8"];
 const BELTS = [
@@ -62,7 +69,10 @@ export default function Yhale() {
   const [smsConsent, setSmsConsent] = useState(false);
   const [f, setF] = useState({
     parentName: "", kidName: "", grade: "", belt: "", email: "", phone: "", notes: "",
+    track: "", teacher: "", p2Name: "", p2Email: "", p2Phone: "",
+    emName: "", emPhone: "", experience: "", medical: "", signer: "",
   });
+  const [waiver, setWaiver] = useState(false);
   const [days, setDays] = useState<{ Tuesday: boolean; Thursday: boolean }>({ Tuesday: false, Thursday: false });
 
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
@@ -75,14 +85,26 @@ export default function Yhale() {
       toast.error("Please fill in every field marked with a star.");
       return;
     }
+    if (!f.track || !f.teacher.trim() || !f.emName.trim() || !f.emPhone.trim() || !f.experience || !f.medical.trim()) {
+      toast.error("Please fill in every field marked with a star.");
+      return;
+    }
     if (!picked.length) { toast.error("Pick Tuesday, Thursday, or both."); return; }
+    if (!waiver || !f.signer.trim()) { toast.error("Please agree to the release and type your name."); return; }
     if (!smsConsent) { toast.error("Please check the text message box to continue."); return; }
 
     const grade = f.grade === "K" ? "Kindergarten" : `Grade ${f.grade}`;
+    const p2 = [f.p2Name.trim(), f.p2Email.trim(), f.p2Phone.trim()].filter(Boolean).join(", ");
     const notes = [
       `YHALE enrichment, spring semester. ${grade}. Belt: ${f.belt}. Days: ${picked.join(" and ")}.`,
-      f.notes.trim(),
-    ].filter(Boolean).join(" ");
+      `Language track: ${f.track}. Afternoon teacher: ${f.teacher.trim()}.`,
+      p2 ? `2nd parent/guardian: ${p2}.` : "",
+      `Emergency contact: ${f.emName.trim()}, ${f.emPhone.trim()}.`,
+      `Martial arts experience: ${f.experience}.`,
+      `Health or medical conditions: ${f.medical.trim()}.`,
+      f.notes.trim() ? `Other notes: ${f.notes.trim()}` : "",
+      `Release agreed to by ${f.signer.trim()} (checked the box on tmatkd.com/yhale at ${new Date().toLocaleString("en-US", { timeZone: "America/New_York" })} ET).`,
+    ].filter(Boolean).join("\n");
 
     setBusy(true);
     try {
@@ -160,7 +182,7 @@ export default function Yhale() {
 
             <Card className="bg-white p-5 shadow-sm sm:p-8">
               <h2 className="text-xl font-bold text-primary">Register your student</h2>
-              <p className="mt-1 text-sm text-gray-600">There is a $25 registration fee this semester.</p>
+              <p className="mt-1 text-sm text-gray-600">There is a $25 registration fee this semester. One form per student.</p>
               <form onSubmit={submit} className="mt-5 space-y-5">
                 <div className="grid gap-5 sm:grid-cols-2">
                   <div>
@@ -194,6 +216,23 @@ export default function Yhale() {
                   </div>
                 </div>
 
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <div>
+                    <Label className="mb-2 block font-semibold text-primary">Language track *</Label>
+                    <Select value={f.track} onValueChange={v => setF(p => ({ ...p, track: v }))}>
+                      <SelectTrigger className="w-full"><SelectValue placeholder="Korean or Chinese" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Korean">Korean</SelectItem>
+                        <SelectItem value="Chinese">Chinese</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="teacher" className="mb-2 block font-semibold text-primary">Afternoon teacher *</Label>
+                    <Input id="teacher" value={f.teacher} onChange={set("teacher")} />
+                  </div>
+                </div>
+
                 <fieldset>
                   <legend className="mb-2 block text-sm font-semibold text-primary">Days *</legend>
                   <div className="flex flex-wrap gap-3">
@@ -217,9 +256,58 @@ export default function Yhale() {
                   </div>
                 </div>
 
+                <div className="space-y-3 rounded-lg border border-gray-200 p-4">
+                  <p className="text-sm font-semibold text-primary">Second parent or guardian (optional)</p>
+                  <Input aria-label="Second parent name" placeholder="Name" value={f.p2Name} onChange={set("p2Name")} />
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Input aria-label="Second parent email" type="email" placeholder="Email" value={f.p2Email} onChange={set("p2Email")} />
+                    <Input aria-label="Second parent phone" type="tel" placeholder="Phone" value={f.p2Phone} onChange={set("p2Phone")} />
+                  </div>
+                </div>
+
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <div>
+                    <Label htmlFor="emName" className="mb-2 block font-semibold text-primary">Emergency contact name *</Label>
+                    <Input id="emName" value={f.emName} onChange={set("emName")} />
+                  </div>
+                  <div>
+                    <Label htmlFor="emPhone" className="mb-2 block font-semibold text-primary">Emergency contact phone *</Label>
+                    <Input id="emPhone" type="tel" value={f.emPhone} onChange={set("emPhone")} />
+                  </div>
+                </div>
+
                 <div>
-                  <Label htmlFor="notes" className="mb-2 block font-semibold text-primary">Anything we should know? (optional)</Label>
-                  <Textarea id="notes" value={f.notes} onChange={set("notes")} rows={3} placeholder="Allergies, injuries, questions" />
+                  <Label className="mb-2 block font-semibold text-primary">Any martial arts experience? *</Label>
+                  <Select value={f.experience} onValueChange={v => setF(p => ({ ...p, experience: v }))}>
+                    <SelectTrigger className="w-full"><SelectValue placeholder="Pick one" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="None">No, this is new</SelectItem>
+                      <SelectItem value="Some experience">Yes, some experience</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label htmlFor="medical" className="mb-2 block font-semibold text-primary">Any health or medical conditions? *</Label>
+                  <Textarea id="medical" value={f.medical} onChange={set("medical")} rows={2} placeholder="Write None if there are none" />
+                </div>
+
+                <div>
+                  <Label htmlFor="notes" className="mb-2 block font-semibold text-primary">Anything else we should know? (optional)</Label>
+                  <Textarea id="notes" value={f.notes} onChange={set("notes")} rows={2} />
+                </div>
+
+                <div className="space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-4">
+                  <p className="text-sm font-semibold text-primary">Release *</p>
+                  <p className="text-xs leading-relaxed text-gray-700">{WAIVER}</p>
+                  <div className="flex items-start gap-3">
+                    <Checkbox id="waiver" checked={waiver} onCheckedChange={v => setWaiver(v === true)} className="mt-0.5 shrink-0" />
+                    <Label htmlFor="waiver" className="cursor-pointer text-sm font-normal text-gray-800">I agree</Label>
+                  </div>
+                  <div>
+                    <Label htmlFor="signer" className="mb-2 block text-sm font-semibold text-primary">Type your full name to sign *</Label>
+                    <Input id="signer" value={f.signer} onChange={set("signer")} autoComplete="name" />
+                  </div>
                 </div>
 
                 <div className="flex items-start gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4">
