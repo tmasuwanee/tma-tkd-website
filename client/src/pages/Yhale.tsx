@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CheckCircle2, MapPin, Phone } from "lucide-react";
+import { CheckCircle2, Mail } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -9,7 +9,6 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
-import { SMS_CONSENT_TEXT } from "../../../shared/smsConsent";
 
 /**
  * Spring 2027 Taekwondo enrichment at YHALE (Yi Hwang Academy of Language Excellence).
@@ -24,8 +23,8 @@ const TAG = "yhale_enrichment_2026";
 const WAIVER =
   "I recognize and understand that martial arts training is an activity that may involve physical contact. " +
   "I grant permission in case of injury to have medical personnel provide assistance or treatment. " +
-  "I release, waive, discharge and covenant not to sue Master Jo, Top Martial Arts Suwanee, their affiliated " +
-  "organizations, and the property lessee or owner, from any and all liability and legal claims, on account of " +
+  "I release, waive, discharge and covenant not to sue Master Jo, his affiliated organizations, and the " +
+  "property lessee or owner, from any and all liability and legal claims, on account of " +
   "any illness or injury during my child's participation in taekwondo class.";
 
 const GRADES = ["K", "1", "2", "3", "4", "5", "6", "7", "8"];
@@ -66,7 +65,6 @@ export default function Yhale() {
   const submitLead = trpc.leads.submit.useMutation();
   const [done, setDone] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [smsConsent, setSmsConsent] = useState(false);
   const [f, setF] = useState({
     parentName: "", kidName: "", grade: "", belt: "", email: "", phone: "", notes: "",
     track: "", teacher: "", p2Name: "", p2Email: "", p2Phone: "",
@@ -91,7 +89,6 @@ export default function Yhale() {
     }
     if (!picked.length) { toast.error("Pick Tuesday, Thursday, or both."); return; }
     if (!waiver || !f.signer.trim()) { toast.error("Please agree to the release and type your name."); return; }
-    if (!smsConsent) { toast.error("Please check the text message box to continue."); return; }
 
     const grade = f.grade === "K" ? "Kindergarten" : `Grade ${f.grade}`;
     const p2 = [f.p2Name.trim(), f.p2Email.trim(), f.p2Phone.trim()].filter(Boolean).join(", ");
@@ -117,13 +114,11 @@ export default function Yhale() {
         phone: f.phone.trim(),
         additionalNotes: notes,
         tags: [TAG],
-        smsConsent: true,
-        smsConsentText: SMS_CONSENT_TEXT,
       });
       setDone(true);
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch {
-      toast.error("That did not go through. Please try again, or call (770) 277-3009.");
+      toast.error("That did not go through. Please try again, or email tkdtma@gmail.com.");
     } finally {
       setBusy(false);
     }
@@ -133,10 +128,10 @@ export default function Yhale() {
     <div className="min-h-screen bg-gray-50">
       <header className="bg-primary text-white">
         <div className="mx-auto max-w-2xl px-4 py-10">
-          <p className="text-sm font-semibold uppercase tracking-widest text-white/70">Top Martial Arts Suwanee at YHALE</p>
+          <p className="text-sm font-semibold uppercase tracking-widest text-white/70">Taekwondo enrichment at YHALE</p>
           <h1 className="mt-2 text-4xl font-bold leading-tight">Taekwondo after school</h1>
           <p className="mt-3 text-lg text-white/85">
-            Spring semester enrichment for K-8th grade. Classes start the week of January 12.
+            Spring semester enrichment for K-8th grade with Master Jo. Classes start the week of January 12.
           </p>
         </div>
       </header>
@@ -152,7 +147,7 @@ export default function Yhale() {
               Thank you! We have {f.kidName.trim() || "your student"} down for YHALE Taekwondo. We'll be in touch
               with the next steps before classes begin the week of January 12.
             </p>
-            <p className="mt-4 text-sm text-gray-500">Questions? Call or text (770) 277-3009.</p>
+            <p className="mt-4 text-sm text-gray-500">Questions? Email tkdtma@gmail.com.</p>
           </Card>
         ) : (
           <>
@@ -252,7 +247,7 @@ export default function Yhale() {
                   </div>
                   <div>
                     <Label htmlFor="phone" className="mb-2 block font-semibold text-primary">Phone *</Label>
-                    <Input id="phone" type="tel" value={f.phone} onChange={set("phone")} autoComplete="tel" placeholder="(770) 277-3009" required />
+                    <Input id="phone" type="tel" value={f.phone} onChange={set("phone")} autoComplete="tel" placeholder="Best number to reach you" required />
                   </div>
                 </div>
 
@@ -310,21 +305,7 @@ export default function Yhale() {
                   </div>
                 </div>
 
-                <div className="flex items-start gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4">
-                  <Checkbox id="smsConsent" checked={smsConsent} onCheckedChange={v => setSmsConsent(v === true)} className="mt-0.5 shrink-0" />
-                  <Label htmlFor="smsConsent" className="min-w-0 cursor-pointer break-words text-xs font-normal leading-relaxed text-gray-700">
-                    <span className="block">
-                    I agree to receive recurring SMS text messages from Top Martial Arts Suwanee (TMA) at the phone
-                    number above, including inquiry replies, trial confirmations, class reminders, and program
-                    updates. Frequency: up to 10 messages per month. Message and data rates may apply. Reply <strong>STOP</strong> to unsubscribe or{" "}
-                    <strong>HELP</strong> for help. Consent is not a condition of purchase. See{" "}
-                    <a href="/sms-terms" target="_blank" className="text-primary underline">SMS Terms</a> and{" "}
-                    <a href="/privacy-policy" target="_blank" className="text-primary underline">Privacy Policy</a>.
-                  </span>
-                  </Label>
-                </div>
-
-                <Button type="submit" size="lg" disabled={busy || !smsConsent} className="w-full bg-accent text-lg font-semibold text-accent-foreground hover:bg-accent/90">
+                <Button type="submit" size="lg" disabled={busy} className="w-full bg-accent text-lg font-semibold text-accent-foreground hover:bg-accent/90">
                   {busy ? "Sending..." : "Register"}
                 </Button>
               </form>
@@ -333,8 +314,7 @@ export default function Yhale() {
         )}
 
         <div className="flex flex-col items-center gap-2 pb-6 text-center text-sm text-gray-600">
-          <p className="flex items-center gap-2"><MapPin className="h-4 w-4" /> 2005 Lawrenceville Suwanee Rd, Suwanee, GA 30024</p>
-          <a href="tel:+17702773009" className="flex items-center gap-2 font-medium text-primary"><Phone className="h-4 w-4" /> (770) 277-3009</a>
+          <a href="mailto:tkdtma@gmail.com" className="flex items-center gap-2 font-medium text-primary"><Mail className="h-4 w-4" /> tkdtma@gmail.com</a>
         </div>
       </main>
     </div>

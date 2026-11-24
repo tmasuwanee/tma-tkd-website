@@ -588,10 +588,14 @@ export const appRouter = router({
         // Tags
         tags: z.array(z.string()).optional(),
         // 2026-06-08: Twilio CTIA-compliant SMS consent. Required true to submit.
-        smsConsent: z.literal(true),
-        smsConsentText: z.string().min(1),
+        // Required for every form except the YHALE school page (Master Jo's program, no TMA text opt-in).
+        smsConsent: z.literal(true).optional(),
+        smsConsentText: z.string().min(1).optional(),
       }))
       .mutation(async ({ input, ctx }) => {
+        if (!(input.tags ?? []).includes("yhale_enrichment_2026") && (!input.smsConsent || !input.smsConsentText)) {
+          throw new Error("SMS consent is required.");
+        }
         // Snapshot the IP for consent audit trail (Twilio may request)
         const ip = (ctx?.req as any)?.ip
           || (ctx?.req as any)?.headers?.["cf-connecting-ip"]
@@ -659,10 +663,14 @@ export const appRouter = router({
             trialClassTime: input.trialClassTime,
             trialClassDay: input.trialClassDay,
             tags: input.tags ? JSON.stringify(input.tags) : null,
-            smsConsent: 1,
-            smsConsentAt: new Date(),
-            smsConsentIp: ip ? String(ip).slice(0, 64) : null,
-            smsConsentText: input.smsConsentText,
+            ...(isYhale
+              ? { smsConsent: 0, smsConsentAt: null, smsConsentIp: null, smsConsentText: null }
+              : {
+                  smsConsent: 1,
+                  smsConsentAt: new Date(),
+                  smsConsentIp: ip ? String(ip).slice(0, 64) : null,
+                  smsConsentText: input.smsConsentText,
+                }),
           });
 
           const leadForIntegrations = {
@@ -693,10 +701,10 @@ export const appRouter = router({
             automationPausedAt: null,
             automationPausedBy: null,
             automationPauseReason: null,
-            smsConsent: 1,
-            smsConsentAt: new Date(),
-            smsConsentIp: ip ? String(ip).slice(0, 64) : null,
-            smsConsentText: input.smsConsentText,
+            smsConsent: isYhale ? 0 : 1,
+            smsConsentAt: isYhale ? null : new Date(),
+            smsConsentIp: isYhale ? null : ip ? String(ip).slice(0, 64) : null,
+            smsConsentText: isYhale ? null : (input.smsConsentText ?? null),
             noOutboundCalls: 0,
             noOutboundCallsAt: null,
             createdAt: new Date(),
