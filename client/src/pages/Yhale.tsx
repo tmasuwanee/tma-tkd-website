@@ -45,7 +45,7 @@ const BELTS = [
 const SCHEDULE: { day: string; dates: string; rows: { who: string; time: string; belts: string }[] }[] = [
   {
     day: "Tuesdays",
-    dates: "Jan 13 to May 5 (no class Feb 10)",
+    dates: "Jan 12 to May 4 (no class Feb 9)",
     rows: [
       { who: "K-2nd", time: "4:00 to 4:50", belts: "White and White with yellow stripe" },
       { who: "3rd-8th", time: "5:00 to 5:50", belts: "All belts, including new students" },
@@ -53,7 +53,7 @@ const SCHEDULE: { day: string; dates: string; rows: { who: string; time: string;
   },
   {
     day: "Thursdays",
-    dates: "Jan 15 to May 7 (no class Feb 12)",
+    dates: "Jan 14 to May 6 (no class Feb 11)",
     rows: [
       { who: "K-2nd", time: "Time to be confirmed", belts: "All Yellow and Green belt students" },
       { who: "3rd-8th", time: "5:00 to 5:50", belts: "All belts" },
