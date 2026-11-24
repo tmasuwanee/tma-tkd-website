@@ -20,7 +20,6 @@ const LINK_GROUPS: LinkGroup[] = [
   {
     group: "Sign-ups & Sales",
     items: [
-      { label: "YHALE Enrichment Sign-up", path: "/yhale", desc: "Spring semester Taekwondo at YHALE (Duluth charter school). The flyer QR points here. Lands in Leads as a YHALE registration." },
       { label: "Free Class", path: "/free-class", desc: "Book a free intro class. Feeds the leads pipeline." },
       { label: "One Month Free", path: "/free-month", desc: "25 year anniversary offer for new students. Pick a program and a class time, becomes a lead. This is what the ads and the QR codes point at." },
       { label: "Christmas in July Sale", path: "/christmas-in-july", desc: "Pro shop + bulk tuition + bundle order form." },
