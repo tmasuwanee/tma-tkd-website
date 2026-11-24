@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CheckCircle2, Mail } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -62,6 +62,12 @@ const SCHEDULE: { day: string; dates: string; rows: { who: string; time: string;
 ];
 
 export default function Yhale() {
+  // The site-wide tab title names the TMA business; this page is Master Jo's school program.
+  useEffect(() => {
+    const prev = document.title;
+    document.title = "Taekwondo at YHALE | Master Jo";
+    return () => { document.title = prev; };
+  }, []);
   const submitLead = trpc.leads.submit.useMutation();
   const [done, setDone] = useState(false);
   const [busy, setBusy] = useState(false);
